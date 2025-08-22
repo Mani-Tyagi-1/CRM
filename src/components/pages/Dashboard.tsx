@@ -427,7 +427,13 @@ const Dashboard: React.FC = () => {
     name: string,
     sourceKey: string,
     type: TimeOffItemType
-  ) => setDragged({ name, type, source: { zone: "timeoff", id: sourceKey } });
+  ) => {
+    // FIX: Defer the state update to allow the browser to initialize
+    // the drag operation without interference from a synchronous React re-render.
+    setTimeout(() => {
+      setDragged({ name, type, source: { zone: "timeoff", id: sourceKey } });
+    }, 0);
+  };
 
   const onTimeOffDrop = (targetKey: string) =>
     moveTo({ zone: "timeoff", id: targetKey });
@@ -648,11 +654,13 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Contracts footer in sidebar (placeholder) */}
+        <a href="/contracts">
         <div className="px-3 py-2 border-t border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">Contracts</span>
           </div>
         </div>
+        </a>
       </div>
 
       {/* Main Content */}
@@ -723,7 +731,7 @@ const Dashboard: React.FC = () => {
       />
 
       {/* Add Contract Button */}
-      <button className="fixed bottom-6 right-6 bg-black text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg hover:bg-gray-800">
+      <button className="fixed z-100 bottom-6 right-6 bg-black text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg hover:bg-gray-800">
         <Plus className="h-4 w-4" />
         Add contract
       </button>

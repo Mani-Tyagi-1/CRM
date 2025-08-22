@@ -25,12 +25,6 @@ interface Props {
   onDrop: DropFn;
 }
 
-/**
- * ContractScheduler (controlled)
- * - Renders three weeks of rows for "Contract SO1165"
- * - Uses `data` from parent and emits drag/drop via callbacks
- * - Each row is now collapsible via its SO1165 header cell
- */
 const ContractScheduler: React.FC<Props> = ({ data, onDragStart, onDrop }) => {
   const [draggedItem, setDraggedItem] = React.useState<DraggedItem>(null);
   const [draggedFrom, setDraggedFrom] = React.useState<string | null>(null);

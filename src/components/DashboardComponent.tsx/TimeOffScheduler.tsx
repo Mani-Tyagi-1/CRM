@@ -34,7 +34,7 @@ const TimeOffScheduler: React.FC<Props> = ({
   onDrop,
 }) => {
   const [collapsed, setCollapsed] = useState({ vacation: false, sick: false });
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   // Count unique names across Vacation & Sick
   const unavailableCount = useMemo(() => {
@@ -59,29 +59,20 @@ const TimeOffScheduler: React.FC<Props> = ({
     onDrop(targetKey);
   };
 
-  const handleItemDragStart = (
-    e: React.DragEvent<HTMLDivElement>,
-    itemName: string,
-    sourceKey: string,
-    itemType: ItemType
-  ) => {
-    // Make Chromium/WebKit reliably start the drag:
-    e.dataTransfer.effectAllowed = "move";
-    try {
-      e.dataTransfer.setData("text/plain", itemName);
-      e.dataTransfer.setData("application/x-item-type", itemType);
-    } catch {}
-    // Commit the drag with an explicit ghost
-    if (e.currentTarget) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      e.dataTransfer.setDragImage(
-        e.currentTarget,
-        rect.width / 2,
-        rect.height / 2
-      );
-    }
-    onDragStart(itemName, sourceKey, itemType);
-  };
+ const handleItemDragStart = (
+   e: React.DragEvent<HTMLDivElement>,
+   itemName: string,
+   sourceKey: string,
+   itemType: ItemType
+ ) => {
+   // Make Chromium/WebKit reliably start the drag:
+   e.dataTransfer.effectAllowed = "move";
+   try {
+     e.dataTransfer.setData("text/plain", itemName);
+     e.dataTransfer.setData("application/x-item-type", itemType);
+   } catch {}
+   onDragStart(itemName, sourceKey, itemType);
+ };
 
   const Row = ({
     label,

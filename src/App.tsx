@@ -1,8 +1,9 @@
-import {  Routes, Route, Navigate } from "react-router-dom";
+import {  Routes, Route,} from "react-router-dom";
 import Login from "./components/pages/Login";
 import Register from "./components/pages/Register";
 import Dashboard from "./components/pages/Dashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AllContracts from "./components/pages/AllContracts";
 
 export default function App() {
   return (
@@ -17,7 +18,15 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route
+        path="/contracts"
+        element={
+          <ProtectedRoute>
+            <AllContracts />
+          </ProtectedRoute>
+        }
+      />
+      {/* <Route path="*" element={<Navigate to="/login" replace />} /> */}
     </Routes>
   );
 }
