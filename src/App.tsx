@@ -1,9 +1,10 @@
 import {  Routes, Route,} from "react-router-dom";
 import Login from "./components/pages/Login";
 import Register from "./components/pages/Register";
-import Dashboard from "./components/pages/Dashboard";
+import Calender from "./components/pages/Calender";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AllContracts from "./components/pages/AllContracts";
+import Dashboard from "./components/pages/Dashboard";
 
 export default function App() {
   return (
@@ -11,10 +12,10 @@ export default function App() {
       <Route path="/register" element={<Register />} />
       <Route path="/" element={<Login />} />
       <Route
-        path="/dashboard"
+        path="/calender"
         element={
           <ProtectedRoute>
-            <Dashboard />
+            <Calender />
           </ProtectedRoute>
         }
       />
@@ -26,6 +27,16 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+
       {/* <Route path="*" element={<Navigate to="/login" replace />} /> */}
     </Routes>
   );
