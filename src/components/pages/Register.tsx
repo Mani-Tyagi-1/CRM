@@ -73,7 +73,7 @@ export default function Register() {
   }
 
   return (
-    <div className="flex h-screen items-center justify-center bg-gray-50 mt-4">
+    <div className="flex h-screen items-center justify-center bg-gray-50 mt-16">
       <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-md">
         <h2 className="mb-6 text-center text-2xl font-bold text-gray-800">
           Sign Up
