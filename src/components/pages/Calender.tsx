@@ -8,6 +8,9 @@ import {
   ChevronUp,
   Plus,
   Bell,
+  FileText,
+  Users,
+  Truck,
 } from "lucide-react";
 
 import ContractScheduler, {
@@ -59,6 +62,22 @@ type DragPayload = {
 } | null;
 
 const Dashboard: React.FC = () => {
+
+  // show 7 days only
+const DAYS_TO_SHOW = 7;
+
+const startOfDay = (d: Date) => {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+};
+const addDays = (d: Date, n: number) => {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+};
+
+  
   // Get Monday (start of week) for a given date
   const getMonday = (date: Date) => {
     const d = new Date(date);
@@ -120,27 +139,23 @@ const Dashboard: React.FC = () => {
     return monday;
   }, [startOffsetDays]);
 
-  // Visible N-day slice for the "calendar ruler" and time-off footer
-  const timelineDays: Array<{
-    day: string;
-    key: string; // YYYY-MM-DD
-    date: Date;
-    isToday: boolean;
-  }> = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return Array.from({ length: daysToShow }, (_, i) => {
-      const d = new Date(timelineStart);
-      d.setDate(d.getDate() + i);
-      const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
-      return {
-        day: formatDayLabel(d),
-        key,
-        date: d,
-        isToday: isSameYMD(d, today),
-      };
-    });
-  }, [timelineStart, daysToShow]);
+  // Visible 7-day slice for the "calendar ruler" and time-off footer
+const timelineDays = React.useMemo(() => {
+  const today = startOfDay(new Date());
+  const first = addDays(today, startOffsetDays);
+  return Array.from({ length: DAYS_TO_SHOW }, (_, i) => {
+    const date = addDays(first, i);
+    const weekday = date.toLocaleDateString(undefined, { weekday: "short" }); // Mon
+    const d = date.getDate();
+    const m = date.getMonth() + 1;
+    return {
+      key: date.toISOString().slice(0, 10),
+      day: `${weekday} ${d}.${m}.`,
+      date,
+      isToday: date.getTime() === today.getTime(),
+    };
+  });
+}, [startOffsetDays]);
 
   const headerLabel = useMemo(
     () => formatRangeHeader(timelineStart, daysToShow),
@@ -187,7 +202,6 @@ const Dashboard: React.FC = () => {
         name: "John Smith",
         type: "person",
         color: "bg-blue-100 text-blue-800",
-        note: "8:00 AM - 4:00 PM",
       },
       {
         name: "Machine A",
@@ -200,7 +214,6 @@ const Dashboard: React.FC = () => {
         name: "Sarah Wilson",
         type: "person",
         color: "bg-purple-100 text-purple-800",
-        note: "9:00 AM - 5:00 PM",
       },
     ],
     "SO1165-wed": [
@@ -215,7 +228,7 @@ const Dashboard: React.FC = () => {
         name: "Mike Johnson",
         type: "person",
         color: "bg-indigo-100 text-indigo-800",
-        note: "Half Day",
+        // note: "Half Day",
       },
     ],
     "SO1165-fri": [],
@@ -476,166 +489,322 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
-      <div className="w-64 bg-white border-r border-gray-200 overflow-y-auto">
-        <div className="p-3 border-b border-gray-200">
-          <div className="flex items-center gap-2 mb-3">
+      {/* SIDEBAR */}
+      <div className="w-64 shrink-0 bg-white border-r border-gray-200 overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 z-10 bg-white p-3 border-b border-gray-200">
+          <div className="flex items-center gap-0 mb-3">
             <span className="text-sm font-medium">EuropeanCompany</span>
-            <span className="bg-gray-100 px-2 py-0.5 rounded text-xs">⚙</span>
+            <span className="pt-1.5 rounded text-xs leading-none">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 20 20"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M9.99967 16.6666C11.7678 16.6666 13.4635 15.9643 14.7137 14.714C15.964 13.4638 16.6663 11.7681 16.6663 9.99998C16.6663 8.23187 15.964 6.53618 14.7137 5.28593C13.4635 4.03569 11.7678 3.33331 9.99967 3.33331C8.23156 3.33331 6.53587 4.03569 5.28563 5.28593C4.03539 6.53618 3.33301 8.23187 3.33301 9.99998C3.33301 11.7681 4.03539 13.4638 5.28563 14.714C6.53587 15.9643 8.23156 16.6666 9.99967 16.6666Z"
+                  stroke="black"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M9.99967 11.6666C10.4417 11.6666 10.8656 11.4911 11.1782 11.1785C11.4907 10.8659 11.6663 10.442 11.6663 9.99998C11.6663 9.55795 11.4907 9.13403 11.1782 8.82147C10.8656 8.50891 10.4417 8.33331 9.99967 8.33331C9.55765 8.33331 9.13372 8.50891 8.82116 8.82147C8.5086 9.13403 8.33301 9.55795 8.33301 9.99998C8.33301 10.442 8.5086 10.8659 8.82116 11.1785C9.13372 11.4911 9.55765 11.6666 9.99967 11.6666Z"
+                  stroke="black"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M10 1.66669V3.33335"
+                  stroke="black"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M10 18.3334V16.6667"
+                  stroke="black"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M14.1663 17.2167L13.333 15.775"
+                  stroke="black"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M9.16634 8.55833L5.83301 2.78333"
+                  stroke="black"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M17.2171 14.1666L15.7754 13.3333"
+                  stroke="black"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M2.7832 5.83331L4.22487 6.66665"
+                  stroke="black"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M11.667 10H18.3337"
+                  stroke="black"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M1.66699 10H3.33366"
+                  stroke="black"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M17.2171 5.83331L15.7754 6.66665"
+                  stroke="black"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M2.7832 14.1666L4.22487 13.3333"
+                  stroke="black"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M14.1663 2.78333L13.333 4.22499"
+                  stroke="black"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M9.16634 11.4417L5.83301 17.2167"
+                  stroke="black"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </span>
           </div>
           <div className="relative">
             <Search className="absolute left-2 top-2 h-4 w-4 text-gray-400" />
             <input
               type="text"
               placeholder="Search"
-              className="w-full pl-8 pr-3 py-1.5 bg-gray-100 rounded text-sm"
+              className="w-full pl-8 pr-3 py-1.5 bg-gray-100 rounded-md text-sm outline-none"
             />
           </div>
-          <div className="flex items-center gap-2 mt-2 text-xs text-gray-600">
+          {/* <div className="flex items-center gap-2 mt-2 text-xs text-gray-600">
             <span className="bg-gray-100 px-2 py-0.5 rounded">
               21. 3. - 24. 4.
             </span>
-          </div>
+          </div> */}
         </div>
 
-        {/* Employees Section */}
+        {/* ================= EMPLOYEES ================= */}
         <div className="border-b border-gray-200">
-          <div className="px-3 py-2 flex items-center gap-2">
-            <span className="text-sm font-medium">Employees</span>
+          <div className="px-3 py-2 text-sm font-medium flex items-center gap-2">
+            <Users className="h-4 w-4 text-gray-600" />
+            Employees
           </div>
 
-          {/* Drivers */}
-          <div className="px-3">
-            <div
-              className="py-1 text-sm text-gray-600 cursor-pointer flex items-center justify-between"
-              onClick={() => toggleSection("drivers")}
-            >
-              <span>Drivers</span>
-              {expandedSections.drivers ? (
-                <ChevronUp className="h-3 w-3" />
-              ) : (
-                <ChevronDown className="h-3 w-3" />
-              )}
-            </div>
-            {expandedSections.drivers && (
+          {/* Outer rail for Employees */}
+          <div className="px-3 pb-2">
+            <div className="relative pl-4">
+              {/* outer vertical rail - no gaps */}
+              <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-px bg-gray-300"></div>
+
+              {/* ---- Drivers ---- */}
               <div
-                className="space-y-1 pb-2"
-                onDragOver={allowDrop}
-                onDrop={() => onDropToEmployeeSection("drivers")}
+                className="relative pl-1 py-1 text-sm text-gray-800 cursor-pointer flex items-center justify-between
+                   before:absolute before:content-[''] before:left-[-1rem] before:top-1/2 before:-translate-y-1/2 before:transform before:w-4 before:h-px before:bg-gray-300"
+                onClick={() => toggleSection("drivers")}
               >
-                {sidebarEmployees.drivers.map((emp, idx) => (
-                  <div
-                    key={`drivers-${emp}-${idx}`}
-                    draggable
-                    onDragStart={(e) =>
-                      handleSidebarDragStart(e, emp, "employee", "drivers")
-                    }
-                    className="px-3 py-1.5 bg-blue-100 rounded text-xs cursor-move hover:bg-blue-200"
-                  >
-                    {emp}
-                  </div>
-                ))}
+                <span>Drivers</span>
+                {expandedSections.drivers ? (
+                  <ChevronUp className="h-3 w-3" />
+                ) : (
+                  <ChevronDown className="h-3 w-3" />
+                )}
               </div>
-            )}
-          </div>
 
-          {/* Engineers */}
-          <div className="px-3">
-            <div
-              className="py-1 text-sm text-gray-600 cursor-pointer flex items-center justify-between"
-              onClick={() => toggleSection("engineers")}
-            >
-              <span>Engineers</span>
-              {expandedSections.engineers ? (
-                <ChevronUp className="h-3 w-3" />
-              ) : (
-                <ChevronDown className="h-3 w-3" />
-              )}
-            </div>
-            {expandedSections.engineers && (
-              <div
-                className="space-y-1 pb-2"
-                onDragOver={allowDrop}
-                onDrop={() => onDropToEmployeeSection("engineers")}
-              >
-                {sidebarEmployees.engineers.map((emp, idx) => (
-                  <div
-                    key={`engineers-${emp}-${idx}`}
-                    draggable
-                    onDragStart={(e) =>
-                      handleSidebarDragStart(e, emp, "employee", "engineers")
-                    }
-                    className="px-3 py-1.5 bg-pink-100 rounded text-xs cursor-move hover:bg-pink-200"
-                  >
-                    {emp}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Other employee categories */}
-          {["hand", "mechanics", "tap", "masters", "constructionLead"].map(
-            (cat) => (
-              <div key={cat} className="px-3">
+              {expandedSections.drivers && (
                 <div
-                  className="py-1 text-sm text-gray-600 cursor-pointer flex items-center justify-between"
-                  onClick={() => toggleSection(cat as keyof ExpandedSections)}
+                  className="relative ml-2 pl-4 pb-2 space-y-1
+                     before:absolute before:content-[''] before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-gray-300"
+                  onDragOver={allowDrop}
+                  onDrop={() => onDropToEmployeeSection("drivers")}
                 >
-                  <span>{cat[0].toUpperCase() + cat.slice(1)}</span>
-                  {expandedSections[cat as keyof ExpandedSections] ? (
-                    <ChevronUp className="h-3 w-3" />
-                  ) : (
-                    <ChevronDown className="h-3 w-3" />
-                  )}
-                </div>
-                {expandedSections[cat as keyof ExpandedSections] && (
-                  <div
-                    className="space-y-1 pb-2"
-                    onDragOver={allowDrop}
-                    onDrop={() =>
-                      onDropToEmployeeSection(cat as keyof SidebarEmployees)
-                    }
-                  >
-                    {(
-                      sidebarEmployees[
-                        cat as keyof SidebarEmployees
-                      ] as string[]
-                    ).map((emp, idx) => (
+                  {sidebarEmployees.drivers.map((emp, idx) => (
+                    <div
+                      key={`drivers-${emp}-${idx}`}
+                      className="relative
+                         before:absolute before:content-[''] before:left-[-1rem] before:top-1/2 before:-translate-y-1/2 before:transform before:w-4 before:h-px before:bg-gray-300"
+                    >
                       <div
-                        key={`${cat}-${emp}-${idx}`}
                         draggable
                         onDragStart={(e) =>
-                          handleSidebarDragStart(e, emp, "employee", cat)
+                          handleSidebarDragStart(e, emp, "employee", "drivers")
                         }
-                        className="px-3 py-1.5 bg-blue-100 rounded text-xs cursor-move hover:bg-blue-200"
+                        className={[
+                          "px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold text-slate-700 shadow-sm cursor-move border-b-[2px] border-b",
+                          "bg-gradient-to-b ",
+                          idx === 0
+                            ? "from-sky-100 to-blue-50 border-blue-400"
+                            : idx === 1
+                            ? "from-emerald-100 to-green-50 border-green-400"
+                            : idx === 2
+                            ? "from-fuchsia-100 to-pink-100 border-pink-400"
+                            : "from-slate-100 to-rose-50 border-rose-400 text-slate-400",
+                        ].join(" ")}
                       >
                         {emp}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ---- Engineers ---- */}
+              <div
+                className="relative pl-1 py-1 text-sm text-gray-800 cursor-pointer flex items-center justify-between
+                   before:absolute before:content-[''] before:left-[-1rem] before:top-1/2 before:-translate-y-1/2 before:transform before:w-4 before:h-px before:bg-gray-300"
+                onClick={() => toggleSection("engineers")}
+              >
+                <span>Engineers</span>
+                {expandedSections.engineers ? (
+                  <ChevronUp className="h-3 w-3" />
+                ) : (
+                  <ChevronDown className="h-3 w-3" />
                 )}
               </div>
-            )
-          )}
+
+              {expandedSections.engineers && (
+                <div
+                  className="relative ml-2 pl-4 pb-2 space-y-1
+                     before:absolute before:content-[''] before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-gray-300"
+                  onDragOver={allowDrop}
+                  onDrop={() => onDropToEmployeeSection("engineers")}
+                >
+                  {sidebarEmployees.engineers.map((emp, idx) => (
+                    <div
+                      key={`engineers-${emp}-${idx}`}
+                      className="relative
+                         before:absolute before:content-[''] before:left-[-1rem] before:top-1/2 before:-translate-y-1/2 before:transform before:w-4 before:h-px before:bg-gray-300"
+                    >
+                      <div
+                        draggable
+                        onDragStart={(e) =>
+                          handleSidebarDragStart(
+                            e,
+                            emp,
+                            "employee",
+                            "engineers"
+                          )
+                        }
+                        className={[
+                          "px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold text-slate-700 shadow-sm cursor-move border-b-[2px] border-b",
+                          "bg-gradient-to-b ",
+                          idx < 2
+                            ? "from-emerald-100 to-green-50 border-green-400"
+                            : "from-slate-100 to-rose-50 border-rose-400 text-slate-400",
+                        ].join(" ")}
+                      >
+                        {emp}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Collapsed categories — elbows only */}
+              {["hand", "mechanics", "tap", "masters", "constructionLead"].map(
+                (cat) => (
+                  <div key={cat}>
+                    <div
+                      className="relative pl-1 py-1 text-sm text-gray-800 cursor-pointer flex items-center justify-between
+                         before:absolute before:content-[''] before:left-[-1rem] before:top-1/2 before:-translate-y-1/2 before:transform before:w-4 before:h-px before:bg-gray-300"
+                      onClick={() =>
+                        toggleSection(cat as keyof ExpandedSections)
+                      }
+                    >
+                      <span>
+                        {cat[0].toUpperCase() +
+                          cat.slice(1).replace(/([A-Z])/g, " $1")}
+                      </span>
+                      {expandedSections[cat as keyof ExpandedSections] ? (
+                        <ChevronUp className="h-3 w-3" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3" />
+                      )}
+                    </div>
+
+                    {expandedSections[cat as keyof ExpandedSections] && (
+                      <div
+                        className="relative ml-2 pl-4 pb-2 space-y-1
+                           before:absolute before:content-[''] before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-gray-300"
+                        onDragOver={allowDrop}
+                        onDrop={() =>
+                          onDropToEmployeeSection(cat as keyof SidebarEmployees)
+                        }
+                      >
+                        {(
+                          sidebarEmployees[
+                            cat as keyof SidebarEmployees
+                          ] as string[]
+                        ).map((emp, idx) => (
+                          <div
+                            key={`${cat}-${emp}-${idx}`}
+                            className="relative
+                                 before:absolute before:content-[''] before:left-[-1rem] before:top-1/2 before:-translate-y-1/2 before:transform before:w-4 before:h-px before:bg-gray-300"
+                          >
+                            <div
+                              draggable
+                              onDragStart={(e) =>
+                                handleSidebarDragStart(e, emp, "employee", cat)
+                              }
+                              className="px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold text-slate-700 shadow-sm cursor-move
+                                   bg-gradient-to-b from-sky-100 to-blue-50 border border-blue-200"
+                            >
+                              {emp}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Machines Section */}
+        {/* ================= MACHINES ================= */}
         <div className="px-3 py-2">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm font-medium">Machines</span>
+          <div className="text-sm font-medium mb-1">
+            <Truck className="h-4 w-4 inline-block mr-1 text-gray-600" />
+            Machines
           </div>
 
-          {[
-            { key: "digger", label: "Digger" },
-            { key: "loader", label: "Loader" },
-            { key: "trailerTrucks", label: "Trailer trucks" },
-            { key: "wheelers8", label: "8 wheelers" },
-            { key: "personalCars", label: "Personal cars" },
-          ].map(({ key, label }) => (
-            <div key={key} className="py-1 text-sm text-gray-600">
+          {/* Outer rail for Machines */}
+          <div className="relative pl-4">
+            <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-px bg-gray-300"></div>
+
+            {[
+              { key: "digger", label: "Digger" },
+              { key: "loader", label: "Loader" },
+              { key: "trailerTrucks", label: "Trailer trucks" },
+              { key: "wheelers8", label: "8 wheelers" },
+              { key: "personalCars", label: "Personal cars" },
+            ].map(({ key, label }) => (
               <div
-                className="mb-1"
+                key={key}
+                className="relative pl-1 py-1 text-sm text-gray-900
+                   before:absolute before:content-[''] before:left-[-1rem] before:top-1/2 before:-translate-y-1/2 before:transform before:w-4 before:h-px before:bg-gray-300"
                 onDragOver={allowDrop}
                 onDrop={() =>
                   onDropToMachineSection(key as keyof SidebarMachines)
@@ -643,38 +812,52 @@ const Dashboard: React.FC = () => {
               >
                 {label}
               </div>
-            </div>
-          ))}
+            ))}
 
-          {/* Tools */}
-          <div>
-            <div className="py-1 text-sm text-gray-600">Tools</div>
+            {/* Tools branch with inner rail + elbows + chips */}
             <div
-              className="space-y-1"
+              className="relative pl-1 py-1 text-sm text-gray-900
+                 before:absolute before:content-[''] before:left-[-1rem] before:top-1/2 before:-translate-y-1/2 before:transform before:w-4 before:h-px before:bg-gray-300"
+            >
+              Tools
+            </div>
+
+            <div
+              className="relative ml-2 pl-4 pb-1 space-y-1
+                 before:absolute before:content-[''] before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-gray-300"
               onDragOver={allowDrop}
               onDrop={() => onDropToMachineSection("tools")}
             >
               {sidebarMachines.tools.map((tool, idx) => (
                 <div
                   key={`tools-${tool}-${idx}`}
-                  draggable
-                  onDragStart={(e) =>
-                    handleSidebarDragStart(e, tool, "machine", "tools")
-                  }
-                  className="px-3 py-1.5 bg-orange-100 rounded text-xs cursor-move hover:bg-orange-200"
+                  className="relative
+                     before:absolute before:content-[''] before:left-[-1rem] before:top-1/2 before:-translate-y-1/2 before:transform before:w-4 before:h-px before:bg-gray-300"
                 >
-                  {tool}
+                  <div
+                    draggable
+                    onDragStart={(e) =>
+                      handleSidebarDragStart(e, tool, "machine", "tools")
+                    }
+                    className="relative px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold text-slate-700 shadow-sm cursor-move
+                       bg-orange-100 border-b border-b-[2px] border-orange-200"
+                  >
+                    {tool}
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Contracts footer in sidebar (placeholder) */}
+        {/* Footer */}
         <a href="/contracts">
           <div className="px-3 py-2 border-t border-gray-200">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">Contracts</span>
+              <span className="text-sm font-medium">
+                <FileText className="h-4 w-4 text-gray-600 inline-block mr-1" />
+                Contracts
+              </span>
             </div>
           </div>
         </a>
@@ -683,57 +866,62 @@ const Dashboard: React.FC = () => {
       {/* Main Content */}
       <div className="flex-1 overflow-x-auto pb-48 bg-gray-100">
         <div className="min-w-max">
-          {/* Header — styled like the screenshot */}
-          <div className="bg-white border-b border-gray-200 px-4 py-3">
+          {/* ======= HEADER ======= */}
+          <div className="bg-white w-[79rem] border-b border-gray-200 px-6 py-3">
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-              {/* Left: Month/Year */}
+              {/* Left: Month / Year */}
               <div>
-                <h1 className="text-xl font-semibold">{headerLabel}</h1>
+                <h1 className="text-[22px] leading-6 font-semibold tracking-tight">
+                  {headerLabel}
+                </h1>
               </div>
 
-              {/* Center: Search */}
-              <div className="justify-self-center w-72 relative">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+              {/* Center: Search pill */}
+              <div className="justify-self-center w-80 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
                   placeholder="Search"
-                  className="w-full pl-9 pr-3 py-2 bg-gray-100 rounded-full text-sm placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-gray-200"
+                  className="h-9 w-full pl-9 pr-3 rounded-full text-sm placeholder:text-gray-400
+                   bg-gray-50 ring-1 ring-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-200"
                 />
               </div>
 
-              {/* Right: Segmented Today controls with chevrons + badge */}
-              <div className="justify-self-end relative">
-                <div className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-1 py-1 shadow-sm">
+              {/* Right: segmented controls + floating badge */}
+              <div className="justify-self-end relative flex items-center gap-4">
+                <div className="inline-flex items-stretch rounded-lg overflow-hidden ring-1 ring-gray-200 bg-white mr-7">
                   <button
-                    className="p-1.5 rounded-full hover:bg-white"
-                    onClick={() => setStartOffsetDays((d) => d - daysToShow)}
-                    title="Previous range"
+                    className="px-2 py-2 hover:bg-gray-50"
+                    onClick={() => setStartOffsetDays((d) => d - 1)} // ← one day back
                   >
-                    <ChevronLeft className="h-4 w-4 text-gray-700" />
+                    <ChevronLeft className="h-4 w-4 text-gray-800" />
                   </button>
+
                   <button
-                    className="px-3 py-1 rounded-full text-sm font-medium hover:bg-white"
-                    onClick={() => setStartOffsetDays(0)}
-                    title="Jump to current week"
+                    className="px-4 py-2 text-sm font-medium border-x border-gray-200 hover:bg-gray-50"
+                    onClick={() => setStartOffsetDays(0)} // ← jump to today
                   >
                     Today
                   </button>
+
                   <button
-                    className="p-1.5 rounded-full hover:bg-white"
-                    onClick={() => setStartOffsetDays((d) => d + daysToShow)}
-                    title="Next range"
+                    className="px-2 py-2 hover:bg-gray-50"
+                    onClick={() => setStartOffsetDays((d) => d + 1)} // ← one day forward
                   >
-                    <ChevronRight className="h-4 w-4 text-gray-700" />
+                    <ChevronRight className="h-4 w-4 text-gray-800" />
                   </button>
                 </div>
 
-                {/* Notification badge (decorative like the screenshot) */}
+                {/* Floating red badge (top-right of the control) */}
                 <button
-                  className="absolute -top-2 -right-3 inline-flex items-center justify-center w-7 h-7 rounded-full bg-red-500 text-white shadow"
+                  className="absolute top-0 -right-4 inline-flex items-center justify-center w-8 h-8 rounded-full bg-rose-500 text-white shadow-md"
                   title="Notifications"
                 >
-                  <Bell className="h-3.5 w-3.5" />
-                  <span className="absolute -top-1 -right-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-white text-red-600 text-[10px] font-semibold">
+                  <Bell className="h-4 w-4" />
+                  <span
+                    className="absolute -top-1 -right-1 inline-flex items-center justify-center
+                         w-4 h-4 rounded-full bg-white text-rose-600 text-[10px] font-semibold"
+                  >
                     2
                   </span>
                 </button>
@@ -741,34 +929,36 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Calendar Grid header (dynamic length, horizontally scrollable with the content) */}
-          <div className="bg-white">
-            <div
-              className="grid border-b border-gray-200"
-              style={{
-                gridTemplateColumns: `200px repeat(${timelineDays.length}, minmax(130px, 1fr))`,
-              }}
-            >
-              {/* First column spacer for row labels */}
-              <div className="p-3 text-sm font-medium"></div>
+          {/* ======= WEEK ROW (under the header) ======= */}
 
-              {timelineDays.map((d) => (
-                <div
-                  key={d.key}
-                  className={`p-3 text-center text-sm border-l border-gray-200 text-gray-600 ${
-                    d.isToday ? "text-black font-semibold" : ""
-                  }`}
-                  title={d.date.toLocaleDateString()}
-                >
-                  <div>{d.day}</div>
-                  {d.isToday && (
-                    <div className="mx-auto mt-1 h-0.5 w-8 rounded-full bg-black" />
-                  )}
-                </div>
-              ))}
+          <div className="bg-white">
+            <div className="border-b border-gray-200">
+              <div
+                className="grid"
+                style={{
+                  gridTemplateColumns: `repeat(${timelineDays.length}, minmax(120px, 1fr))`, // = 7 cols
+                }}
+              >
+                {timelineDays.map((d, i) => (
+                  <div
+                    key={d.key}
+                    className={`p-3 text-center text-[13px] ${
+                      i === 0 ? "" : "border-l border-gray-200"
+                    } ${
+                      d.isToday ? "text-black font-semibold" : "text-gray-600"
+                    }`}
+                    title={d.date.toLocaleDateString()}
+                  >
+                    <div>{d.day}</div>
+                    {d.isToday && (
+                      <div className="mx-auto mt-1 h-[3px] w-8 rounded-full bg-black" />
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {/* Controlled Contract Scheduler (unchanged) */}
+            {/* Calendar grid stays as-is */}
             <ContractScheduler
               data={contractData}
               onDragStart={onContractItemDragStart}
