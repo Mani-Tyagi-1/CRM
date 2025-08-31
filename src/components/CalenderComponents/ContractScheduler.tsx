@@ -364,8 +364,8 @@ const ContractScheduler: React.FC<Props> = ({
   onDropToMachine,
   onMachineInfo,
 }) => {
-  const [draggedItem, setDraggedItem] = React.useState<DraggedItem>(null);
-  const [draggedFrom, setDraggedFrom] = React.useState<string | null>(null);
+  const [_draggedItem, setDraggedItem] = React.useState<DraggedItem>(null);
+  const [_draggedFrom, setDraggedFrom] = React.useState<string | null>(null);
 
   const [collapsedRows, setCollapsedRows] = React.useState<
     Record<string, boolean>
@@ -436,7 +436,7 @@ const ContractScheduler: React.FC<Props> = ({
   const renderWeekRow = (
     weekKey: string,
     weekOffset = 0,
-    showHeader = true
+    // showHeader = true
   ) => {
     const weekDates = getWeekDates(weekOffset);
     const isCollapsed = !!collapsedRows[weekKey];
@@ -608,9 +608,9 @@ const ContractScheduler: React.FC<Props> = ({
           Contract SO1165
         </div>
         <div className="bg-white">
-          {renderWeekRow("SO1165", 0, true)}
-          {renderWeekRow("SO1165-week2", 1, false)}
-          {renderWeekRow("SO1165-week3", 2, false)}
+          {renderWeekRow("SO1165", 0)}
+          {renderWeekRow("SO1165-week2", 1)}
+          {renderWeekRow("SO1165-week3", 2)}
         </div>
       </div>
     </div>

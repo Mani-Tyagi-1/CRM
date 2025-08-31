@@ -330,7 +330,7 @@ const TimeOffScheduler: React.FC<Props> = ({
                     <div
                       key={`${cellKey}-${item.name}-${idx}`}
                       draggable
-                      style={{ WebkitUserDrag: "element" }}
+                      style={{ WebkitUserDrag: "element" } as React.CSSProperties}
                       onDragStart={(e) =>
                         handleItemDragStart(e, item.name, cellKey, item.type)
                       }

@@ -1310,20 +1310,20 @@ const Dashboard: React.FC = () => {
     return d;
   };
 
-  const formatDayLabel = (d: Date) => {
-    const weekday = d.toLocaleDateString(undefined, { weekday: "short" });
-    const day = d.getDate();
-    const month = d.getMonth() + 1;
-    return `${weekday} ${day}.${month}.`;
-  };
+  // const formatDayLabel = (d: Date) => {
+  //   const weekday = d.toLocaleDateString(undefined, { weekday: "short" });
+  //   const day = d.getDate();
+  //   const month = d.getMonth() + 1;
+  //   return `${weekday} ${day}.${month}.`;
+  // };
 
-  const [daysToShow, setDaysToShow] = useState(28);
+  const [daysToShow, _setDaysToShow] = useState(28);
   const [startOffsetDays, setStartOffsetDays] = useState(0);
 
-  const isSameYMD = (a: Date, b: Date) =>
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate();
+  // const isSameYMD = (a: Date, b: Date) =>
+  //   a.getFullYear() === b.getFullYear() &&
+  //   a.getMonth() === b.getMonth() &&
+  //   a.getDate() === b.getDate();
 
   const formatRangeHeader = (start: Date, days: number) => {
     const end = new Date(start);
