@@ -1,5 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, ExternalLink, Maximize2, CheckSquare } from "lucide-react";
+import { auth, db } from "../../lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import {
+  collection,
+  onSnapshot,
+  getDocs,
+  query,
+  orderBy,
+  limit as qlimit,
+} from "firebase/firestore";
 
 // Dummy data for the Issues tab (Unresolved / Resolved)
 const dummyIssues = {
@@ -103,7 +113,7 @@ function IssuesCardGroup({
 }) {
   return (
     <div className="rounded-2xl border border-gray-200 overflow-hidden">
-      {items.map((item, idx) => (
+      {items.map((item: any, idx: number) => (
         <div
           key={item.id}
           className={`grid grid-cols-[1fr_auto] items-start gap-4 p-4 ${
@@ -153,7 +163,12 @@ function IssuesCardGroup({
 function ContractsCardGroup({
   items,
 }: {
-  items: { id: number; dateRange: string; title: string; flagged?: boolean }[];
+  items: {
+    id: string | number;
+    dateRange: string;
+    title: string;
+    flagged?: boolean;
+  }[];
 }) {
   return (
     <div className="rounded-2xl border border-gray-200 overflow-hidden">
@@ -186,8 +201,141 @@ function ContractsCardGroup({
   );
 }
 
+type ContractDoc = {
+  name?: string;
+  status?: "draft" | "active" | "archived";
+};
+
+function formatDate(d: Date) {
+  return d.toLocaleDateString("cs-CZ", {
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
+  });
+}
+
+async function getContractDateRange(
+  companyId: string,
+  contractId: string
+): Promise<string> {
+  // First SO (if multiple SO docs exist, we take the first one)
+  const soCol = collection(
+    db,
+    "companies",
+    companyId,
+    "contracts",
+    contractId,
+    "so"
+  );
+  const soSnap = await getDocs(query(soCol, qlimit(1)));
+  if (soSnap.empty) return "";
+
+  const soId = soSnap.docs[0].id;
+  const resCol = collection(
+    db,
+    "companies",
+    companyId,
+    "contracts",
+    contractId,
+    "so",
+    soId,
+    "resources"
+  );
+
+  // earliest start
+  const firstResSnap = await getDocs(
+    query(resCol, orderBy("startTime", "asc"), qlimit(1))
+  );
+  // latest end
+  const lastResSnap = await getDocs(
+    query(resCol, orderBy("endTime", "desc"), qlimit(1))
+  );
+
+  if (firstResSnap.empty || lastResSnap.empty) return "";
+
+  const start = firstResSnap.docs[0].data().startTime?.toDate?.() as
+    | Date
+    | undefined;
+  const end = lastResSnap.docs[0].data().endTime?.toDate?.() as
+    | Date
+    | undefined;
+
+  if (!start || !end) return "";
+  return `${formatDate(start)} - ${formatDate(end)}`;
+}
+
 export default function OverviewPage() {
   const [activeTab, setActiveTab] = useState("contracts");
+  const [_uid, setUid] = useState<string | null>(null);
+  const [ongoing, setOngoing] = useState<
+    { id: string; dateRange: string; title: string; flagged?: boolean }[]
+  >([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let unsubContracts: (() => void) | null = null;
+
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      if (unsubContracts) {
+        unsubContracts();
+        unsubContracts = null;
+      }
+
+      if (!user) {
+        setUid(null);
+        setOngoing([]);
+        setLoading(false);
+        setErr("You must be signed in to see your contracts.");
+        return;
+      }
+
+      setUid(user.uid);
+      setErr(null);
+      setLoading(true);
+
+      // Listen to all contracts and filter client-side:
+      const col = collection(db, "companies", user.uid, "contracts");
+      unsubContracts = onSnapshot(
+        col,
+        async (snap) => {
+          const docs = snap.docs.map((d) => ({
+            id: d.id,
+            ...(d.data() as ContractDoc),
+          }));
+
+          // Consider anything not archived as "ongoing"
+          const ongoingDocs = docs.filter(
+            (c) => (c.status ?? "draft") !== "archived"
+          );
+
+          // Build UI items with date ranges
+          const items = await Promise.all(
+            ongoingDocs.map(async (c) => {
+              const dateRange = await getContractDateRange(user.uid, c.id);
+              return {
+                id: c.id,
+                dateRange: dateRange || "—",
+                title: c.name || "Contract",
+              };
+            })
+          );
+
+          setOngoing(items);
+          setLoading(false);
+        },
+        (e) => {
+          setErr(e.message || "Failed to load contracts.");
+          setLoading(false);
+        }
+      );
+    });
+
+    return () => {
+      unsubAuth();
+      if (unsubContracts) unsubContracts();
+    };
+  }, []);
 
   return (
     <main className="min-h-screen bg-white">
@@ -222,12 +370,27 @@ export default function OverviewPage() {
               <h2 className="text-center text-lg font-semibold text-gray-900">
                 Ongoing
               </h2>
+
+              {err && (
+                <div className="mt-3 text-center text-sm text-red-600">
+                  {err}
+                </div>
+              )}
+
               <div className="mt-4 max-w-4xl mx-auto">
-                <ContractsCardGroup items={dummyContracts.ongoing} />
+                {loading ? (
+                  <div className="text-center text-gray-500 py-8">Loading…</div>
+                ) : (
+                  <ContractsCardGroup
+                    items={
+                      ongoing.length > 0 ? ongoing : dummyContracts.ongoing // fallback if none
+                    }
+                  />
+                )}
               </div>
             </section>
 
-            {/* Finished */}
+            {/* Finished (kept as-is / dummy) */}
             <section>
               <h2 className="text-center text-lg font-semibold text-gray-900">
                 Finished

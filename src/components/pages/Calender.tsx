@@ -1777,7 +1777,7 @@ const Dashboard: React.FC = () => {
                           handleSidebarDragStart(e, emp, "employee", "drivers")
                         }
                         className={[
-                          "px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold text-slate-700 shadow-sm cursor-move border-b-[2px] border-b",
+                          "px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold text-slate-700 shadow-sm cursor-move border-b-[2px] ",
                           "bg-gradient-to-b ",
                           idx === 0
                             ? "from-sky-100 to-blue-50 border-blue-400"
@@ -1832,7 +1832,7 @@ const Dashboard: React.FC = () => {
                           )
                         }
                         className={[
-                          "px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold text-slate-700 shadow-sm cursor-move border-b-[2px] border-b",
+                          "px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold text-slate-700 shadow-sm cursor-move border-b-[2px] ",
                           "bg-gradient-to-b ",
                           idx < 2
                             ? "from-emerald-100 to-green-50 border-green-400"
@@ -1962,7 +1962,7 @@ const Dashboard: React.FC = () => {
                       handleSidebarDragStart(e, tool, "machine", "tools")
                     }
                     className="relative px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold text-slate-700 shadow-sm cursor-move
-                       bg-orange-100 border-b border-b-[2px] border-orange-200"
+                       bg-orange-100 border-b-[2px] border-orange-200"
                   >
                     {tool}
                   </div>
@@ -2083,10 +2083,12 @@ const Dashboard: React.FC = () => {
         onDrop={onTimeOffDrop}
       />
 
+      <a href="/add-contract">
       <button className="fixed z-100 bottom-6 right-6 bg-black text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg hover:bg-gray-800">
         <Plus className="h-4 w-4" />
         Add contract
       </button>
+      </a>
     </div>
   );
 };

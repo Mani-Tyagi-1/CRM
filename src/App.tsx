@@ -5,6 +5,7 @@ import Calender from "./components/pages/Calender";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AllContracts from "./components/pages/AllContracts";
 import Dashboard from "./components/pages/Dashboard";
+import AddContract from "./components/pages/AddContract";
 
 export default function App() {
   return (
@@ -33,6 +34,15 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/add-contract"
+        element={
+          <ProtectedRoute>
+            <AddContract />
           </ProtectedRoute>
         }
       />
