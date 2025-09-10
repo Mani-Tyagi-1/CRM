@@ -204,12 +204,12 @@ export function PurchasersManagement() {
         since the 1500s.
       </p>
 
-      <div className="mt-6 max-w-lg rounded-2xl border bg-white">
+      <div className="mt-6 max-w-lg rounded-2xl border border-slate-400 bg-white">
         <ul role="list" className="overflow-hidden rounded-2xl">
           {purchasers.map((p) => (
             <li
               key={p.id}
-              className="flex items-center justify-between px-5 py-3 border-b last:border-b-0"
+              className="flex items-center justify-between px-5 py-3 border-b border-slate-400 last:border-b-0"
             >
               <span className="text-gray-800">{p.name}</span>
 
@@ -217,7 +217,7 @@ export function PurchasersManagement() {
                 <button
                   type="button"
                   title="Open"
-                  className="inline-flex items-center justify-center rounded-md border px-2.5 py-1.5 text-gray-600 hover:bg-gray-50"
+                  className="inline-flex items-center justify-center rounded-md border border-slate-400 px-2.5 py-1.5 text-gray-600 hover:bg-gray-50"
                   onClick={() => console.log("open", p.id)}
                 >
                   <ExternalLink className="w-4 h-4" />
@@ -225,7 +225,7 @@ export function PurchasersManagement() {
                 <button
                   type="button"
                   title="Delete"
-                  className="inline-flex items-center justify-center rounded-md border px-2.5 py-1.5 text-gray-600 hover:bg-gray-50"
+                  className="inline-flex items-center justify-center rounded-md border border-slate-400 px-2.5 py-1.5 text-gray-600 hover:bg-gray-50"
                   onClick={() => remove(p.id)}
                 >
                   <Trash2 className="w-4 h-4" />
@@ -241,7 +241,7 @@ export function PurchasersManagement() {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="New purchaser"
-              className="flex-1 rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="flex-1 rounded-lg border border-slate-400 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <button
               type="button"

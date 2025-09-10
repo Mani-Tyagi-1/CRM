@@ -15,38 +15,6 @@ type CompanyDoc = {
 };
 
 
-
-// Replace your ContractPayload with this (maps your UI fields to the schema)
-// type ContractPayload = {
-//   name: string;                // from contractName
-//   workType: string;            // from typeOfWork
-//   contractId?: string;         // from contractNumber (optional)
-//   agreementId?: string;        // from offerNumber (optional)
-//   status: "draft" | "active" | "archived";
-//   createdAt: any;
-//   updatedAt: any;
-// };
-
-// // SO doc
-// type SoDoc = {
-//   soNumber: string;            // from soName (in your UI)
-//   createdAt: any;
-//   updatedAt: any;
-// };
-
-// Resource doc
-// type ResourceDoc = {
-//   resourceRef?: string | null; // store a path/id to a resource catalog if you have one
-//   startTime: Timestamp;
-//   endTime: Timestamp;
-//   createdAt: any;
-//   updatedAt: any;
-// };
-
-// Sub-resource doc (same shape as ResourceDoc)
-// type SubResourceDoc = ResourceDoc;
-
-
 const ContractForm: React.FC = () => {
   // ---- auth + company ----
   const [uid, setUid] = useState<string | null>(null);
@@ -293,7 +261,7 @@ const ContractForm: React.FC = () => {
   if (showContractDetails) {
     return (
       <div className="flex items-center justify-center p-2">
-        <div className="bg-white rounded-lg shadow-lg w-full max-w-5xl">
+        <div className=" rounded-lg shadow-lg w-full max-w-5xl">
           {/* Header */}
           <div className="flex items-center px-6 py-4 border-b">
             <ChevronLeft className="w-5 h-5 text-gray-600 mr-3" />
@@ -569,7 +537,7 @@ const ContractForm: React.FC = () => {
   // ====== FORM VIEW ======
   return (
     <div className="flex items-center justify-center p-1">
-      <div className="bg-white rounded-lg shadow-lg w-full max-w-5xl">
+      <div className=" rounded-lg shadow-lg w-full max-w-5xl">
         {/* Header */}
         <div className="flex items-center px-6 py-2 border-b border-gray-200">
           <ChevronLeft className="w-5 h-5 text-gray-600 mr-3" />

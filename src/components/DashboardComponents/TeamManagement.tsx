@@ -53,14 +53,14 @@ export default function TeamManagement() {
         since the 1500s.
       </p>
       <div className="w-full items-center justify-center">
-        <div className="mt-6 max-w-lg rounded-xl border bg-white relative overflow-visible">
+        <div className="mt-6 max-w-lg rounded-xl border border-slate-400 bg-white relative overflow-visible">
           {/* header strip to mimic top divider */}
           <ul role="list">
             {users.map((user, idx) => (
               <li
                 key={user.id}
                 className={`flex items-center justify-between px-4 py-3 text-sm ${
-                  idx !== users.length - 1 ? "border-b" : ""
+                  idx !== users.length - 1 ? "border-b border-slate-400" : ""
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -91,7 +91,7 @@ export default function TeamManagement() {
                   </button>
 
                   {hoveredId === user.id && (
-                    <div className="absolute right-[-30px] z-50 mt-1 w-40 rounded-lg border bg-white shadow-lg">
+                    <div className="absolute right-[-30px] z-50 mt-1 w-40 rounded-lg border border-slate-400 bg-white shadow-lg">
                       <ul className="py-1 text-sm">
                         {(Object.keys(ROLE_LABELS) as Role[]).map((role) => (
                           <li key={role}>
@@ -114,7 +114,7 @@ export default function TeamManagement() {
                             </button>
                           </li>
                         ))}
-                        <li className="mt-1 border-t">
+                        <li className="mt-1 border-t border-slate-400">
                           <button
                             type="button"
                             onClick={() => {
@@ -135,13 +135,13 @@ export default function TeamManagement() {
           </ul>
 
           {/* Add row */}
-          <div className="flex items-center gap-3 px-4 py-3 border-t bg-gray-50">
+          <div className="flex items-center gap-3 px-4 py-3 border-t border-slate-400 bg-gray-50">
             <input
               type="email"
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               placeholder="new.employee@email.cz"
-              className="flex-1 rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="flex-1 rounded-lg border border-slate-400 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <button
               type="button"
