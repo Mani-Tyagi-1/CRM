@@ -4,6 +4,7 @@ import OrganizationDetails from "../DashboardComponents/OrganisationDetails";
 import TeamManagement from "../DashboardComponents/TeamManagement";
 import { PurchasersManagement } from "../DashboardComponents/PurchaseManagement";
 import SupportManagement from "../DashboardComponents/SupportManagement";
+import ResourceManagement from "../DashboardComponents/ResourceManagement";
 
 export default function SidebarLayout() {
   const navItems = [
@@ -24,9 +25,7 @@ export default function SidebarLayout() {
       <aside className="flex flex-col w-64 border-r px-4 py-6 space-y-6">
         {/* Back link */}
         <a href="/calender" className="absolute top-4 left-4 ">
-          <button
-            className="flex items-center text-sm font-medium text-gray-600 hover:text-gray-800 "
-          >
+          <button className="flex items-center text-sm font-medium text-gray-600 hover:text-gray-800 ">
             <ChevronLeft className="w-4 h-4 mr-1" />
             Back to the calendar
           </button>
@@ -64,6 +63,8 @@ export default function SidebarLayout() {
           <PurchasersManagement />
         ) : active === "Support" ? (
           <SupportManagement />
+        ) : active === "Resources" ? (
+          <ResourceManagement />
         ) : (
           <Placeholder title={active} />
         )}

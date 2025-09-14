@@ -82,7 +82,7 @@ type ContractUIItem = {
 
 const Sidebar: React.FC<Props> = ({
   expandedSections,
-  setExpandedSections,
+  // setExpandedSections,
   sidebarEmployees,
   sidebarMachines,
   allowDrop,
@@ -123,7 +123,7 @@ const Sidebar: React.FC<Props> = ({
   const [contracts, setContracts] = useState<ContractUIItem[]>([]);
   const [contractsLoading, setContractsLoading] = useState<boolean>(true);
   const [contractsError, setContractsError] = useState<string | null>(null);
-  const [uid, setUid] = useState<string | null>(null);
+  const [_uid, setUid] = useState<string | null>(null);
 
   // For expanding/collapsing contracts dropdown
   // You could control this in expandedSections, but for full independence, let's keep local state
@@ -131,8 +131,8 @@ const Sidebar: React.FC<Props> = ({
 
   // Dummy implementation for getContractDateRange. Replace with real one as needed.
   async function getContractDateRange(
-    userId: string,
-    contractId: string
+    _userId: string,
+    _contractId: string
   ): Promise<string | null> {
     // Replace this with real logic if you have it in your codebase!
     return null; // Or e.g. "2023-01-01 – 2023-05-05"
@@ -548,7 +548,7 @@ const Sidebar: React.FC<Props> = ({
               </div>
             ) : (
               <div className="flex flex-col gap-2">
-                {contracts.map((contract, idx) => (
+                {contracts.map((contract, _idx) => (
                   <div
                     key={contract.id}
                     className="relative flex items-start z-10"

@@ -1,7 +1,7 @@
 import React from "react";
 import { createPortal } from "react-dom";
 import { DayPicker, type DateRange } from "react-day-picker";
-import { Calendar as CalendarIcon, Search } from "lucide-react";
+import { Calendar as CalendarIcon } from "lucide-react";
 import "react-day-picker/dist/style.css";
 
 /** Inline CSS overrides (no external/global stylesheet needed) */
@@ -43,7 +43,7 @@ function CalendarPortal({
   onClose,
   children,
 }: {
-  anchorRef: React.RefObject<HTMLElement>;
+  anchorRef: React.RefObject<HTMLButtonElement | null>; // <- allow | null
   open: boolean;
   onClose: () => void;
   children: React.ReactNode;

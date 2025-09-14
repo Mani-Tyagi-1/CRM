@@ -102,7 +102,7 @@ const Calender: React.FC = () => {
   //   return `${weekday} ${day}.${month}.`;
   // };
 
-  const [daysToShow, _setDaysToShow] = useState(28);
+  const [_daysToShow, _setDaysToShow] = useState(28);
   const [startOffsetDays, setStartOffsetDays] = useState(0);
   const [sidebarSearch, setSidebarSearch] = useState("");
 
