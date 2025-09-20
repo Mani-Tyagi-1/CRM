@@ -23,6 +23,8 @@ import {
 import { auth, db } from "../../lib/firebase";
 import { ResourceModal } from "./ResourceModal";
 import { DeleteModal } from "./DeleteModal";
+import { useNavigate } from "react-router-dom"; // if using React Router
+
 
 // STATIC DEFAULTS
 const DEFAULT_EMPLOYEE_CATEGORIES = [
@@ -108,37 +110,47 @@ function Leaf({
   className = "",
   onEdit,
   onDelete,
+  onClick, // NEW
 }: {
   data: { id: string; [key: string]: any };
   className?: string;
   onEdit: () => void;
   onDelete: () => void;
+  onClick?: () => void; // NEW
 }) {
   const display =
     data.name || data.surname
       ? [data.name, data.surname].filter(Boolean).join(" ")
-      : "Unnamed";
+      : data.title || data.licencePlate || "Unnamed";
   return (
     <div className="relative before:absolute before:-left-4 before:top-1/2 before:-translate-y-1/2 before:w-4 before:h-px before:bg-gray-300">
       <div
         className={
-          "px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold text-slate-700 shadow-sm flex items-center gap-1 border-b-2 " +
+          "px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold text-slate-700 shadow-sm flex items-center gap-1 border-b-2 cursor-pointer " + // add cursor-pointer
           className
         }
+        onClick={onClick}
       >
         <span className="truncate flex-1">{display}</span>
         <PencilLine
           className="h-3 w-3 cursor-pointer hover:text-black"
-          onClick={onEdit}
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit();
+          }}
         />
         <Trash2
           className="h-3 w-3 cursor-pointer hover:text-black"
-          onClick={onDelete}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
         />
       </div>
     </div>
   );
 }
+
 
 // ----------- Main Component -----------
 
@@ -169,6 +181,7 @@ type AddCategoryMode = {
 export default function ResourceManagementSidebar() {
   const [uid, setUid] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   // ----------- CATEGORY MANAGEMENT (dynamic) -----------
   const [employeeCategories, setEmployeeCategories] = useState<string[]>([
@@ -523,6 +536,9 @@ export default function ResourceManagementSidebar() {
                           docObj.name || "Employee"
                         )
                       }
+                      onClick={() =>
+                        navigate(`/employee-preview/${catKey}/${docObj.id}`)
+                      } // 👈 NEW
                     />
                   ))}
                 </div>
@@ -588,6 +604,9 @@ export default function ResourceManagementSidebar() {
                           docObj.name || "Machine"
                         )
                       }
+                      onClick={() =>
+                        navigate(`/machine-preview/${catKey}/${docObj.id}`)
+                      } // 👈 NEW: go to machine preview
                     />
                   ))}
                 </div>

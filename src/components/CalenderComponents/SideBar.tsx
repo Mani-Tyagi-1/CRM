@@ -23,8 +23,15 @@ type ExpandedSections = {
   tap: boolean;
   masters: boolean;
   constructionLead: boolean;
-  machines: boolean;
-  contracts: boolean; // new!
+  // Machine categories
+  digger: boolean;
+  machines: boolean,
+  loader: boolean;
+  trailerTrucks: boolean;
+  wheelers8: boolean;
+  personalCars: boolean;
+  tools: boolean;
+  contracts: boolean; // new!  
 };
 
 type SidebarEmployees = {
@@ -79,6 +86,15 @@ type ContractUIItem = {
   dateRange: string;
   title: string;
 };
+
+const MACHINE_CATEGORIES = [
+  { key: "digger", label: "Digger" },
+  { key: "loader", label: "Loader" },
+  { key: "trailerTrucks", label: "Trailer trucks" },
+  { key: "wheelers8", label: "8 wheelers" },
+  { key: "personalCars", label: "Personal cars" },
+  { key: "tools", label: "Tools" },
+] as const;
 
 const Sidebar: React.FC<Props> = ({
   expandedSections,
@@ -259,8 +275,7 @@ const Sidebar: React.FC<Props> = ({
                 onDrop={() => onDropToEmployeeSection("drivers")}
               >
                 {filteredEmployees.drivers.length === 0 ? (
-                  <div className="text-xs text-gray-400 italic px-2">
-                  </div>
+                  <div className="text-xs text-gray-400 italic px-2"></div>
                 ) : (
                   filteredEmployees.drivers.map((emp, idx) => (
                     <div
@@ -313,8 +328,7 @@ const Sidebar: React.FC<Props> = ({
                 onDrop={() => onDropToEmployeeSection("engineers")}
               >
                 {filteredEmployees.engineers.length === 0 ? (
-                  <div className="text-xs text-gray-400 italic px-2">
-                  </div>
+                  <div className="text-xs text-gray-400 italic px-2"></div>
                 ) : (
                   filteredEmployees.engineers.map((emp, idx) => (
                     <div
@@ -381,8 +395,7 @@ const Sidebar: React.FC<Props> = ({
                         }
                       >
                         {filteredList.length === 0 ? (
-                          <div className="text-xs text-gray-400 italic px-2">
-                          </div>
+                          <div className="text-xs text-gray-400 italic px-2"></div>
                         ) : (
                           filteredList.map((emp, idx) => (
                             <div
@@ -417,7 +430,7 @@ const Sidebar: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* MACHINES */}
+      {/* MACHINES (each category is a dropdown, just like Employees) */}
       <div className="px-3 py-2">
         <div className="text-sm font-medium mb-1">
           <Truck className="h-4 w-4 inline-block mr-1 text-gray-600" />
@@ -425,93 +438,75 @@ const Sidebar: React.FC<Props> = ({
         </div>
         <div className="relative pl-4">
           <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-px bg-gray-300"></div>
-          {[
-            { key: "digger", label: "Digger" },
-            { key: "loader", label: "Loader" },
-            { key: "trailerTrucks", label: "Trailer trucks" },
-            { key: "wheelers8", label: "8 wheelers" },
-            { key: "personalCars", label: "Personal cars" },
-          ].map(({ key, label }) => {
-            const filteredList = filteredMachines[key as keyof SidebarMachines];
+          {MACHINE_CATEGORIES.map(({ key, label }) => {
+            const sectionKey = key as keyof SidebarMachines &
+              keyof ExpandedSections;
+            const filteredList = filteredMachines[sectionKey];
             return (
               <div key={key}>
                 <div
-                  className="relative pl-1 py-1 text-sm text-gray-900
+                  className="relative pl-1 py-1 text-sm text-gray-900 cursor-pointer flex items-center justify-between
                        before:absolute before:content-[''] before:left-[-1rem] before:top-1/2 before:-translate-y-1/2 before:transform before:w-4 before:h-px before:bg-gray-300"
-                  onDragOver={allowDrop}
-                  onDrop={() =>
-                    onDropToMachineSection(key as keyof SidebarMachines)
+                  onClick={() =>
+                    toggleSection(sectionKey as keyof ExpandedSections)
                   }
                 >
-                  {label}
+                  <span>{label}</span>
+                  {expandedSections[sectionKey as keyof ExpandedSections] ? (
+                    <ChevronUp className="h-3 w-3" />
+                  ) : (
+                    <ChevronDown className="h-3 w-3" />
+                  )}
                 </div>
-                {filteredList.length > 0 && (
+                {expandedSections[sectionKey as keyof ExpandedSections] && (
                   <div
-                    className="relative ml-2 pl-4 pb-1 space-y-1
-                         before:absolute before:content-[''] before:left-0 before:top-0 before:bottom-0 before:w-px"
+                    className="relative ml-2 pl-4 pb-2 space-y-1
+                         before:absolute before:content-[''] before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-gray-300"
+                    onDragOver={allowDrop}
+                    onDrop={() =>
+                      onDropToMachineSection(
+                        sectionKey as keyof SidebarMachines
+                      )
+                    }
                   >
-                    {filteredList.map((machine, idx) => (
-                      <div
-                        key={`${key}-${machine}-${idx}`}
-                        className="relative before:absolute before:content-[''] before:left-[-1rem] before:top-1/2 before:-translate-y-1/2 before:transform before:w-4 before:h-px before:bg-gray-300"
-                      >
+                    {filteredList.length === 0 ? (
+                      <div className="text-xs text-gray-400 italic px-2"></div>
+                    ) : (
+                      filteredList.map((machine, idx) => (
                         <div
-                          draggable
-                          onDragStart={(e) =>
-                            handleSidebarDragStart(e, machine, "machine", key)
-                          }
-                          className="relative px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold text-slate-700 shadow-sm cursor-move
-                             bg-yellow-50 border-b-[2px] border-yellow-200"
+                          key={`${key}-${machine}-${idx}`}
+                          className="relative before:absolute before:content-[''] before:left-[-1rem] before:top-1/2 before:-translate-y-1/2 before:transform before:w-4 before:h-px before:bg-gray-300"
                         >
-                          {machine}
+                          <div
+                            draggable
+                            onDragStart={(e) =>
+                              handleSidebarDragStart(e, machine, "machine", key)
+                            }
+                            className={[
+                              "relative px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold text-slate-700 shadow-sm cursor-move border-b-[2px]",
+                              key === "digger"
+                                ? "bg-yellow-50 border-yellow-200"
+                                : key === "loader"
+                                ? "bg-amber-50 border-amber-200"
+                                : key === "trailerTrucks"
+                                ? "bg-teal-50 border-teal-200"
+                                : key === "wheelers8"
+                                ? "bg-sky-50 border-sky-200"
+                                : key === "personalCars"
+                                ? "bg-green-50 border-green-200"
+                                : "bg-orange-100 border-orange-200", // tools
+                            ].join(" ")}
+                          >
+                            {machine}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {filteredList.length === 0 && (
-                  <div className="text-xs text-gray-400 italic px-2">
+                      ))
+                    )}
                   </div>
                 )}
               </div>
             );
           })}
-          {/* Tools */}
-          <div
-            className="relative pl-1 py-1 text-sm text-gray-900
-                 before:absolute before:content-[''] before:left-[-1rem] before:top-1/2 before:-translate-y-1/2 before:transform before:w-4 before:h-px before:bg-gray-300"
-          >
-            Tools
-          </div>
-          <div
-            className="relative ml-2 pl-4 pb-1 space-y-1
-                 before:absolute before:content-[''] before:left-0 before:top-0 before:bottom-0 before:w-px"
-            onDragOver={allowDrop}
-            onDrop={() => onDropToMachineSection("tools")}
-          >
-            {filteredMachines.tools.length === 0 ? (
-              <div className="text-xs text-gray-400 italic px-2">
-              </div>
-            ) : (
-              filteredMachines.tools.map((tool, idx) => (
-                <div
-                  key={`tools-${tool}-${idx}`}
-                  className="relative before:absolute before:content-[''] before:left-[-1rem] before:top-1/2 before:-translate-y-1/2 before:transform before:w-4 before:h-px before:bg-gray-300"
-                >
-                  <div
-                    draggable
-                    onDragStart={(e) =>
-                      handleSidebarDragStart(e, tool, "machine", "tools")
-                    }
-                    className="relative px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold text-slate-700 shadow-sm cursor-move
-                       bg-orange-100 border-b-[2px] border-orange-200"
-                  >
-                    {tool}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
         </div>
       </div>
 
@@ -556,7 +551,7 @@ const Sidebar: React.FC<Props> = ({
                   >
                     {/* horizontal connector to branch */}
                     <div
-                      className="absolute left-[-12px] top-1/2 w-3 h-px bg-gray-300"
+                      className="absolute left-[-10px] top-1/2 w-[10px] h-px bg-gray-300"
                       style={{ transform: "translateY(-50%)" }}
                     />
                     {/* contract card */}

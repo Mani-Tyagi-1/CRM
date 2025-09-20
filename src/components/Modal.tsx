@@ -16,7 +16,7 @@ export default function Modal({ children }: { children: React.ReactNode }) {
       <div className="bg-white rounded-xl shadow-2xl p-0 relative max-w-5xl w-full">
         <button
           onClick={() => navigate(-1)}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-900 text-2xl font-bold"
+          className="absolute top-[9px] right-4 text-gray-400 hover:text-gray-900 text-2xl font-bold"
         >
           ×
         </button>

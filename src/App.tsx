@@ -6,7 +6,9 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import AllContracts from "./components/pages/AllContracts";
 import Dashboard from "./components/pages/Dashboard";
 import AddContract from "./components/pages/AddContract";
+import MachineryPreview from "./components/pages/MachineryPreview"
 import Modal from "./components/Modal";
+import EmployeePreview from "./components/pages/EmployePreview";
 
 export default function App() {
   const location = useLocation();
@@ -39,6 +41,24 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/machine-preview/:category/:id"
+          element={
+            <ProtectedRoute>
+              <MachineryPreview />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/employee-preview/:category/:id"
+          element={
+            <ProtectedRoute>
+              <EmployeePreview />
             </ProtectedRoute>
           }
         />

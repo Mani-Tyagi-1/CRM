@@ -105,7 +105,8 @@ const ContractForm: React.FC = () => {
  };
 
 
-  // ====== DETAILS VIEW ======
+ // ====== DETAILS VIEW ======
+ const [activeTab, setActiveTab] = React.useState<"SO" | "Insights">("SO");
  if (createdContractId) {
    // Dummy SO list data
    const soNumbers = [
@@ -117,37 +118,36 @@ const ContractForm: React.FC = () => {
    ];
 
    // Simple state for tabs
-   const [activeTab, setActiveTab] = React.useState<"SO" | "Insights">("SO");
 
    return (
-     <div className="flex flex-col items-center justify-center p-2">
+     <div className="flex flex-col items-center justify-center p-1 ">
        {/* Header */}
-       <div className="flex w-full items-center px-6 py-4 border-b">
-         <ChevronLeft className="w-5 h-5 text-gray-600 mr-3" />
-         <a href="/calender">
-           <span className="text-gray-600 text-sm cursor-pointer">
-             Back to the calendar
-           </span>
-         </a>
-         <div className="flex-1 text-center">
-           <h1 className="text-xl font-medium">
-             {company?.companyName || "New contract"}
-           </h1>
-           {createdContractId && (
-             <p className="text-xs text-gray-500 mt-1">
-               Contract ID: {createdContractId}
-             </p>
-           )}
+       <div className="flex items-center px-6 py-2 border-b border-gray-200 w-full">
+         {/* Left: Back button + link */}
+         <div className="flex items-center min-w-[160px]">
+           <ChevronLeft className="w-5 h-5 text-gray-600 mr-3" />
+           <a href="/calender">
+             <span className="text-gray-600 text-sm cursor-pointer">
+               Back to the calendar
+             </span>
+           </a>
          </div>
+         {/* Center: Heading */}
+         <div className="flex-1 text-center">
+           <h1 className="text-xl font-medium">{contractName}</h1>
+         </div>
+         {/* Right: Ghost div for centering */}
+         <div className="min-w-[160px]" />
        </div>
+
        <div className="rounded-lg  w-full max-w-3xl">
          {/* Details */}
          <div className="flex flex-col items-center py-20">
            {/* Top details */}
            <div className="flex gap-24 mb-8">
              <div>
-               <div className="text-sm text-gray-500 mb-1">SO name</div>
-               <div className="font-medium">{contractName}</div>
+               <div className="text-sm text-gray-500 mb-1">Offer number</div>
+               <div className="font-medium">{offerNumber || "—"}</div>
              </div>
              <div>
                <div className="text-sm text-gray-500 mb-1">Type of work</div>
@@ -155,10 +155,6 @@ const ContractForm: React.FC = () => {
              </div>
            </div>
            <div className="flex gap-24 mb-8">
-             <div>
-               <div className="text-sm text-gray-500 mb-1">Offer number</div>
-               <div className="font-medium">{offerNumber || "—"}</div>
-             </div>
              <div>
                <div className="text-sm text-gray-500 mb-1">Contract number</div>
                <div className="font-medium">{contractNumber || "—"}</div>
@@ -238,12 +234,16 @@ const ContractForm: React.FC = () => {
     <div className="flex flex-col items-center justify-center p-1">
       {/* Header */}
       <div className="flex items-center px-6 py-2 border-b border-gray-200 w-full">
-        <ChevronLeft className="w-5 h-5 text-gray-600 mr-3" />
-        <a href="/calender">
-          <span className="text-gray-600 text-sm cursor-pointer">
-            Back to the calendar
-          </span>
-        </a>
+        {/* Left: Back button + link */}
+        <div className="flex items-center min-w-[160px]">
+          <ChevronLeft className="w-5 h-5 text-gray-600 mr-3" />
+          <a href="/calender">
+            <span className="text-gray-600 text-sm cursor-pointer">
+              Back to the calendar
+            </span>
+          </a>
+        </div>
+        {/* Center: Heading */}
         <div className="flex-1 text-center">
           <h1 className="text-xl font-medium">
             {company?.companyName
@@ -251,7 +251,10 @@ const ContractForm: React.FC = () => {
               : "New contract"}
           </h1>
         </div>
+        {/* Right: Ghost div for centering */}
+        <div className="min-w-[160px]" />
       </div>
+
       {err && (
         <div className="mx-6 mt-3 rounded bg-red-50 p-3 text-sm text-red-700">
           {err}

@@ -320,7 +320,7 @@ const TimeOffScheduler: React.FC<Props> = ({
           return (
             <div
               key={cellKey}
-              className="p-2 min-h-12"
+              className="px-6 py-6 min-h-24"
               onDragOver={handleDragOver}
               onDrop={(e) => handleDropHere(e, cellKey)}
             >
@@ -330,12 +330,14 @@ const TimeOffScheduler: React.FC<Props> = ({
                     <div
                       key={`${cellKey}-${item.name}-${idx}`}
                       draggable
-                      style={{ WebkitUserDrag: "element" } as React.CSSProperties}
+                      style={
+                        { WebkitUserDrag: "element" } as React.CSSProperties
+                      }
                       onDragStart={(e) =>
                         handleItemDragStart(e, item.name, cellKey, item.type)
                       }
                       className={[
-                        "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs font-medium select-none cursor-grab active:cursor-grabbing",
+                        "inline-flex items-center gap-1 px-7  py-3 rounded-2xl text-xs font-medium select-none cursor-grab active:cursor-grabbing",
                         "shadow-[0_1px_0_rgba(0,0,0,0.03)] ring-1",
                         item.type === "person"
                           ? "bg-sky-100 text-sky-800 ring-sky-200"

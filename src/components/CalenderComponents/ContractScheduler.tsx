@@ -311,6 +311,317 @@
 // export default ContractScheduler;
 
 
+// import React from "react";
+// import { ChevronDown, Info } from "lucide-react";
+
+// /** tools are first-class so machines can act as containers */
+// export type ItemType = "person" | "machine" | "tool";
+
+// export type CalendarItem = {
+//   name: string;
+//   type: ItemType;
+//   color?: string;
+//   note?: string;
+//   /** only used when type === "machine" */
+//   children?: CalendarItem[];
+// };
+
+// export type CalendarData = Record<string, CalendarItem[]>;
+
+// type ContractDragMeta = {
+//   childrenSnapshot?: CalendarItem[]; // when dragging a machine, include its children
+//   childOf?: string; // when dragging a child out of a machine
+// };
+
+// type DragStartFn = (
+//   name: string,
+//   sourceKey: string,
+//   type: ItemType,
+//   meta?: ContractDragMeta
+// ) => void;
+
+// type DropFn = (targetKey: string) => void;
+// /** drop directly onto a machine (assign resource to it) */
+// type DropToMachineFn = (targetKey: string, machineName: string) => void;
+
+// type DraggedItem = { name: string; type: ItemType } | null;
+
+// type WeekDay = { key: string; label: string; date: string };
+
+// interface Props {
+//   data: CalendarData;
+//   onDragStart: DragStartFn;
+//   onDrop: DropFn;
+//   onDropToMachine: DropToMachineFn;
+//   /** OPTIONAL: click callback for the small info icon on machine cards */
+//   onMachineInfo?: (cellKey: string, machineName: string) => void;
+// }
+
+// const ContractScheduler: React.FC<Props> = ({
+//   data,
+//   onDragStart,
+//   onDrop,
+//   onDropToMachine,
+//   onMachineInfo,
+// }) => {
+//   const [_draggedItem, setDraggedItem] = React.useState<DraggedItem>(null);
+//   const [_draggedFrom, setDraggedFrom] = React.useState<string | null>(null);
+
+//   const [collapsedRows, setCollapsedRows] = React.useState<
+//     Record<string, boolean>
+//   >({});
+
+//   const toggleRow = (rowKey: string) =>
+//     setCollapsedRows((prev) => ({ ...prev, [rowKey]: !prev[rowKey] }));
+
+//   const weekDays: WeekDay[] = [
+//     { key: "mon", label: "Mon", date: "21" },
+//     { key: "tue", label: "Tue", date: "22" },
+//     { key: "wed", label: "Wed", date: "23" },
+//     { key: "thu", label: "Thu", date: "24" },
+//     { key: "fri", label: "Fri", date: "25" },
+//     { key: "sat", label: "Sat", date: "26" },
+//     { key: "sun", label: "Sun", date: "27" },
+//   ];
+
+//   const handleItemDragStart = (
+//     e: React.DragEvent<HTMLDivElement>,
+//     itemName: string,
+//     sourceKey: string,
+//     itemType: ItemType,
+//     meta?: ContractDragMeta
+//   ) => {
+//     setDraggedItem({ name: itemName, type: itemType });
+//     setDraggedFrom(sourceKey);
+//     e.dataTransfer.effectAllowed = "move";
+//     try {
+//       e.dataTransfer.setData("text/plain", itemName);
+//       e.dataTransfer.setData("application/x-item-type", itemType);
+//     } catch {}
+//     onDragStart(itemName, sourceKey, itemType, meta);
+//   };
+
+//   const handleDragOver = (e: React.DragEvent<HTMLElement>) => {
+//     e.preventDefault();
+//     e.dataTransfer.dropEffect = "move";
+//   };
+
+//   const handleDropHere = (
+//     e: React.DragEvent<HTMLDivElement>,
+//     targetKey: string
+//   ) => {
+//     e.preventDefault();
+//     onDrop(targetKey);
+//     setDraggedItem(null);
+//     setDraggedFrom(null);
+//   };
+
+//   const getWeekDates = (weekOffset = 0): WeekDay[] =>
+//     weekDays.map((day, index) => ({
+//       ...day,
+//       date: String(21 + index + weekOffset * 7),
+//     }));
+
+//   /** chip styling */
+//   const chipCls = (t: ItemType) =>
+//     [
+//       "px-2 py-1.5 rounded-md text-xs cursor-move hover:shadow-sm transition-all duration-200 border",
+//       t === "person"
+//         ? "bg-blue-100 text-blue-800 border-blue-300/50"
+//         : t === "tool"
+//         ? "bg-amber-50 text-amber-800 border-amber-300/60"
+//         : "bg-green-100 text-green-800 border-green-300/50",
+//     ].join(" ");
+
+//   const renderWeekRow = (
+//     weekKey: string,
+//     weekOffset = 0,
+//     // showHeader = true
+//   ) => {
+//     const weekDates = getWeekDates(weekOffset);
+//     const isCollapsed = !!collapsedRows[weekKey];
+
+//     return (
+//       <div className="grid grid-row-2">
+//         {/* Left header cell with toggle */}
+//         <div className="p-1">
+//           <button
+//             type="button"
+//             onClick={() => toggleRow(weekKey)}
+//             className="text-xs text-gray-500 flex items-center hover:text-gray-700 select-none"
+//             aria-expanded={!isCollapsed}
+//             aria-controls={`${weekKey}-grid`}
+//             title={isCollapsed ? "Expand row" : "Collapse row"}
+//           >
+//             <span>SO1165</span>
+//             <ChevronDown
+//               size={12}
+//               className={`ml-1 transition-transform duration-200 ${
+//                 isCollapsed ? "-rotate-90" : "rotate-0"
+//               }`}
+//             />
+//           </button>
+//         </div>
+
+//         {/* Days grid (hidden when collapsed) */}
+//         {!isCollapsed && (
+//           <div id={`${weekKey}-grid`} className="grid grid-cols-4">
+//             {weekDates.map((day) => {
+//               const cellKey = `${weekKey}-${day.key}`;
+//               const items = data[cellKey] || [];
+//               const machines = items.filter((i) => i.type === "machine");
+//               const others = items.filter((i) => i.type !== "machine");
+
+//               return (
+//                 <div
+//                   key={cellKey}
+//                   className="p-3 hover:bg-gray-25 transition-colors"
+//                   onDragOver={handleDragOver}
+//                   onDrop={(e) => handleDropHere(e, cellKey)}
+//                 >
+//                   <div className="space-y-2">
+//                     {/* machines with their own droppable interior */}
+//                     {machines.map((m, midx) => (
+//                       <div
+//                         key={`${cellKey}-${m.name}-${midx}`}
+//                         className="relative rounded-lg bg-green-50 border border-green-200/70"
+//                       >
+//                         {/* MACHINE HEADER (draggable) + INFO ICON */}
+//                         <div
+//                           className="px-2 py-1.5 pr-7 text-xs font-medium text-green-900 cursor-move select-none"
+//                           draggable
+//                           onDragStart={(e) =>
+//                             handleItemDragStart(e, m.name, cellKey, "machine", {
+//                               childrenSnapshot: m.children
+//                                 ? [...m.children]
+//                                 : [],
+//                             })
+//                           }
+//                           title={m.note || ""}
+//                         >
+//                           {m.name}
+//                         </div>
+
+//                         {/* top-right icon */}
+//                         <button
+//                           type="button"
+//                           aria-label="Machine info"
+//                           draggable={false}
+//                           onMouseDown={(e) => e.stopPropagation()}
+//                           onClick={(e) => {
+//                             e.preventDefault();
+//                             e.stopPropagation();
+//                             onMachineInfo?.(cellKey, m.name);
+//                           }}
+//                           className="absolute top-1.5 right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full  text-green-700  "
+//                           title="Machine details"
+//                         >
+//                           <Info className="h-3.5 w-3.5" />
+//                         </button>
+
+//                         {/* INNER DROPPABLE for assigning resources */}
+//                         <div
+//                           className="px-2 pb-2 pt-1"
+//                           onDragOver={(e) => {
+//                             e.preventDefault();
+//                             e.stopPropagation(); // keep cell onDrop from firing
+//                             e.dataTransfer.dropEffect = "move";
+//                           }}
+//                           onDrop={(e) => {
+//                             e.preventDefault();
+//                             e.stopPropagation();
+//                             onDropToMachine(cellKey, m.name);
+//                           }}
+//                         >
+//                           {/* stacked children, one per row */}
+//                           <div className="grid grid-cols-1 gap-2">
+//                             {(m.children || []).map((c, cidx) => (
+//                               <div
+//                                 key={`${cellKey}-${m.name}-child-${c.name}-${cidx}`}
+//                                 className={[
+//                                   "w-full px-3 py-1 rounded-md text-[13px] font-medium text-center",
+//                                   "cursor-move border transition-all duration-200",
+//                                   c.type === "person"
+//                                     ? "bg-blue-100 text-blue-800 border-blue-300/50"
+//                                     : c.type === "tool"
+//                                     ? "bg-amber-100 text-amber-800 border-amber-300/60"
+//                                     : "bg-green-100 text-green-800 border-green-300/50",
+//                                 ].join(" ")}
+//                                 draggable
+//                                 onDragStart={(e) =>
+//                                   handleItemDragStart(
+//                                     e,
+//                                     c.name,
+//                                     cellKey,
+//                                     c.type,
+//                                     { childOf: m.name }
+//                                   )
+//                                 }
+//                                 title={c.note || ""}
+//                               >
+//                                 {c.name}
+//                               </div>
+//                             ))}
+//                             {(m.children || []).length === 0 && (
+//                               <div className="text-[11px] text-green-700/70 py-1 text-center">
+//                                 {/* Drop people/tools here */}
+//                               </div>
+//                             )}
+//                           </div>
+//                         </div>
+//                       </div>
+//                     ))}
+
+//                     {/* top-level items not assigned to a machine */}
+//                     {others.map((item, idx) => (
+//                       <div
+//                         key={`${cellKey}-${item.name}-${idx}`}
+//                         draggable
+//                         onDragStart={(e) =>
+//                           handleItemDragStart(e, item.name, cellKey, item.type)
+//                         }
+//                         className={chipCls(item.type)}
+//                         title={item.note || ""}
+//                       >
+//                         <div className="font-medium">{item.name}</div>
+//                         {item.note && (
+//                           <div className="text-xs opacity-75 mt-1">
+//                             {item.note}
+//                           </div>
+//                         )}
+//                       </div>
+//                     ))}
+//                   </div>
+//                 </div>
+//               );
+//             })}
+//           </div>
+//         )}
+//       </div>
+//     );
+//   };
+
+//   return (
+//     <div className="w-full bg-gray-100 p-2">
+//       <div className="w-full p-3 max-w-4xl bg-white rounded-lg shadow-sm">
+//         <div className="text-lg font-semibold w-full border-b">
+//           Contract SO1165
+//         </div>
+//         <div className="bg-white">
+//           {renderWeekRow("SO1165", 0)}
+//           {renderWeekRow("SO1165-week2", 1)}
+//           {renderWeekRow("SO1165-week3", 2)}
+//         </div>
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default ContractScheduler;
+
+
+
+// ===================== ContractScheduler.tsx =====================
 import React from "react";
 import { ChevronDown, Info } from "lucide-react";
 
@@ -327,6 +638,17 @@ export type CalendarItem = {
 };
 
 export type CalendarData = Record<string, CalendarItem[]>;
+
+// -------------------- NEW --------------------
+/** resize callback signature */
+export type ResizeFn = (
+  sourceKey: string,
+  itemName: string,
+  itemType: ItemType,
+  edge: "left" | "right",
+  dayDelta: number
+) => void;
+// ------------------------------------------------
 
 type ContractDragMeta = {
   childrenSnapshot?: CalendarItem[]; // when dragging a machine, include its children
@@ -353,15 +675,25 @@ interface Props {
   onDragStart: DragStartFn;
   onDrop: DropFn;
   onDropToMachine: DropToMachineFn;
+  /** resize handler */
+  onResize: ResizeFn;
   /** OPTIONAL: click callback for the small info icon on machine cards */
   onMachineInfo?: (cellKey: string, machineName: string) => void;
 }
+
+/** true if <name,type> is present in the array */
+const itemExists = (
+  arr: CalendarItem[] | undefined,
+  name: string,
+  type: ItemType
+) => !!arr?.some((i) => i.name === name && i.type === type);
 
 const ContractScheduler: React.FC<Props> = ({
   data,
   onDragStart,
   onDrop,
   onDropToMachine,
+  onResize,
   onMachineInfo,
 }) => {
   const [_draggedItem, setDraggedItem] = React.useState<DraggedItem>(null);
@@ -384,37 +716,85 @@ const ContractScheduler: React.FC<Props> = ({
     { key: "sun", label: "Sun", date: "27" },
   ];
 
-  const handleItemDragStart = (
-    e: React.DragEvent<HTMLDivElement>,
+  // ---------------- resize helpers ----------------
+  const startResize = (
+    e: React.MouseEvent<HTMLDivElement>,
+    edge: "left" | "right",
+    cellKey: string,
     itemName: string,
-    sourceKey: string,
-    itemType: ItemType,
-    meta?: ContractDragMeta
-  ) => {
-    setDraggedItem({ name: itemName, type: itemType });
-    setDraggedFrom(sourceKey);
-    e.dataTransfer.effectAllowed = "move";
-    try {
-      e.dataTransfer.setData("text/plain", itemName);
-      e.dataTransfer.setData("application/x-item-type", itemType);
-    } catch {}
-    onDragStart(itemName, sourceKey, itemType, meta);
-  };
-
-  const handleDragOver = (e: React.DragEvent<HTMLElement>) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  };
-
-  const handleDropHere = (
-    e: React.DragEvent<HTMLDivElement>,
-    targetKey: string
+    itemType: ItemType
   ) => {
     e.preventDefault();
-    onDrop(targetKey);
-    setDraggedItem(null);
-    setDraggedFrom(null);
+    e.stopPropagation();
+    const startX = e.clientX;
+    const cellEl =
+      (e.currentTarget.parentElement?.parentElement as HTMLElement) || null;
+    const cellWidth = cellEl ? cellEl.offsetWidth : 120;
+
+    const onMouseMove = (mv: MouseEvent) => {
+      mv.preventDefault();
+    };
+
+    const onMouseUp = (up: MouseEvent) => {
+      const diffX = up.clientX - startX;
+      let dayDelta = 0;
+      if (edge === "right") {
+        dayDelta = Math.round(diffX / cellWidth);
+      } else {
+        dayDelta = Math.round(-diffX / cellWidth);
+      }
+      if (dayDelta > 0) {
+        onResize(cellKey, itemName, itemType, edge, dayDelta);
+      }
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
   };
+
+  // ---------------- visual helpers ----------------
+  /**
+   * base chip classes + conditional merging classes when the same item is found
+   * in the previous/next day
+   */
+  const chipCls = (t: ItemType, joinsLeft = false, joinsRight = false) =>
+    [
+      // base
+      "px-2 py-1.5 rounded-md text-xs cursor-move hover:shadow-sm transition-all duration-200 border relative group",
+      t === "person"
+        ? "bg-blue-100 text-blue-800 border-blue-300/50"
+        : t === "tool"
+        ? "bg-amber-50 text-amber-800 border-amber-300/60"
+        : "bg-green-100 text-green-800 border-green-300/50",
+      // merging tweaks
+      joinsLeft ? "-ml-6 border-l-0 rounded-l-none" : "",
+      joinsRight ? "rounded-r-none" : "",
+    ].join(" ");
+
+  const machineContainerCls = (joinsLeft = false, joinsRight = false) =>
+    [
+      "relative bg-green-50 border border-green-200/70 group",
+      joinsLeft ? "-ml-6 border-l-0 rounded-l-none" : "rounded-l-lg",
+      joinsRight ? "rounded-r-none" : "rounded-r-lg",
+    ].join(" ");
+
+  const renderResizeHandles = (
+    cellKey: string,
+    itemName: string,
+    type: ItemType
+  ) => (
+    <>
+      <div
+        className="absolute left-0 top-0 h-full w-1 cursor-ew-resize opacity-0 group-hover:opacity-100"
+        onMouseDown={(e) => startResize(e, "left", cellKey, itemName, type)}
+      />
+      <div
+        className="absolute right-0 top-0 h-full w-1 cursor-ew-resize opacity-0 group-hover:opacity-100"
+        onMouseDown={(e) => startResize(e, "right", cellKey, itemName, type)}
+      />
+    </>
+  );
 
   const getWeekDates = (weekOffset = 0): WeekDay[] =>
     weekDays.map((day, index) => ({
@@ -422,22 +802,7 @@ const ContractScheduler: React.FC<Props> = ({
       date: String(21 + index + weekOffset * 7),
     }));
 
-  /** chip styling */
-  const chipCls = (t: ItemType) =>
-    [
-      "px-2 py-1.5 rounded-md text-xs cursor-move hover:shadow-sm transition-all duration-200 border",
-      t === "person"
-        ? "bg-blue-100 text-blue-800 border-blue-300/50"
-        : t === "tool"
-        ? "bg-amber-50 text-amber-800 border-amber-300/60"
-        : "bg-green-100 text-green-800 border-green-300/50",
-    ].join(" ");
-
-  const renderWeekRow = (
-    weekKey: string,
-    weekOffset = 0,
-    // showHeader = true
-  ) => {
+  const renderWeekRow = (weekKey: string, weekOffset = 0) => {
     const weekDates = getWeekDates(weekOffset);
     const isCollapsed = !!collapsedRows[weekKey];
 
@@ -466,7 +831,7 @@ const ContractScheduler: React.FC<Props> = ({
         {/* Days grid (hidden when collapsed) */}
         {!isCollapsed && (
           <div id={`${weekKey}-grid`} className="grid grid-cols-4">
-            {weekDates.map((day) => {
+            {weekDates.map((day, dayIdx) => {
               const cellKey = `${weekKey}-${day.key}`;
               const items = data[cellKey] || [];
               const machines = items.filter((i) => i.type === "machine");
@@ -476,121 +841,155 @@ const ContractScheduler: React.FC<Props> = ({
                 <div
                   key={cellKey}
                   className="p-3 hover:bg-gray-25 transition-colors"
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDropHere(e, cellKey)}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    onDrop(cellKey);
+                    setDraggedItem(null);
+                    setDraggedFrom(null);
+                  }}
                 >
                   <div className="space-y-2">
-                    {/* machines with their own droppable interior */}
-                    {machines.map((m, midx) => (
-                      <div
-                        key={`${cellKey}-${m.name}-${midx}`}
-                        className="relative rounded-lg bg-green-50 border border-green-200/70"
-                      >
-                        {/* MACHINE HEADER (draggable) + INFO ICON */}
+                    {/* ----- MACHINES (top-level) ----- */}
+                    {machines.map((m, midx) => {
+                      const prevCellKey =
+                        dayIdx > 0
+                          ? `${weekKey}-${weekDates[dayIdx - 1].key}`
+                          : "";
+                      const nextCellKey =
+                        dayIdx < weekDates.length - 1
+                          ? `${weekKey}-${weekDates[dayIdx + 1].key}`
+                          : "";
+
+                      const joinsLeft = itemExists(
+                        data[prevCellKey],
+                        m.name,
+                        "machine"
+                      );
+                      const joinsRight = itemExists(
+                        data[nextCellKey],
+                        m.name,
+                        "machine"
+                      );
+
+                      return (
                         <div
-                          className="px-2 py-1.5 pr-7 text-xs font-medium text-green-900 cursor-move select-none"
+                          key={`${cellKey}-${m.name}-${midx}`}
+                          className={machineContainerCls(joinsLeft, joinsRight)}
+                        >
+                          {renderResizeHandles(cellKey, m.name, "machine")}
+                          <div
+                            className="px-2 py-1.5 pr-7 text-xs font-medium text-green-900 cursor-move select-none"
+                            draggable
+                            onDragStart={(_e) =>
+                              onDragStart(m.name, cellKey, "machine", {
+                                childrenSnapshot: m.children
+                                  ? [...m.children]
+                                  : [],
+                              })
+                            }
+                            title={m.note || ""}
+                          >
+                            {m.name}
+                          </div>
+                          <button
+                            type="button"
+                            aria-label="Machine info"
+                            draggable={false}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              onMachineInfo?.(cellKey, m.name);
+                            }}
+                            className="absolute top-1.5 right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-green-700"
+                            title="Machine details"
+                          >
+                            <Info className="h-3.5 w-3.5" />
+                          </button>
+                          <div
+                            className="px-2 pb-2 pt-1"
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              e.dataTransfer.dropEffect = "move";
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              onDropToMachine(cellKey, m.name);
+                            }}
+                          >
+                            <div className="grid grid-cols-1 gap-2">
+                              {(m.children || []).map((c, cidx) => (
+                                <div
+                                  key={`${cellKey}-${m.name}-child-${c.name}-${cidx}`}
+                                  className={chipCls(c.type)}
+                                  draggable
+                                  onDragStart={(_e) =>
+                                    onDragStart(c.name, cellKey, c.type, {
+                                      childOf: m.name,
+                                    })
+                                  }
+                                  title={c.note || ""}
+                                >
+                                  {c.name}
+                                </div>
+                              ))}
+                              {(m.children || []).length === 0 && (
+                                <div className="text-[11px] text-green-700/70 py-1 text-center" />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* ----- OTHER RESOURCES (person/tool) ----- */}
+                    {others.map((item, idx) => {
+                      const prevCellKey =
+                        dayIdx > 0
+                          ? `${weekKey}-${weekDates[dayIdx - 1].key}`
+                          : "";
+                      const nextCellKey =
+                        dayIdx < weekDates.length - 1
+                          ? `${weekKey}-${weekDates[dayIdx + 1].key}`
+                          : "";
+
+                      const joinsLeft = itemExists(
+                        data[prevCellKey],
+                        item.name,
+                        item.type
+                      );
+                      const joinsRight = itemExists(
+                        data[nextCellKey],
+                        item.name,
+                        item.type
+                      );
+
+                      return (
+                        <div
+                          key={`${cellKey}-${item.name}-${idx}`}
+                          className={chipCls(item.type, joinsLeft, joinsRight)}
                           draggable
-                          onDragStart={(e) =>
-                            handleItemDragStart(e, m.name, cellKey, "machine", {
-                              childrenSnapshot: m.children
-                                ? [...m.children]
-                                : [],
-                            })
+                          onDragStart={(_e) =>
+                            onDragStart(item.name, cellKey, item.type)
                           }
-                          title={m.note || ""}
+                          title={item.note || ""}
                         >
-                          {m.name}
+                          {renderResizeHandles(cellKey, item.name, item.type)}
+                          <div className="font-medium">{item.name}</div>
+                          {item.note && (
+                            <div className="text-xs opacity-75 mt-1">
+                              {item.note}
+                            </div>
+                          )}
                         </div>
-
-                        {/* top-right icon */}
-                        <button
-                          type="button"
-                          aria-label="Machine info"
-                          draggable={false}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            onMachineInfo?.(cellKey, m.name);
-                          }}
-                          className="absolute top-1.5 right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full  text-green-700  "
-                          title="Machine details"
-                        >
-                          <Info className="h-3.5 w-3.5" />
-                        </button>
-
-                        {/* INNER DROPPABLE for assigning resources */}
-                        <div
-                          className="px-2 pb-2 pt-1"
-                          onDragOver={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation(); // keep cell onDrop from firing
-                            e.dataTransfer.dropEffect = "move";
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            onDropToMachine(cellKey, m.name);
-                          }}
-                        >
-                          {/* stacked children, one per row */}
-                          <div className="grid grid-cols-1 gap-2">
-                            {(m.children || []).map((c, cidx) => (
-                              <div
-                                key={`${cellKey}-${m.name}-child-${c.name}-${cidx}`}
-                                className={[
-                                  "w-full px-3 py-1 rounded-md text-[13px] font-medium text-center",
-                                  "cursor-move border transition-all duration-200",
-                                  c.type === "person"
-                                    ? "bg-blue-100 text-blue-800 border-blue-300/50"
-                                    : c.type === "tool"
-                                    ? "bg-amber-100 text-amber-800 border-amber-300/60"
-                                    : "bg-green-100 text-green-800 border-green-300/50",
-                                ].join(" ")}
-                                draggable
-                                onDragStart={(e) =>
-                                  handleItemDragStart(
-                                    e,
-                                    c.name,
-                                    cellKey,
-                                    c.type,
-                                    { childOf: m.name }
-                                  )
-                                }
-                                title={c.note || ""}
-                              >
-                                {c.name}
-                              </div>
-                            ))}
-                            {(m.children || []).length === 0 && (
-                              <div className="text-[11px] text-green-700/70 py-1 text-center">
-                                {/* Drop people/tools here */}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* top-level items not assigned to a machine */}
-                    {others.map((item, idx) => (
-                      <div
-                        key={`${cellKey}-${item.name}-${idx}`}
-                        draggable
-                        onDragStart={(e) =>
-                          handleItemDragStart(e, item.name, cellKey, item.type)
-                        }
-                        className={chipCls(item.type)}
-                        title={item.note || ""}
-                      >
-                        <div className="font-medium">{item.name}</div>
-                        {item.note && (
-                          <div className="text-xs opacity-75 mt-1">
-                            {item.note}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -616,5 +1015,4 @@ const ContractScheduler: React.FC<Props> = ({
     </div>
   );
 };
-
 export default ContractScheduler;
