@@ -1,19 +1,10 @@
-import React, { useEffect, useState } from "react";
-import {
-  Search,
-  ChevronUp,
-  ChevronDown,
-  Users,
-  Truck,
-  FileText,
-  Loader2,
-} from "lucide-react";
+import React from "react";
+import { Search, ChevronUp, ChevronDown, Users, Truck } from "lucide-react";
 import Header from "../CalenderComponents/Header";
+import { Settings } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-// Firebase imports (adjust to your project structure)
-import { onAuthStateChanged } from "firebase/auth";
-import { collection, onSnapshot } from "firebase/firestore";
-import { auth, db } from "../../lib/firebase"; // Adjust this path as needed
+import SidebarContracts from "./SidebarContract"; // Adjust path if needed
 
 type ExpandedSections = {
   drivers: boolean;
@@ -25,13 +16,13 @@ type ExpandedSections = {
   constructionLead: boolean;
   // Machine categories
   digger: boolean;
-  machines: boolean,
+  machines: boolean;
   loader: boolean;
   trailerTrucks: boolean;
   wheelers8: boolean;
   personalCars: boolean;
   tools: boolean;
-  contracts: boolean; // new!  
+  contracts: boolean; // new!
 };
 
 type SidebarEmployees = {
@@ -70,21 +61,6 @@ type Props = {
   toggleSection: (section: keyof ExpandedSections) => void;
   sidebarSearch: string;
   setSidebarSearch: React.Dispatch<React.SetStateAction<string>>;
-};
-
-// Type for contract doc fetched from Firestore
-type ContractDoc = {
-  id: string;
-  name?: string;
-  status?: string;
-  // add other fields if needed
-};
-
-// UI type for rendered contract
-type ContractUIItem = {
-  id: string;
-  dateRange: string;
-  title: string;
 };
 
 const MACHINE_CATEGORIES = [
@@ -135,89 +111,7 @@ const Sidebar: React.FC<Props> = ({
     tools: filterBySearch(sidebarMachines.tools),
   };
 
-  // --- Contracts state ---
-  const [contracts, setContracts] = useState<ContractUIItem[]>([]);
-  const [contractsLoading, setContractsLoading] = useState<boolean>(true);
-  const [contractsError, setContractsError] = useState<string | null>(null);
-  const [_uid, setUid] = useState<string | null>(null);
-
-  // For expanding/collapsing contracts dropdown
-  // You could control this in expandedSections, but for full independence, let's keep local state
-  const [contractsExpanded, setContractsExpanded] = useState(true);
-
-  // Dummy implementation for getContractDateRange. Replace with real one as needed.
-  async function getContractDateRange(
-    _userId: string,
-    _contractId: string
-  ): Promise<string | null> {
-    // Replace this with real logic if you have it in your codebase!
-    return null; // Or e.g. "2023-01-01 – 2023-05-05"
-  }
-
-  // --- Fetch contracts on mount ---
-  useEffect(() => {
-    let unsubContracts: (() => void) | null = null;
-
-    const unsubAuth = onAuthStateChanged(auth, (user) => {
-      if (unsubContracts) {
-        unsubContracts();
-        unsubContracts = null;
-      }
-
-      if (!user) {
-        setUid(null);
-        setContracts([]);
-        setContractsLoading(false);
-        setContractsError("You must be signed in to see your contracts.");
-        return;
-      }
-
-      setUid(user.uid);
-      setContractsError(null);
-      setContractsLoading(true);
-
-      // Listen to all contracts and filter client-side:
-      const col = collection(db, "companies", user.uid, "contracts");
-      unsubContracts = onSnapshot(
-        col,
-        async (snap) => {
-          const docs = snap.docs.map((d) => ({
-            ...(d.data() as ContractDoc),
-            id: d.id, // Override any existing id with Firestore's id
-          }));
-
-          // Consider anything not archived as "ongoing"
-          const ongoingDocs = docs.filter(
-            (c) => (c.status ?? "draft") !== "archived"
-          );
-
-          // Build UI items with date ranges
-          const items = await Promise.all(
-            ongoingDocs.map(async (c) => {
-              const dateRange = await getContractDateRange(user.uid, c.id);
-              return {
-                id: c.id,
-                dateRange: dateRange || "—",
-                title: c.name || "Contract",
-              };
-            })
-          );
-
-          setContracts(items);
-          setContractsLoading(false);
-        },
-        (e) => {
-          setContractsError(e.message || "Failed to load contracts.");
-          setContractsLoading(false);
-        }
-      );
-    });
-
-    return () => {
-      unsubAuth();
-      if (unsubContracts) unsubContracts();
-    };
-  }, []);
+  const navigate = useNavigate();
 
   // --- Sidebar UI ---
   return (
@@ -227,7 +121,14 @@ const Sidebar: React.FC<Props> = ({
         <div className="flex items-center gap-0 mb-3">
           <span className="text-sm font-medium">EuropeanCompany</span>
           <span className="pt-1.5 rounded text-xs leading-none">
-            {/* logo omitted for brevity */}
+            {/* Settings Button */}
+            <button
+              className="px-1"
+              title="Settings"
+              onClick={() => navigate("/dashboard")}
+            >
+              <Settings className="h-4 w-4 " />
+            </button>
           </span>
         </div>
         <div className="relative">
@@ -284,6 +185,7 @@ const Sidebar: React.FC<Props> = ({
                     >
                       <div
                         draggable
+                        data-resource-name={emp}
                         onDragStart={(e) =>
                           handleSidebarDragStart(e, emp, "employee", "drivers")
                         }
@@ -337,6 +239,7 @@ const Sidebar: React.FC<Props> = ({
                     >
                       <div
                         draggable
+                        data-resource-name={emp}
                         onDragStart={(e) =>
                           handleSidebarDragStart(
                             e,
@@ -404,6 +307,7 @@ const Sidebar: React.FC<Props> = ({
                             >
                               <div
                                 draggable
+                                data-resource-name={emp}
                                 onDragStart={(e) =>
                                   handleSidebarDragStart(
                                     e,
@@ -479,6 +383,7 @@ const Sidebar: React.FC<Props> = ({
                         >
                           <div
                             draggable
+                            data-resource-name={machine}
                             onDragStart={(e) =>
                               handleSidebarDragStart(e, machine, "machine", key)
                             }
@@ -510,73 +415,7 @@ const Sidebar: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* CONTRACTS - Footer */}
-      <div className="border-t border-gray-200">
-        {/* Contracts dropdown header */}
-        <div
-          className="px-3 py-2 flex items-center justify-between cursor-pointer select-none"
-          onClick={() => setContractsExpanded((v) => !v)}
-        >
-          <span className="flex items-center gap-2 text-sm font-medium">
-            <FileText className="h-4 w-4 text-gray-600 inline-block mr-1" />
-            Contracts
-          </span>
-          {contractsExpanded ? (
-            <ChevronUp className="h-4 w-4" />
-          ) : (
-            <ChevronDown className="h-4 w-4" />
-          )}
-        </div>
-        {contractsExpanded && (
-          <div className="relative ml-3 pl-2 py-3">
-            {/* vertical branch line */}
-            <div className="absolute left-2 top-2 bottom-2 w-px bg-gray-300 z-0" />
-            {contractsLoading ? (
-              <div className="flex items-center gap-2 text-xs text-gray-400 py-2">
-                <Loader2 className="animate-spin w-4 h-4" /> Loading...
-              </div>
-            ) : contractsError ? (
-              <div className="text-xs text-red-400 py-2">{contractsError}</div>
-            ) : contracts.length === 0 ? (
-              <div className="text-xs text-gray-400 italic py-2">
-                No contracts
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {contracts.map((contract, _idx) => (
-                  <div
-                    key={contract.id}
-                    className="relative flex items-start z-10"
-                    style={{ marginLeft: "10px" }}
-                  >
-                    {/* horizontal connector to branch */}
-                    <div
-                      className="absolute left-[-10px] top-1/2 w-[10px] h-px bg-gray-300"
-                      style={{ transform: "translateY(-50%)" }}
-                    />
-                    {/* contract card */}
-                    <a
-                      href={`/contract/${contract.id}`}
-                      className="flex-1 bg-white border border-gray-300 rounded-lg px-2 py-1 shadow-sm hover:bg-gray-50 transition-colors duration-100"
-                      style={{
-                        minWidth: "100px",
-                        maxWidth: "160px",
-                        boxShadow: "0 1px 4px 0 rgb(0 0 0 / 0.03)",
-                        fontSize: "12px",
-                      }}
-                      title={contract.title}
-                    >
-                      <div className="font-medium text-gray-800 truncate">
-                        {contract.title}
-                      </div>
-                    </a>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      <SidebarContracts />
     </div>
   );
 };

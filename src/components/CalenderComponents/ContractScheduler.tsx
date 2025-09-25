@@ -621,7 +621,6 @@
 
 
 
-// ===================== ContractScheduler.tsx =====================
 import React from "react";
 import { ChevronDown, Info } from "lucide-react";
 
@@ -679,6 +678,9 @@ interface Props {
   onResize: ResizeFn;
   /** OPTIONAL: click callback for the small info icon on machine cards */
   onMachineInfo?: (cellKey: string, machineName: string) => void;
+  // --- NEW ---
+  unavailableResourceNames?: string[]; // names (strings) from timeoff
+  onUnavailableDrop?: (name: string) => void; // called if drop forbidden
 }
 
 /** true if <name,type> is present in the array */
@@ -695,6 +697,8 @@ const ContractScheduler: React.FC<Props> = ({
   onDropToMachine,
   onResize,
   onMachineInfo,
+  unavailableResourceNames = [],
+  onUnavailableDrop,
 }) => {
   const [_draggedItem, setDraggedItem] = React.useState<DraggedItem>(null);
   const [_draggedFrom, setDraggedFrom] = React.useState<string | null>(null);
@@ -802,6 +806,53 @@ const ContractScheduler: React.FC<Props> = ({
       date: String(21 + index + weekOffset * 7),
     }));
 
+  // --------- DROP HANDLERS (MODAL LOGIC) ---------
+  // Checks if any dropped resource is in unavailableResourceNames, and calls callback
+  const handleDrop = (
+    e: React.DragEvent<HTMLDivElement>,
+    targetKey: string
+  ) => {
+    e.preventDefault();
+    let draggedName = "";
+    try {
+      draggedName = e.dataTransfer.getData("text/plain");
+    } catch {}
+    if (
+      draggedName &&
+      unavailableResourceNames.includes(draggedName) &&
+      onUnavailableDrop
+    ) {
+      onUnavailableDrop(draggedName);
+      return;
+    }
+    onDrop(targetKey);
+    setDraggedItem(null);
+    setDraggedFrom(null);
+  };
+
+  const handleDropToMachine = (
+    e: React.DragEvent<HTMLDivElement>,
+    targetKey: string,
+    machineName: string
+  ) => {
+    e.preventDefault();
+    let draggedName = "";
+    try {
+      draggedName = e.dataTransfer.getData("text/plain");
+    } catch {}
+    if (
+      draggedName &&
+      unavailableResourceNames.includes(draggedName) &&
+      onUnavailableDrop
+    ) {
+      onUnavailableDrop(draggedName);
+      return;
+    }
+    onDropToMachine(targetKey, machineName);
+    setDraggedItem(null);
+    setDraggedFrom(null);
+  };
+
   const renderWeekRow = (weekKey: string, weekOffset = 0) => {
     const weekDates = getWeekDates(weekOffset);
     const isCollapsed = !!collapsedRows[weekKey];
@@ -845,12 +896,7 @@ const ContractScheduler: React.FC<Props> = ({
                     e.preventDefault();
                     e.dataTransfer.dropEffect = "move";
                   }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    onDrop(cellKey);
-                    setDraggedItem(null);
-                    setDraggedFrom(null);
-                  }}
+                  onDrop={(e) => handleDrop(e, cellKey)}
                 >
                   <div className="space-y-2">
                     {/* ----- MACHINES (top-level) ----- */}
@@ -917,11 +963,9 @@ const ContractScheduler: React.FC<Props> = ({
                               e.stopPropagation();
                               e.dataTransfer.dropEffect = "move";
                             }}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              onDropToMachine(cellKey, m.name);
-                            }}
+                            onDrop={(e) =>
+                              handleDropToMachine(e, cellKey, m.name)
+                            }
                           >
                             <div className="grid grid-cols-1 gap-2">
                               {(m.children || []).map((c, cidx) => (

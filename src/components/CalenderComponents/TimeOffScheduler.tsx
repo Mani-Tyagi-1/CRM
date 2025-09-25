@@ -212,7 +212,7 @@
 
 
 
-import React, { useMemo, useState } from "react";
+import React from "react";
 import { ChevronDown, ChevronUp, FileText } from "lucide-react";
 
 export type ItemType = "person" | "machine" | "tool";
@@ -235,23 +235,33 @@ interface Props {
   onDrop: DropFn;
 }
 
+// ---- Helper: collect all unavailable resource names ----
+export function getAllUnavailableResourceNames(data: CalendarData): string[] {
+  const names = new Set<string>();
+  for (const k of Object.keys(data)) {
+    // Only consider vacation-* and sick-*
+    if (k.startsWith("vacation-") || k.startsWith("sick-")) {
+      (data[k] || []).forEach((it) => names.add(it.name));
+    }
+  }
+  return Array.from(names);
+}
+
 const TimeOffScheduler: React.FC<Props> = ({
   weekDays,
   data,
   onDragStart,
   onDrop,
 }) => {
-  const [collapsed, setCollapsed] = useState({ vacation: false, sick: false });
-  const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = React.useState({
+    vacation: false,
+    sick: false,
+  });
+  const [open, setOpen] = React.useState(false);
   const OPEN_MAX_PX = 220;
 
-  const unavailableCount = useMemo(() => {
-    const names = new Set<string>();
-    Object.entries(data).forEach(([key, items]) => {
-      if (!key.startsWith("vacation-") && !key.startsWith("sick-")) return;
-      items?.forEach((it) => names.add(it.name));
-    });
-    return names.size;
+  const unavailableCount = React.useMemo(() => {
+    return getAllUnavailableResourceNames(data).length;
   }, [data]);
 
   const handleDragOver = (e: React.DragEvent<HTMLElement>) => {

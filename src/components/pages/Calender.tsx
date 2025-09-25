@@ -614,12 +614,18 @@
 
 
 // ===================== Calender.tsx =====================
+// ===================== Calender.tsx =====================
 import React, {
   useMemo,
   useState,
   useEffect,
 } from "react";
-import { Search, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import {
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+} from "lucide-react";
 import Sidebar from "../CalenderComponents/SideBar";
 
 import ContractScheduler, {
@@ -628,9 +634,11 @@ import ContractScheduler, {
   CalendarItem as ContractCalendarItem,
 } from "../CalenderComponents/ContractScheduler";
 
-import TimeOffScheduler, {
+import TimeOffScheduler,
+{
   CalendarData as TimeOffData,
   ItemType as TimeOffItemType,
+  getAllUnavailableResourceNames
 } from "../CalenderComponents/TimeOffScheduler";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -690,6 +698,7 @@ const dayOrder = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
 const Calender: React.FC = () => {
   const DAYS_TO_SHOW = 7;
+  
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -766,7 +775,6 @@ const Calender: React.FC = () => {
     contracts: false,
   });
 
-
   const [sidebarEmployees, setSidebarEmployees] = useState<SidebarEmployees>({
     drivers: ["John Doe", "John Dow", "Jordan Miles"],
     engineers: ["Sarah Wilson", "Mike Johnson", "Emma Davis"],
@@ -834,6 +842,9 @@ const Calender: React.FC = () => {
   }, [timelineDays]);
 
   const [timeOffData, setTimeOffData] = useState<TimeOffData>(initialTimeOffData);
+
+  const allUnavailableResourceNames =
+    getAllUnavailableResourceNames(timeOffData);
 
   useEffect(() => {
     setTimeOffData((prev) => {
@@ -1016,6 +1027,21 @@ const Calender: React.FC = () => {
     setDragged(null);
   };
 
+  // ========== MODAL logic ==========
+  const [showUnavailableModal, setShowUnavailableModal] = useState(false);
+  const [modalResourceName, setModalResourceName] = useState<string | null>(null);
+
+  // Build a set of all unavailable names (vacation/sick)
+  const unavailableResourceNames = useMemo(() => {
+    const names = new Set<string>();
+    Object.entries(timeOffData).forEach(([key, items]) => {
+      if (key.startsWith("vacation-") || key.startsWith("sick-")) {
+        items.forEach((it) => names.add(it.name));
+      }
+    });
+    return names;
+  }, [timeOffData]);
+
   // ---------- Drag starts ----------
   const handleSidebarDragStart = (
     e: React.DragEvent<HTMLDivElement>,
@@ -1058,16 +1084,33 @@ const Calender: React.FC = () => {
       meta,
     });
 
-  const onContractDrop = (targetKey: string) =>
-    moveTo({ zone: "contract", id: targetKey });
+  // ========== BLOCK drop if unavailable ==========
 
-  /** NEW: assign to a specific machine on drop */
-  const onContractDropToMachine = (targetKey: string, machineName: string) =>
+  const onContractDrop = (targetKey: string) => {
+    // Only check if currently dragging
+    if (dragged && unavailableResourceNames.has(dragged.name)) {
+      setShowUnavailableModal(true);
+      setModalResourceName(dragged.name);
+      setDragged(null);
+      return;
+    }
+    moveTo({ zone: "contract", id: targetKey });
+  };
+
+  /** assign to a specific machine on drop */
+  const onContractDropToMachine = (targetKey: string, machineName: string) => {
+    if (dragged && unavailableResourceNames.has(dragged.name)) {
+      setShowUnavailableModal(true);
+      setModalResourceName(dragged.name);
+      setDragged(null);
+      return;
+    }
     moveTo({
       zone: "contract",
       id: targetKey,
       assignToMachine: { machineName },
     });
+  };
 
   // ---------- TimeOff ----------
   const onTimeOffItemDragStart = (
@@ -1152,8 +1195,6 @@ const Calender: React.FC = () => {
     });
   };
 
-  
-
   return (
     <div className="flex h-screen bg-gray-50">
       {/* SIDEBAR */}
@@ -1191,9 +1232,12 @@ const Calender: React.FC = () => {
                    bg-gray-50 ring-1 ring-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-200"
                 />
               </div>
-              <div className="justify-self-end relative flex items-center gap-4">
+              <div className="justify-self-end relative flex items-center gap-0">
                 <div className="inline-flex items-stretch rounded-lg overflow-hidden ring-1 ring-gray-200 bg-white mr-7">
-                  <button className="px-2 py-2 hover:bg-gray-50" onClick={() => setStartOffsetDays((d) => d - 1)}>
+                  <button
+                    className="px-2 py-2 hover:bg-gray-50"
+                    onClick={() => setStartOffsetDays((d) => d - 1)}
+                  >
                     <ChevronLeft className="h-4 w-4 text-gray-800" />
                   </button>
                   <button
@@ -1202,10 +1246,14 @@ const Calender: React.FC = () => {
                   >
                     Today
                   </button>
-                  <button className="px-2 py-2 hover:bg-gray-50" onClick={() => setStartOffsetDays((d) => d + 1)}>
+                  <button
+                    className="px-2 py-2 hover:bg-gray-50"
+                    onClick={() => setStartOffsetDays((d) => d + 1)}
+                  >
                     <ChevronRight className="h-4 w-4 text-gray-800" />
                   </button>
                 </div>
+               
               </div>
             </div>
           </div>
@@ -1215,16 +1263,22 @@ const Calender: React.FC = () => {
             <div className="">
               <div
                 className="grid"
-                style={{ gridTemplateColumns: `repeat(${timelineDays.length}, minmax(120px, 1fr))` }}
+                style={{
+                  gridTemplateColumns: `repeat(${timelineDays.length}, minmax(120px, 1fr))`,
+                }}
               >
                 {timelineDays.map((d, _i) => (
                   <div
                     key={d.key}
-                    className={`p-1 text-center text-[13px] ${d.isToday ? "text-black font-semibold" : "text-gray-600"}`}
+                    className={`p-1 text-center text-[13px] ${
+                      d.isToday ? "text-black font-semibold" : "text-gray-600"
+                    }`}
                     title={d.date.toLocaleDateString()}
                   >
                     <div>{d.day}</div>
-                    {d.isToday && <div className="mx-auto mt-1 h-[3px] w-8 rounded-full bg-black" />}
+                    {d.isToday && (
+                      <div className="mx-auto mt-1 h-[3px] w-8 rounded-full bg-black" />
+                    )}
                   </div>
                 ))}
               </div>
@@ -1235,6 +1289,8 @@ const Calender: React.FC = () => {
               onDragStart={onContractItemDragStart}
               onDrop={onContractDrop}
               onDropToMachine={onContractDropToMachine}
+              unavailableResourceNames={allUnavailableResourceNames}
+              // onUnavailableDrop={handleUnavailableDropModal}
               onResize={handleResize}
             />
           </div>
@@ -1249,15 +1305,39 @@ const Calender: React.FC = () => {
         onDrop={onTimeOffDrop}
       />
 
+      {/* Add Contract Floating Button */}
       <button
         className="fixed z-100 bottom-6 right-6 bg-black text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg hover:bg-gray-800"
-        onClick={() => navigate("/add-contract", { state: { backgroundLocation: location } })}
+        onClick={() =>
+          navigate("/add-contract", { state: { backgroundLocation: location } })
+        }
       >
         <Plus className="h-4 w-4" />
         Add contract
       </button>
+
+      {/* ========== Modal for Unavailable Resource ========== */}
+      {showUnavailableModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-2xl shadow-lg px-8 py-6 min-w-[300px] max-w-xs flex flex-col items-center">
+            <div className="text-gray-800 text-[15px] mb-4 font-medium text-center">
+              {modalResourceName
+                ? `"${modalResourceName}" is marked as unavailable (vacation or sick).`
+                : "This resource is marked as unavailable (vacation or sick)."}
+              <br />
+              Please remove from unavailable resources before scheduling.
+            </div>
+            <button
+              className="mt-2 px-5 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-[14px]"
+              onClick={() => setShowUnavailableModal(false)}
+              autoFocus
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 export default Calender;
-
