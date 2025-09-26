@@ -614,21 +614,19 @@
 
 
 // ===================== Calender.tsx =====================
-// ===================== Calender.tsx =====================
 import React, {
   useMemo,
   useState,
   useEffect,
 } from "react";
 import {
-  Search,
-  ChevronLeft,
-  ChevronRight,
   Plus,
 } from "lucide-react";
 import Sidebar from "../CalenderComponents/SideBar";
 
-import ContractScheduler, {
+import CalendarMainContent from "../CalenderComponents/CalenderMainContent"; 
+
+import  {
   CalendarData as ContractData,
   ItemType as ContractItemType,
   CalendarItem as ContractCalendarItem,
@@ -638,29 +636,11 @@ import TimeOffScheduler,
 {
   CalendarData as TimeOffData,
   ItemType as TimeOffItemType,
-  getAllUnavailableResourceNames
 } from "../CalenderComponents/TimeOffScheduler";
 import { useLocation, useNavigate } from "react-router-dom";
 
 type Category = "employee" | "machine";
-
-type ExpandedSections = {
-  contracts: boolean;
-  drivers: boolean;
-  engineers: boolean;
-  hand: boolean;
-  mechanics: boolean;
-  tap: boolean;
-  masters: boolean;
-  constructionLead: boolean;
-  machines: boolean;
-  digger: boolean;
-  loader: boolean;
-  trailerTrucks: boolean
-  wheelers8: boolean;
-  personalCars: boolean;
-  tools: boolean;
-};
+;
 
 type SidebarEmployees = {
   drivers: string[];
@@ -757,42 +737,11 @@ const Calender: React.FC = () => {
 
   const headerLabel = useMemo(() => formatRangeHeader(timelineStart), [timelineStart]);
 
-  const [expandedSections, setExpandedSections] = useState<ExpandedSections>({
-    drivers: true,
-    engineers: true,
-    hand: false,
-    mechanics: false,
-    tap: false,
-    masters: false,
-    constructionLead: false,
-    machines: false,
-    digger: false,
-    loader: false,
-    trailerTrucks: false,
-    wheelers8: false,
-    personalCars: false,
-    tools: true,
-    contracts: false,
-  });
+  const [expandedSections, setExpandedSections] = useState<{
+    [cat: string]: boolean;
+  }>({});
 
-  const [sidebarEmployees, setSidebarEmployees] = useState<SidebarEmployees>({
-    drivers: ["John Doe", "John Dow", "Jordan Miles"],
-    engineers: ["Sarah Wilson", "Mike Johnson", "Emma Davis"],
-    hand: [],
-    mechanics: [],
-    tap: [],
-    masters: [],
-    constructionLead: [],
-  });
 
-  const [sidebarMachines, setSidebarMachines] = useState<SidebarMachines>({
-    digger: [],
-    loader: [],
-    trailerTrucks: [],
-    wheelers8: [],
-    personalCars: [],
-    tools: ["Hammer", "Wrench", "Jack"],
-  });
 
   /** ---------- Contract scheduler state (now supports children under machines) ---------- */
   const [contractData, setContractData] = useState<ContractData>({
@@ -843,8 +792,19 @@ const Calender: React.FC = () => {
 
   const [timeOffData, setTimeOffData] = useState<TimeOffData>(initialTimeOffData);
 
-  const allUnavailableResourceNames =
-    getAllUnavailableResourceNames(timeOffData);
+ const allUnavailableResourceNames = useMemo(() => {
+   const names: string[] = [];
+   Object.entries(timeOffData).forEach(([key, items]) => {
+     if (key.startsWith("vacation-") || key.startsWith("sick-")) {
+       items.forEach((it) => {
+         if (!names.includes(it.name)) names.push(it.name);
+       });
+     }
+   });
+   return names;
+ }, [timeOffData]);
+
+
 
   useEffect(() => {
     setTimeOffData((prev) => {
@@ -885,23 +845,6 @@ const Calender: React.FC = () => {
       );
 
   const stripEverywhere = (name: string) => {
-    setSidebarEmployees((prev) => ({
-      drivers: prev.drivers.filter((n) => n !== name),
-      engineers: prev.engineers.filter((n) => n !== name),
-      hand: prev.hand.filter((n) => n !== name),
-      mechanics: prev.mechanics.filter((n) => n !== name),
-      tap: prev.tap.filter((n) => n !== name),
-      masters: prev.masters.filter((n) => n !== name),
-      constructionLead: prev.constructionLead.filter((n) => n !== name),
-    }));
-    setSidebarMachines((prev) => ({
-      digger: prev.digger.filter((n) => n !== name),
-      loader: prev.loader.filter((n) => n !== name),
-      trailerTrucks: prev.trailerTrucks.filter((n) => n !== name),
-      wheelers8: prev.wheelers8.filter((n) => n !== name),
-      personalCars: prev.personalCars.filter((n) => n !== name),
-      tools: prev.tools.filter((n) => n !== name),
-    }));
     setContractData((prev) => {
       const next: ContractData = {};
       for (const k of Object.keys(prev)) next[k] = stripFromItems(prev[k], name);
@@ -959,23 +902,10 @@ const Calender: React.FC = () => {
 
     // 2) place
     if (target.zone === "sidebar") {
-      const [cat, section] = target.id.split(":" ) as [
+      const [_cat, _section] = target.id.split(":" ) as [
         Category,
         keyof SidebarEmployees & keyof SidebarMachines & string,
       ];
-      if (cat === "employee") {
-        setSidebarEmployees((prev) => {
-          const cur = prev[section as keyof SidebarEmployees] || [];
-          if (cur.includes(name)) return prev;
-          return { ...prev, [section]: [...cur, name] };
-        });
-      } else {
-        setSidebarMachines((prev) => {
-          const cur = prev[section as keyof SidebarMachines] || [];
-          if (cur.includes(name)) return prev;
-          return { ...prev, [section]: [...cur, name] };
-        });
-      }
     } else if (target.zone === "contract") {
       const cellKey = target.id;
 
@@ -1019,7 +949,12 @@ const Calender: React.FC = () => {
       setTimeOffData((prev) => {
         const cur = prev[cellKey] || [];
         if (cur.some((it) => it.name === name)) return prev;
-        const item = { name, type, color: timeOffColorFor(type) };
+        const item = { 
+          name, 
+          type, 
+          color: timeOffColorFor(type),
+          startDate: new Date() // Add required startDate property
+        };
         return { ...prev, [cellKey]: [...cur, item] };
       });
     }
@@ -1127,20 +1062,17 @@ const Calender: React.FC = () => {
     moveTo({ zone: "timeoff", id: targetKey });
 
   // ---------- Sidebar drop targets ----------
-  const onDropToEmployeeSection = (section: keyof SidebarEmployees) =>
-    moveTo({
-      zone: "sidebar",
-      id: `employee:${section}`,
-    });
+ const onDropToEmployeeSection = (section: string) => {
+   moveTo({ zone: "sidebar", id: `employee:${section}` });
+ };
 
-  const onDropToMachineSection = (section: keyof SidebarMachines) =>
-    moveTo({
-      zone: "sidebar",
-      id: `machine:${section}`,
-    });
+ const onDropToMachineSection = (section: string) => {
+   moveTo({ zone: "sidebar", id: `machine:${section}` });
+ };
 
-  const toggleSection = (section: keyof ExpandedSections) =>
-    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+ const toggleSection = (section: string) => {
+   setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+ };
 
   // ---------- RESIZE HANDLER ----------
   const handleResize = (
@@ -1203,8 +1135,6 @@ const Calender: React.FC = () => {
         setExpandedSections={setExpandedSections}
         sidebarSearch={sidebarSearch}
         setSidebarSearch={setSidebarSearch}
-        sidebarEmployees={sidebarEmployees}
-        sidebarMachines={sidebarMachines}
         allowDrop={allowDrop}
         onDropToEmployeeSection={onDropToEmployeeSection}
         onDropToMachineSection={onDropToMachineSection}
@@ -1212,90 +1142,23 @@ const Calender: React.FC = () => {
         toggleSection={toggleSection}
       />
 
-      {/* Main Content */}
-      <div className="flex-1 overflow-x-auto pb-48 bg-gray-100">
-        <div className="min-w-max">
-          {/* HEADER */}
-          <div className="bg-white w-screen-[calc(100%-256px]  px-6 py-3">
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-              <div>
-                <h1 className="text-[22px] leading-6 font-semibold tracking-tight">
-                  {headerLabel}
-                </h1>
-              </div>
-              <div className="justify-self-center w-80 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search"
-                  className="h-9 w-full pl-9 pr-3 rounded-full text-sm placeholder:text-gray-400
-                   bg-gray-50 ring-1 ring-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-200"
-                />
-              </div>
-              <div className="justify-self-end relative flex items-center gap-0">
-                <div className="inline-flex items-stretch rounded-lg overflow-hidden ring-1 ring-gray-200 bg-white mr-7">
-                  <button
-                    className="px-2 py-2 hover:bg-gray-50"
-                    onClick={() => setStartOffsetDays((d) => d - 1)}
-                  >
-                    <ChevronLeft className="h-4 w-4 text-gray-800" />
-                  </button>
-                  <button
-                    className="px-4 py-2 text-sm font-medium border-x border-gray-200 hover:bg-gray-50"
-                    onClick={() => setStartOffsetDays(0)}
-                  >
-                    Today
-                  </button>
-                  <button
-                    className="px-2 py-2 hover:bg-gray-50"
-                    onClick={() => setStartOffsetDays((d) => d + 1)}
-                  >
-                    <ChevronRight className="h-4 w-4 text-gray-800" />
-                  </button>
-                </div>
-               
-              </div>
-            </div>
-          </div>
-
-          {/* WEEK RULER */}
-          <div className="bg-white">
-            <div className="">
-              <div
-                className="grid"
-                style={{
-                  gridTemplateColumns: `repeat(${timelineDays.length}, minmax(120px, 1fr))`,
-                }}
-              >
-                {timelineDays.map((d, _i) => (
-                  <div
-                    key={d.key}
-                    className={`p-1 text-center text-[13px] ${
-                      d.isToday ? "text-black font-semibold" : "text-gray-600"
-                    }`}
-                    title={d.date.toLocaleDateString()}
-                  >
-                    <div>{d.day}</div>
-                    {d.isToday && (
-                      <div className="mx-auto mt-1 h-[3px] w-8 rounded-full bg-black" />
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <ContractScheduler
-              data={contractData}
-              onDragStart={onContractItemDragStart}
-              onDrop={onContractDrop}
-              onDropToMachine={onContractDropToMachine}
-              unavailableResourceNames={allUnavailableResourceNames}
-              // onUnavailableDrop={handleUnavailableDropModal}
-              onResize={handleResize}
-            />
-          </div>
-        </div>
-      </div>
+      {/* MAIN CONTENT moved to a new component */}
+      <CalendarMainContent
+        timelineDays={timelineDays}
+        headerLabel={headerLabel}
+        setStartOffsetDays={setStartOffsetDays}
+        contractData={contractData}
+        setContractData={setContractData}
+        onContractItemDragStart={onContractItemDragStart}
+        onContractDrop={onContractDrop}
+        onContractDropToMachine={onContractDropToMachine}
+        allUnavailableResourceNames={allUnavailableResourceNames}
+        handleResize={handleResize}
+        timeOffData={timeOffData}
+        onTimeOffItemDragStart={onTimeOffItemDragStart}
+        onTimeOffDrop={onTimeOffDrop}
+        setSidebarSearch={setSidebarSearch}
+      />
 
       {/* Sticky Vacation/Sick footer */}
       <TimeOffScheduler

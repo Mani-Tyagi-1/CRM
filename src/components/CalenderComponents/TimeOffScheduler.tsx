@@ -217,6 +217,7 @@ import { ChevronDown, ChevronUp, FileText } from "lucide-react";
 
 export type ItemType = "person" | "machine" | "tool";
 export type CalendarItem = {
+  startDate: Date;
   name: string;
   type: ItemType;
   color?: string;

@@ -23,28 +23,7 @@ import {
 import { auth, db } from "../../lib/firebase";
 import { ResourceModal } from "./ResourceModal";
 import { DeleteModal } from "./DeleteModal";
-import { useNavigate } from "react-router-dom"; // if using React Router
-
-
-// STATIC DEFAULTS
-const DEFAULT_EMPLOYEE_CATEGORIES = [
-  "drivers",
-  "engineers",
-  "hand",
-  "mechanics",
-  "tap",
-  "masters",
-  "constructionLead",
-];
-
-const DEFAULT_MACHINE_CATEGORIES = [
-  "digger",
-  "loader",
-  "trailerTrucks",
-  "wheelers8",
-  "personalCars",
-  "tools",
-];
+import { useNavigate } from "react-router-dom";
 
 const GRADIENTS = [
   "from-sky-100 to-blue-50 border-blue-400",
@@ -183,13 +162,9 @@ export default function ResourceManagementSidebar() {
   const [err, setErr] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // ----------- CATEGORY MANAGEMENT (dynamic) -----------
-  const [employeeCategories, setEmployeeCategories] = useState<string[]>([
-    ...DEFAULT_EMPLOYEE_CATEGORIES,
-  ]);
-  const [machineCategories, setMachineCategories] = useState<string[]>([
-    ...DEFAULT_MACHINE_CATEGORIES,
-  ]);
+  // ---- NO DEFAULT CATEGORIES, just empty arrays ----
+  const [employeeCategories, setEmployeeCategories] = useState<string[]>([]);
+  const [machineCategories, setMachineCategories] = useState<string[]>([]);
 
   const [addCategoryMode, setAddCategoryMode] = useState<AddCategoryMode>({
     type: null,
@@ -198,13 +173,9 @@ export default function ResourceManagementSidebar() {
     loading: false,
   });
 
-  // State for collapsible categories (all open by default for best UX)
-  const [openEmp, setOpenEmp] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(DEFAULT_EMPLOYEE_CATEGORIES.map((k) => [k, true]))
-  );
-  const [openMachine, setOpenMachine] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(DEFAULT_MACHINE_CATEGORIES.map((k) => [k, true]))
-  );
+  // Collapsible states (all open by default for *existing* categories)
+  const [openEmp, setOpenEmp] = useState<Record<string, boolean>>({});
+  const [openMachine, setOpenMachine] = useState<Record<string, boolean>>({});
 
   // Data
   const [employees, setEmployees] = useState<Record<string, any[]>>({});
@@ -230,6 +201,8 @@ export default function ResourceManagementSidebar() {
       if (!user) {
         setUid(null);
         setErr("Not signed in");
+        setEmployeeCategories([]); // Clear on logout
+        setMachineCategories([]);
         return;
       }
       setErr(null);
@@ -247,16 +220,14 @@ export default function ResourceManagementSidebar() {
         )
       ).catch(() => null);
 
-      let empCats = [...DEFAULT_EMPLOYEE_CATEGORIES];
+      let empCats: string[] = [];
       if (empCatSnap && !empCatSnap.empty) {
         empCatSnap.forEach((d) => {
           if (!empCats.includes(d.id)) empCats.push(d.id);
         });
       }
       setEmployeeCategories(empCats);
-      setOpenEmp((old) =>
-        Object.fromEntries(empCats.map((k) => [k, old[k] ?? true]))
-      );
+      setOpenEmp(Object.fromEntries(empCats.map((k) => [k, true])));
 
       // ----- MACHINE CATEGORIES -----
       const machCatSnap = await getDocs(
@@ -270,16 +241,14 @@ export default function ResourceManagementSidebar() {
         )
       ).catch(() => null);
 
-      let machCats = [...DEFAULT_MACHINE_CATEGORIES];
+      let machCats: string[] = [];
       if (machCatSnap && !machCatSnap.empty) {
         machCatSnap.forEach((d) => {
           if (!machCats.includes(d.id)) machCats.push(d.id);
         });
       }
       setMachineCategories(machCats);
-      setOpenMachine((old) =>
-        Object.fromEntries(machCats.map((k) => [k, old[k] ?? true]))
-      );
+      setOpenMachine(Object.fromEntries(machCats.map((k) => [k, true])));
 
       // ----- EMPLOYEE DATA -----
       empCats.forEach((cat) => {
@@ -370,7 +339,9 @@ export default function ResourceManagementSidebar() {
             "categories",
             key,
           ];
-    await setDoc(doc(db,...(colPath as [string, ...string[]])), { label: value.trim() });
+    await setDoc(doc(db, ...(colPath as [string, ...string[]])), {
+      label: value.trim(),
+    });
 
     // Add category to UI and immediately start listening for resources!
     if (type === "employee") {
@@ -496,11 +467,17 @@ export default function ResourceManagementSidebar() {
     setDeleteModal({ open: false });
   }
 
+
   // -------- Employees Section --------
   const EmpSection = (
     <div className="border-b border-gray-200 px-4 pt-4 pb-2">
       <SectionHeader icon={Users} label="Employees" />
       <div className="relative pl-4 before:pointer-events-none before:absolute before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-gray-300">
+        {employeeCategories.length === 0 && (
+          <div className="text-xs text-gray-400 mb-2">
+            No employee categories yet.
+          </div>
+        )}
         {employeeCategories.map((catKey) => {
           const list = employees[catKey] || [];
           return (
@@ -538,7 +515,7 @@ export default function ResourceManagementSidebar() {
                       }
                       onClick={() =>
                         navigate(`/employee-preview/${catKey}/${docObj.id}`)
-                      } // 👈 NEW
+                      }
                     />
                   ))}
                 </div>
@@ -571,6 +548,11 @@ export default function ResourceManagementSidebar() {
     <div className="px-4 pt-4 pb-2 border-b border-gray-200">
       <SectionHeader icon={Truck} label="Machines" />
       <div className="relative pl-4 before:pointer-events-none before:absolute before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-gray-300">
+        {machineCategories.length === 0 && (
+          <div className="text-xs text-gray-400 mb-2">
+            No machines categories yet.
+          </div>
+        )}
         {machineCategories.map((catKey) => {
           const list = machines[catKey] || [];
           return (
@@ -588,11 +570,13 @@ export default function ResourceManagementSidebar() {
               />
               {openMachine[catKey] && (
                 <div className="relative ml-2 pl-4 pb-1 space-y-1 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-gray-300">
-                  {list.map((docObj, _idx) => (
+                  {list.map((docObj, idx) => (
                     <Leaf
                       key={docObj.id}
                       data={docObj}
-                      className="bg-orange-100 border-orange-200"
+                      className={`bg-gradient-to-b ${
+                        GRADIENTS[idx % GRADIENTS.length]
+                      }`}
                       onEdit={() =>
                         openEdit("machine", catKey, docObj, docObj.id)
                       }
@@ -606,7 +590,7 @@ export default function ResourceManagementSidebar() {
                       }
                       onClick={() =>
                         navigate(`/machine-preview/${catKey}/${docObj.id}`)
-                      } // 👈 NEW: go to machine preview
+                      }
                     />
                   ))}
                 </div>
