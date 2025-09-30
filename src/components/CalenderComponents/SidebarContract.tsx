@@ -1,5 +1,6 @@
+// ===================== SidebarContracts.tsx =====================
 import React, { useEffect, useState } from "react";
-import { FileText, ChevronUp, ChevronDown, Loader2 } from "lucide-react";
+import { FileText, ChevronUp, ChevronDown, Loader2, Info } from "lucide-react";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   collection,
@@ -9,7 +10,9 @@ import {
   orderBy,
 } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
+import { useNavigate } from "react-router-dom";
 
+/* ---------- Types ---------- */
 type ContractDoc = {
   id: string;
   name?: string;
@@ -27,35 +30,54 @@ type ContractWithSOs = {
   SOs: SOItem[];
 };
 
-const SidebarContracts: React.FC = () => {
+/* ---------- UPDATED prop so the parent (Calendar) can receive drag events ---------- */
+type Props = {
+  onContractDragStart?: (payload: {
+    contractId: string;
+    title: string;
+    soList: { id: string; soNumber?: string }[];
+  }) => void;
+  onContractDragEnd?: () => void;
+};
+
+/* ------------------------------------------------------------------------------ */
+const SidebarContracts: React.FC<Props> = ({
+  onContractDragStart = () => {},
+  onContractDragEnd = () => {},
+}) => {
   const [contracts, setContracts] = useState<ContractWithSOs[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [contractsExpanded, setContractsExpanded] = useState(true);
   const [uid, setUid] = useState<string | null>(null);
   const [addingSOContract, setAddingSOContract] = useState<string | null>(null);
-    const [addingSOName, setAddingSOName] = useState("");
-    
+  const [addingSOName, setAddingSOName] = useState("");
 
-    useEffect(() => {
-      console.log("Current auth state:", auth.currentUser);
-    }, []);
+  const navigate = useNavigate();
 
+  /* ---------- DEBUG: show auth state in console ---------- */
+  useEffect(() => {
+    console.log("Current auth state:", auth.currentUser);
+  }, []);
 
+  /* ---------- Firestore listeners ---------- */
   useEffect(() => {
     let unsubContracts: null | (() => void) = null;
     let soUnsubs: Record<string, () => void> = {};
     let mounted = true;
 
     const unsubAuth = onAuthStateChanged(auth, (user) => {
-      if (!mounted) return; // <-- guard
+      if (!mounted) return;
+
+      /* cleanup old listeners */
       Object.values(soUnsubs).forEach((unsub) => unsub());
       soUnsubs = {};
-
       if (unsubContracts) {
         unsubContracts();
         unsubContracts = null;
       }
+
+      /* signed-out → reset state */
       if (!user) {
         setUid(null);
         setContracts([]);
@@ -64,6 +86,7 @@ const SidebarContracts: React.FC = () => {
         return;
       }
 
+      /* signed-in */
       setUid(user.uid);
       setError(null);
       setLoading(true);
@@ -76,7 +99,7 @@ const SidebarContracts: React.FC = () => {
             .map((d) => ({ ...(d.data() as ContractDoc), id: d.id }))
             .filter((c) => (c.status ?? "draft") !== "archived");
 
-          // Reset contracts state to only those found
+          /* reset top-level contract list */
           setContracts(
             docs.map((contract) => ({
               id: contract.id,
@@ -85,7 +108,7 @@ const SidebarContracts: React.FC = () => {
             }))
           );
 
-          // Listen for SOs under each contract
+          /* listen for SOs inside each contract */
           docs.forEach((contract) => {
             if (!soUnsubs[contract.id]) {
               const soCol = collection(
@@ -99,14 +122,13 @@ const SidebarContracts: React.FC = () => {
               soUnsubs[contract.id] = onSnapshot(
                 query(soCol, orderBy("soNumber")),
                 (soSnap) => {
-                  // For each contract, update only its SOs
                   setContracts((prev) =>
                     prev.map((c) =>
                       c.id === contract.id
                         ? {
                             ...c,
                             SOs: soSnap.docs
-                              .filter((so) => so.get("soNumber")) // Only show SOs with a name
+                              .filter((so) => so.get("soNumber"))
                               .map((so) => ({
                                 id: so.id,
                                 soNumber: so.get("soNumber"),
@@ -120,7 +142,7 @@ const SidebarContracts: React.FC = () => {
             }
           });
 
-          // Remove SO listeners for contracts no longer present
+          /* drop SO listeners for removed contracts */
           const currentIds = docs.map((c) => c.id);
           Object.keys(soUnsubs).forEach((cid) => {
             if (!currentIds.includes(cid)) {
@@ -138,6 +160,8 @@ const SidebarContracts: React.FC = () => {
       );
     });
 
+    console.log("SidebarContracts", contracts);
+
     return () => {
       mounted = false;
       unsubAuth();
@@ -146,10 +170,10 @@ const SidebarContracts: React.FC = () => {
     };
   }, []);
 
-  // Add SO function (to the /so subcollection, field soNumber)
+  /* ---------- “+ Add SO” ---------- */
   const handleAddSO = async (contractId: string) => {
     if (!uid || !addingSOName.trim()) {
-      alert("Missing uid or SO name!");
+      alert("Missing uid or SO number!");
       return;
     }
     try {
@@ -171,10 +195,10 @@ const SidebarContracts: React.FC = () => {
     }
   };
 
-
-
+  /* -------------------------------------------------------------------------- */
   return (
     <div className="border-t border-gray-200 select-none">
+      {/* ---------- Section header ---------- */}
       <div
         className="px-3 py-2 flex items-center justify-between cursor-pointer"
         onClick={() => setContractsExpanded((v) => !v)}
@@ -189,9 +213,13 @@ const SidebarContracts: React.FC = () => {
           <ChevronDown className="h-4 w-4" />
         )}
       </div>
+
+      {/* ---------- Collapsible list ---------- */}
       {contractsExpanded && (
         <div className="ml-2 pl-2 py-3 relative">
           <div className="absolute left-2 top-2 bottom-2 w-px bg-gray-300 z-0" />
+
+          {/* Loading / error states */}
           {loading ? (
             <div className="flex items-center gap-2 text-xs text-gray-400 py-2">
               <Loader2 className="animate-spin w-4 h-4" /> Loading...
@@ -203,6 +231,7 @@ const SidebarContracts: React.FC = () => {
               No contracts
             </div>
           ) : (
+            /* ---------- Contract cards ---------- */
             <div className="flex flex-col gap-4">
               {contracts.map((contract) => (
                 <div
@@ -210,47 +239,78 @@ const SidebarContracts: React.FC = () => {
                   className="relative z-10"
                   style={{ marginLeft: "16px" }}
                 >
-                  {/* Connector */}
+                  {/* tiny connector */}
                   <div
                     className="absolute left-[-16px] top-4 w-[16px] h-px bg-gray-300"
                     style={{ zIndex: 1 }}
                   />
-                  {/* Contract Name (heading, not inside card) */}
-                  <div className="pl-2 pb-1 pt-1 text-[15px] font-medium text-gray-800">
-                    {contract.title}
+
+                  {/* ---------- Contract title line (draggable) ---------- */}
+                  <div
+                    className="pl-2 pb-1 pt-1 text-[15px] font-medium text-gray-800 cursor-move select-none flex items-center justify-between"
+                    draggable
+                    onDragStart={(e) => {
+                      onContractDragStart({
+                        contractId: contract.id,
+                        title: contract.title,
+                        soList: contract.SOs.map((s) => ({
+                          id: s.id,
+                          soNumber: s.soNumber,
+                        })),
+                      });
+                      e.dataTransfer.effectAllowed = "move";
+                      try {
+                        e.dataTransfer.setData("text/plain", contract.title);
+                        e.dataTransfer.setData(
+                          "application/x-contract-id",
+                          contract.id
+                        );
+                      } catch {}
+                    }}
+                    onDragEnd={() => onContractDragEnd?.()}
+                  >
+                    <span className="truncate flex-1">{contract.title}</span>
+                    <Info
+                      className="h-4 w-4 mr-4 text-gray-600 hover:text-black cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/contract-preview/${contract.id}`);
+                      }}
+                    />
                   </div>
-                  {/* SO List */}
+
+                  {/* ---------- SO list ---------- */}
                   <div className="flex flex-col gap-2 ml-6 relative">
                     {/* vertical branch */}
                     <div className="absolute left-[-12px] top-0 bottom-0 w-px bg-gray-300 z-0" />
-                    {contract.SOs.length > 0 &&
-                      contract.SOs.map((so) => (
+                    {contract.SOs.map((so) => (
+                      <div
+                        key={so.id}
+                        className="relative flex items-center"
+                        style={{ zIndex: 2 }}
+                      >
+                        {/* connector */}
                         <div
-                          key={so.id}
-                          className="relative flex items-center"
-                          style={{ zIndex: 2 }}
-                        >
-                          {/* horizontal connector to branch */}
-                          <div
-                            className="absolute left-[-12px] top-1/2 w-[16px] h-px bg-gray-300"
-                            style={{ transform: "translateY(-50%)", zIndex: 1 }}
-                          />
-                          <a
-                            href={`/contract/${contract.id}/so/${so.id}`}
-                            className="flex-1 border border-gray-400 bg-white rounded-[8px] px-3 py-1 text-[14px] font-medium text-gray-800
+                          className="absolute left-[-12px] top-1/2 w-[16px] h-px bg-gray-300"
+                          style={{ transform: "translateY(-50%)", zIndex: 1 }}
+                        />
+                        <a
+                          href={`/contract/${contract.id}/so/${so.id}`}
+                          className="flex-1 border border-gray-400 bg-white rounded-[8px] px-3 py-1 text-[14px] font-medium text-gray-800
                               text-center shadow-sm transition-colors duration-100 hover:bg-gray-50"
-                            style={{
-                              minWidth: "90px",
-                              maxWidth: "150px",
-                              boxShadow: "0 1px 4px 0 rgb(0 0 0 / 0.03)",
-                              marginLeft: "4px",
-                            }}
-                          >
-                            {so.soNumber || so.id}
-                          </a>
-                        </div>
-                      ))}
-                    {/* + Add SO Button/Input */}
+                          style={{
+                            minWidth: "90px",
+                            maxWidth: "150px",
+                            boxShadow: "0 1px 4px 0 rgb(0 0 0 / 0.03)",
+                            marginLeft: "4px",
+                          }}
+                        >
+                          {so.soNumber || so.id}
+                        </a>
+                      </div>
+                    ))}
+
+                    {/* ---------- “+ Add SO” row ---------- */}
                     <div
                       className="relative flex items-center group"
                       style={{ zIndex: 2 }}
@@ -273,7 +333,6 @@ const SidebarContracts: React.FC = () => {
                             value={addingSOName}
                             onChange={(e) => setAddingSOName(e.target.value)}
                             placeholder="SO number"
-                            // REMOVE onBlur, so the form doesn't disappear before you hit enter
                           />
                           <button
                             type="submit"

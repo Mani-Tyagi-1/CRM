@@ -42,6 +42,12 @@ type Props = {
   toggleSection: (section: string) => void;
   sidebarSearch: string;
   setSidebarSearch: React.Dispatch<React.SetStateAction<string>>;
+  onContractDragStart: (payload: {
+    contractId: string;
+    title: string;
+    soList: { id: string; soNumber?: string }[];
+  }) => void;
+  onContractDragEnd?: () => void;
 };
 
 // ---------------- Component ----------------
@@ -56,6 +62,8 @@ const Sidebar: React.FC<Props> = ({
   toggleSection,
   sidebarSearch,
   setSidebarSearch,
+  onContractDragStart,
+  onContractDragEnd,
 }) => {
   // Dynamic categories/resources
   const [employeeCategories, setEmployeeCategories] = useState<string[]>([]);
@@ -407,7 +415,7 @@ const Sidebar: React.FC<Props> = ({
       )}
 
       {/* ---------------- Contracts (Static) ---------------- */}
-      <SidebarContracts />
+      <SidebarContracts onContractDragStart={onContractDragStart} onContractDragEnd={onContractDragEnd} />
     </div>
   );
 };

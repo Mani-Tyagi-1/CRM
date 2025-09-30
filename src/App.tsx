@@ -9,6 +9,8 @@ import AddContract from "./components/pages/AddContract";
 import MachineryPreview from "./components/pages/MachineryPreview"
 import Modal from "./components/Modal";
 import EmployeePreview from "./components/pages/EmployePreview";
+import ContractPreview from "./components/pages/ContractPreview";
+
 
 export default function App() {
   const location = useLocation();
@@ -59,6 +61,15 @@ export default function App() {
           element={
             <ProtectedRoute>
               <EmployeePreview />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/contract-preview/:id"
+          element={
+            <ProtectedRoute>
+              <ContractPreview />
             </ProtectedRoute>
           }
         />

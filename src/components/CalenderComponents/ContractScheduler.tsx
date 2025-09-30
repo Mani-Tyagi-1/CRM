@@ -620,11 +620,10 @@
 // export default ContractScheduler;
 
 
-
 import React from "react";
 import { ChevronDown, Info } from "lucide-react";
 
-/** tools are first-class so machines can act as containers */
+/* ---------- Types ---------- */
 export type ItemType = "person" | "machine" | "tool";
 
 export type CalendarItem = {
@@ -632,65 +631,63 @@ export type CalendarItem = {
   type: ItemType;
   color?: string;
   note?: string;
-  /** only used when type === "machine" */
   children?: CalendarItem[];
 };
 
 export type CalendarData = Record<string, CalendarItem[]>;
 
-// -------------------- NEW --------------------
-/** resize callback signature */
+/* resize callback */
 export type ResizeFn = (
-  sourceKey: string,
+  soId: string,
   itemName: string,
   itemType: ItemType,
   edge: "left" | "right",
   dayDelta: number
 ) => void;
-// ------------------------------------------------
 
+/* drag-and-drop signatures */
 type ContractDragMeta = {
-  childrenSnapshot?: CalendarItem[]; // when dragging a machine, include its children
-  childOf?: string; // when dragging a child out of a machine
+  childrenSnapshot?: CalendarItem[];
+  childOf?: string;
 };
-
 type DragStartFn = (
   name: string,
-  sourceKey: string,
+  soId: string,
   type: ItemType,
   meta?: ContractDragMeta
 ) => void;
-
 type DropFn = (targetKey: string) => void;
-/** drop directly onto a machine (assign resource to it) */
 type DropToMachineFn = (targetKey: string, machineName: string) => void;
-
-type DraggedItem = { name: string; type: ItemType } | null;
 
 type WeekDay = { key: string; label: string; date: string };
 
+/* ---------- Props ---------- */
 interface Props {
+  contractId?: string;
+  contractName?: string;
+  soList: { id: string; soNumber: string }[];
   data: CalendarData;
   onDragStart: DragStartFn;
   onDrop: DropFn;
   onDropToMachine: DropToMachineFn;
-  /** resize handler */
   onResize: ResizeFn;
-  /** OPTIONAL: click callback for the small info icon on machine cards */
   onMachineInfo?: (cellKey: string, machineName: string) => void;
-  // --- NEW ---
-  unavailableResourceNames?: string[]; // names (strings) from timeoff
-  onUnavailableDrop?: (name: string) => void; // called if drop forbidden
+  unavailableResourceNames?: string[];
+  onUnavailableDrop?: (name: string) => void;
 }
 
-/** true if <name,type> is present in the array */
+/* ---------- Helpers ---------- */
 const itemExists = (
   arr: CalendarItem[] | undefined,
   name: string,
   type: ItemType
 ) => !!arr?.some((i) => i.name === name && i.type === type);
 
+/* ---------- Component ---------- */
 const ContractScheduler: React.FC<Props> = ({
+  contractId,
+  contractName,
+  soList,
   data,
   onDragStart,
   onDrop,
@@ -700,9 +697,6 @@ const ContractScheduler: React.FC<Props> = ({
   unavailableResourceNames = [],
   onUnavailableDrop,
 }) => {
-  const [_draggedItem, setDraggedItem] = React.useState<DraggedItem>(null);
-  const [_draggedFrom, setDraggedFrom] = React.useState<string | null>(null);
-
   const [collapsedRows, setCollapsedRows] = React.useState<
     Record<string, boolean>
   >({});
@@ -710,6 +704,7 @@ const ContractScheduler: React.FC<Props> = ({
   const toggleRow = (rowKey: string) =>
     setCollapsedRows((prev) => ({ ...prev, [rowKey]: !prev[rowKey] }));
 
+  /* ---------- Static week-day ruler (Mon-Sun) ---------- */
   const weekDays: WeekDay[] = [
     { key: "mon", label: "Mon", date: "21" },
     { key: "tue", label: "Tue", date: "22" },
@@ -720,11 +715,11 @@ const ContractScheduler: React.FC<Props> = ({
     { key: "sun", label: "Sun", date: "27" },
   ];
 
-  // ---------------- resize helpers ----------------
+  /* ---------- Resize logic (unchanged) ---------- */
   const startResize = (
     e: React.MouseEvent<HTMLDivElement>,
     edge: "left" | "right",
-    cellKey: string,
+    soId: string,
     itemName: string,
     itemType: ItemType
   ) => {
@@ -735,20 +730,16 @@ const ContractScheduler: React.FC<Props> = ({
       (e.currentTarget.parentElement?.parentElement as HTMLElement) || null;
     const cellWidth = cellEl ? cellEl.offsetWidth : 120;
 
-    const onMouseMove = (mv: MouseEvent) => {
-      mv.preventDefault();
-    };
+    const onMouseMove = (mv: MouseEvent) => mv.preventDefault();
 
     const onMouseUp = (up: MouseEvent) => {
       const diffX = up.clientX - startX;
-      let dayDelta = 0;
-      if (edge === "right") {
-        dayDelta = Math.round(diffX / cellWidth);
-      } else {
-        dayDelta = Math.round(-diffX / cellWidth);
-      }
+      const dayDelta =
+        edge === "right"
+          ? Math.round(diffX / cellWidth)
+          : Math.round(-diffX / cellWidth);
       if (dayDelta > 0) {
-        onResize(cellKey, itemName, itemType, edge, dayDelta);
+        onResize(soId, itemName, itemType, edge, dayDelta);
       }
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
@@ -757,21 +748,15 @@ const ContractScheduler: React.FC<Props> = ({
     document.addEventListener("mouseup", onMouseUp);
   };
 
-  // ---------------- visual helpers ----------------
-  /**
-   * base chip classes + conditional merging classes when the same item is found
-   * in the previous/next day
-   */
+  /* ---------- Styling helpers ---------- */
   const chipCls = (t: ItemType, joinsLeft = false, joinsRight = false) =>
     [
-      // base
       "px-2 py-1.5 rounded-md text-xs cursor-move hover:shadow-sm transition-all duration-200 border relative group",
       t === "person"
         ? "bg-blue-100 text-blue-800 border-blue-300/50"
         : t === "tool"
         ? "bg-amber-50 text-amber-800 border-amber-300/60"
         : "bg-green-100 text-green-800 border-green-300/50",
-      // merging tweaks
       joinsLeft ? "-ml-6 border-l-0 rounded-l-none" : "",
       joinsRight ? "rounded-r-none" : "",
     ].join(" ");
@@ -784,30 +769,23 @@ const ContractScheduler: React.FC<Props> = ({
     ].join(" ");
 
   const renderResizeHandles = (
-    cellKey: string,
+    soId: string,
     itemName: string,
     type: ItemType
   ) => (
     <>
       <div
         className="absolute left-0 top-0 h-full w-1 cursor-ew-resize opacity-0 group-hover:opacity-100"
-        onMouseDown={(e) => startResize(e, "left", cellKey, itemName, type)}
+        onMouseDown={(e) => startResize(e, "left", soId, itemName, type)}
       />
       <div
         className="absolute right-0 top-0 h-full w-1 cursor-ew-resize opacity-0 group-hover:opacity-100"
-        onMouseDown={(e) => startResize(e, "right", cellKey, itemName, type)}
+        onMouseDown={(e) => startResize(e, "right", soId, itemName, type)}
       />
     </>
   );
 
-  const getWeekDates = (weekOffset = 0): WeekDay[] =>
-    weekDays.map((day, index) => ({
-      ...day,
-      date: String(21 + index + weekOffset * 7),
-    }));
-
-  // --------- DROP HANDLERS (MODAL LOGIC) ---------
-  // Checks if any dropped resource is in unavailableResourceNames, and calls callback
+  /* ---------- Drag-and-drop handlers ---------- */
   const handleDrop = (
     e: React.DragEvent<HTMLDivElement>,
     targetKey: string
@@ -826,8 +804,6 @@ const ContractScheduler: React.FC<Props> = ({
       return;
     }
     onDrop(targetKey);
-    setDraggedItem(null);
-    setDraggedFrom(null);
   };
 
   const handleDropToMachine = (
@@ -849,27 +825,27 @@ const ContractScheduler: React.FC<Props> = ({
       return;
     }
     onDropToMachine(targetKey, machineName);
-    setDraggedItem(null);
-    setDraggedFrom(null);
   };
 
-  const renderWeekRow = (weekKey: string, weekOffset = 0) => {
-    const weekDates = getWeekDates(weekOffset);
-    const isCollapsed = !!collapsedRows[weekKey];
+  /* ---------- Row renderer: Per SO ---------- */
+  const renderSORow = (soId: string, soNumber: string) => {
+    const weekDates = weekDays; // always Mon-Sun
+
+    const isCollapsed = !!collapsedRows[soId];
 
     return (
-      <div className="grid grid-row-2">
-        {/* Left header cell with toggle */}
+      <div>
+        {/* Row header: collapsible */}
         <div className="p-1">
           <button
             type="button"
-            onClick={() => toggleRow(weekKey)}
+            onClick={() => toggleRow(soId)}
             className="text-xs text-gray-500 flex items-center hover:text-gray-700 select-none"
             aria-expanded={!isCollapsed}
-            aria-controls={`${weekKey}-grid`}
+            aria-controls={`${soId}-grid`}
             title={isCollapsed ? "Expand row" : "Collapse row"}
           >
-            <span>SO1165</span>
+            <span>{soNumber}</span>
             <ChevronDown
               size={12}
               className={`ml-1 transition-transform duration-200 ${
@@ -878,12 +854,11 @@ const ContractScheduler: React.FC<Props> = ({
             />
           </button>
         </div>
-
-        {/* Days grid (hidden when collapsed) */}
+        {/* Days */}
         {!isCollapsed && (
-          <div id={`${weekKey}-grid`} className="grid grid-cols-4">
+          <div id={`${soId}-grid`} className="grid grid-cols-7">
             {weekDates.map((day, dayIdx) => {
-              const cellKey = `${weekKey}-${day.key}`;
+              const cellKey = `${soId}-${day.key}`; // SO-specific!
               const items = data[cellKey] || [];
               const machines = items.filter((i) => i.type === "machine");
               const others = items.filter((i) => i.type !== "machine");
@@ -899,15 +874,15 @@ const ContractScheduler: React.FC<Props> = ({
                   onDrop={(e) => handleDrop(e, cellKey)}
                 >
                   <div className="space-y-2">
-                    {/* ----- MACHINES (top-level) ----- */}
+                    {/* Machines */}
                     {machines.map((m, midx) => {
                       const prevCellKey =
                         dayIdx > 0
-                          ? `${weekKey}-${weekDates[dayIdx - 1].key}`
+                          ? `${soId}-${weekDates[dayIdx - 1].key}`
                           : "";
                       const nextCellKey =
                         dayIdx < weekDates.length - 1
-                          ? `${weekKey}-${weekDates[dayIdx + 1].key}`
+                          ? `${soId}-${weekDates[dayIdx + 1].key}`
                           : "";
 
                       const joinsLeft = itemExists(
@@ -926,7 +901,7 @@ const ContractScheduler: React.FC<Props> = ({
                           key={`${cellKey}-${m.name}-${midx}`}
                           className={machineContainerCls(joinsLeft, joinsRight)}
                         >
-                          {renderResizeHandles(cellKey, m.name, "machine")}
+                          {renderResizeHandles(soId, m.name, "machine")}
                           <div
                             className="px-2 py-1.5 pr-7 text-xs font-medium text-green-900 cursor-move select-none"
                             draggable
@@ -956,6 +931,7 @@ const ContractScheduler: React.FC<Props> = ({
                           >
                             <Info className="h-3.5 w-3.5" />
                           </button>
+                          {/* Machine children */}
                           <div
                             className="px-2 pb-2 pt-1"
                             onDragOver={(e) => {
@@ -992,15 +968,15 @@ const ContractScheduler: React.FC<Props> = ({
                       );
                     })}
 
-                    {/* ----- OTHER RESOURCES (person/tool) ----- */}
+                    {/* Non-machine resources */}
                     {others.map((item, idx) => {
                       const prevCellKey =
                         dayIdx > 0
-                          ? `${weekKey}-${weekDates[dayIdx - 1].key}`
+                          ? `${soId}-${weekDates[dayIdx - 1].key}`
                           : "";
                       const nextCellKey =
                         dayIdx < weekDates.length - 1
-                          ? `${weekKey}-${weekDates[dayIdx + 1].key}`
+                          ? `${soId}-${weekDates[dayIdx + 1].key}`
                           : "";
 
                       const joinsLeft = itemExists(
@@ -1024,7 +1000,7 @@ const ContractScheduler: React.FC<Props> = ({
                           }
                           title={item.note || ""}
                         >
-                          {renderResizeHandles(cellKey, item.name, item.type)}
+                          {renderResizeHandles(soId, item.name, item.type)}
                           <div className="font-medium">{item.name}</div>
                           {item.note && (
                             <div className="text-xs opacity-75 mt-1">
@@ -1044,19 +1020,35 @@ const ContractScheduler: React.FC<Props> = ({
     );
   };
 
+  /* ---------- Render all SO rows ---------- */
+  if (!contractId || !contractName) {
+    return (
+      <div className="w-full text-center text-gray-400 py-12">
+        Contract not found.
+      </div>
+    );
+  }
   return (
     <div className="w-full bg-gray-100 p-2">
-      <div className="w-full p-3 max-w-4xl bg-white rounded-lg shadow-sm">
-        <div className="text-lg font-semibold w-full border-b">
-          Contract SO1165
-        </div>
-        <div className="bg-white">
-          {renderWeekRow("SO1165", 0)}
-          {renderWeekRow("SO1165-week2", 1)}
-          {renderWeekRow("SO1165-week3", 2)}
-        </div>
+      {/* Show contract name at top from prop */}
+      <div className="text-lg font-semibold w-full border-b mb-4 px-3 py-2">
+        {contractName}
       </div>
+      {soList.map((so) => (
+        <div
+          key={so.id}
+          className="w-full p-3 max-w-4xl bg-white rounded-lg shadow-sm mb-4"
+        >
+          {renderSORow(so.id, so.soNumber)}
+        </div>
+      ))}
+      {soList.length === 0 && (
+        <div className="text-sm text-gray-500 italic text-start px-40 py-12">
+          No SOs in this contract yet.
+        </div>
+      )}
     </div>
   );
 };
+
 export default ContractScheduler;

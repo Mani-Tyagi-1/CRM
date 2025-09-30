@@ -619,69 +619,64 @@ import React, {
   useState,
   useEffect,
 } from "react";
-import {
-  Plus,
-} from "lucide-react";
+import { Plus } from "lucide-react";
 import Sidebar from "../CalenderComponents/SideBar";
+import CalendarMainContent from "../CalenderComponents/CalenderMainContent";
 
-import CalendarMainContent from "../CalenderComponents/CalenderMainContent"; 
-
-import  {
+import {
   CalendarData as ContractData,
   ItemType as ContractItemType,
   CalendarItem as ContractCalendarItem,
 } from "../CalenderComponents/ContractScheduler";
 
-import TimeOffScheduler,
-{
+import TimeOffScheduler, {
   CalendarData as TimeOffData,
   ItemType as TimeOffItemType,
 } from "../CalenderComponents/TimeOffScheduler";
+
 import { useLocation, useNavigate } from "react-router-dom";
 
 type Category = "employee" | "machine";
-;
 
-type SidebarEmployees = {
-  drivers: string[];
-  engineers: string[];
-  hand: string[];
-  mechanics: string[];
-  tap: string[];
-  masters: string[];
-  constructionLead: string[];
-};
-
-type SidebarMachines = {
-  digger: string[];
-  loader: string[];
-  trailerTrucks: string[];
-  wheelers8: string[];
-  personalCars: string[];
-  tools: string[];
-};
-
-/** carry meta so we can move machine-with-children or detach child-of-machine */
+/* ---------- Drag payload ---------- */
 type DragPayload =
   | {
+      /*  resources (person / machine / tool) – existing shape */
       name: string;
       type: "person" | "machine" | "tool";
       source: { zone: "sidebar" | "contract" | "timeoff"; id: string };
       meta?: {
         childrenSnapshot?: ContractCalendarItem[];
-        childOf?: string; // when dragging a child out of machine
+        childOf?: string;
       };
+    }
+  | {
+      /*  NEW: whole contract row dragged from SidebarContracts */
+      contractId: string;
+      title: string;
+      soList: { id: string; soNumber?: string }[];
+      source: { zone: "sidebar"; id: string };
     }
   | null;
 
+/* keep for resize helpers further below */
 const dayOrder = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
+/* ---------- NEW: scheduled contract rows ---------- */
+type ScheduledContract = {
+  id: string;
+  title: string;
+  soList: { id: string; soNumber: string }[];
+  anchorDateKey: string; // ISO date string of the cell we dropped on
+};
+
 const Calender: React.FC = () => {
-  const DAYS_TO_SHOW = 7;
-  
+  const DAYS_TO_SHOW = 365;
 
   const location = useLocation();
   const navigate = useNavigate();
+
+  /* ---------- date helpers ---------- */
   const startOfDay = (d: Date) => {
     const x = new Date(d);
     x.setHours(0, 0, 0, 0);
@@ -692,7 +687,6 @@ const Calender: React.FC = () => {
     x.setDate(x.getDate() + n);
     return x;
   };
-
   const getMonday = (date: Date) => {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
@@ -702,15 +696,8 @@ const Calender: React.FC = () => {
     return d;
   };
 
-  const [_daysToShow, _setDaysToShow] = useState(28);
+  /* ---------- timeline ---------- */
   const [startOffsetDays, setStartOffsetDays] = useState(0);
-  const [sidebarSearch, setSidebarSearch] = useState("");
-
-  const formatRangeHeader = (start: Date) => {
-    return `${start.toLocaleString(undefined, {
-      month: "long",
-    })} ${start.getFullYear()}`;
-  };
 
   const timelineStart = useMemo(() => {
     const monday = getMonday(new Date());
@@ -735,77 +722,48 @@ const Calender: React.FC = () => {
     });
   }, [startOffsetDays]);
 
-  const headerLabel = useMemo(() => formatRangeHeader(timelineStart), [timelineStart]);
+  const formatRangeHeader = (start: Date) =>
+    `${start.toLocaleString(undefined, { month: "long" })} ${start.getFullYear()}`;
 
-  const [expandedSections, setExpandedSections] = useState<{
-    [cat: string]: boolean;
-  }>({});
+  const [headerLabel, setHeaderLabel] = useState(() =>
+    formatRangeHeader(timelineStart)
+  );
 
+  /* ---------- sidebar state ---------- */
+  const [expandedSections, setExpandedSections] = useState<{ [cat: string]: boolean }>({});
+  const [sidebarSearch, setSidebarSearch] = useState("");
 
+  /* ---------- contract-scheduler state ---------- */
+  const [contractData, setContractData] = useState<ContractData>({}); // ← static demo data removed
+  const [_scheduledContracts, setScheduledContracts] = useState<ScheduledContract[]>([]); // ← NEW
+  const [activeContractId, setActiveContractId] = useState<string | null>(null);
 
-  /** ---------- Contract scheduler state (now supports children under machines) ---------- */
-  const [contractData, setContractData] = useState<ContractData>({
-    "SO1165-mon": [
-      {
-        name: "Machine A",
-        type: "machine",
-        color: "bg-green-100 text-green-800",
-        children: [
-          { name: "John Smith", type: "person" },
-          { name: "Hammer", type: "tool" },
-        ],
-      },
-    ],
-    "SO1165-tue": [{ name: "Sarah Wilson", type: "person" }],
-    "SO1165-wed": [{ name: "Machine B", type: "machine" }],
-    "SO1165-thu": [{ name: "Mike Johnson", type: "person" }],
-    "SO1165-fri": [],
-    "SO1165-sat": [],
-    "SO1165-sun": [],
-
-    "SO1165-week2-mon": [{ name: "Emma Davis", type: "person" }],
-    "SO1165-week2-tue": [],
-    "SO1165-week2-wed": [{ name: "Machine C", type: "machine" }],
-    "SO1165-week2-thu": [],
-    "SO1165-week2-fri": [{ name: "Alex Brown", type: "person" }],
-    "SO1165-week2-sat": [],
-    "SO1165-week2-sun": [],
-
-    "SO1165-week3-mon": [],
-    "SO1165-week3-tue": [{ name: "Machine D", type: "machine" }],
-    "SO1165-week3-wed": [],
-    "SO1165-week3-thu": [{ name: "Lisa Garcia", type: "person" }],
-    "SO1165-week3-fri": [],
-    "SO1165-week3-sat": [{ name: "Tom Wilson", type: "person" }],
-    "SO1165-week3-sun": [],
-  });
-
-  /** ---------- Time-off (unchanged structure) ---------- */
+  /* ---------- time-off state ---------- */
   const initialTimeOffData: TimeOffData = useMemo(() => {
     const base: TimeOffData = {};
     timelineDays.forEach(({ key }) => {
-      base[`vacation-${key}`] = base[`vacation-${key}`] || [];
-      base[`sick-${key}`] = base[`sick-${key}`] || [];
+      base[`vacation-${key}`] = [];
+      base[`sick-${key}`] = [];
     });
     return base;
   }, [timelineDays]);
 
   const [timeOffData, setTimeOffData] = useState<TimeOffData>(initialTimeOffData);
 
- const allUnavailableResourceNames = useMemo(() => {
-   const names: string[] = [];
-   Object.entries(timeOffData).forEach(([key, items]) => {
-     if (key.startsWith("vacation-") || key.startsWith("sick-")) {
-       items.forEach((it) => {
-         if (!names.includes(it.name)) names.push(it.name);
-       });
-     }
-   });
-   return names;
- }, [timeOffData]);
+  /* unavailable resources list (vacation / sick) */
+  const allUnavailableResourceNames = useMemo(() => {
+    const names: string[] = [];
+    Object.entries(timeOffData).forEach(([key, items]) => {
+      if (key.startsWith("vacation-") || key.startsWith("sick-")) {
+        items.forEach((it) => {
+          if (!names.includes(it.name)) names.push(it.name);
+        });
+      }
+    });
+    return names;
+  }, [timeOffData]);
 
-
-
+  /* make sure time-off keys exist for new days when we scroll timeline */
   useEffect(() => {
     setTimeOffData((prev) => {
       const next = { ...prev };
@@ -819,26 +777,14 @@ const Calender: React.FC = () => {
     });
   }, [timelineDays]);
 
+  /* ---------- drag-and-drop ---------- */
   const [dragged, setDragged] = useState<DragPayload>(null);
 
-  // ---------- helpers ----------
-  const contractColorFor = (t: ContractItemType) =>
-    t === "person"
-      ? "bg-blue-100 text-blue-800"
-      : t === "tool"
-      ? "bg-amber-50 text-amber-800"
-      : "bg-green-100 text-green-800";
-
-  const timeOffColorFor = (t: TimeOffItemType) =>
-    t === "person"
-      ? "bg-blue-100 text-blue-800 ring-1 ring-blue-200"
-      : "bg-amber-50 text-amber-700 ring-1 ring-amber-200"; // treat non-person as amber
-
-  /** remove a name from top-level AND nested children everywhere */
+  /* helper: remove a resource (even nested) everywhere */
   const stripFromItems = (items: ContractCalendarItem[], name: string): ContractCalendarItem[] =>
     items
       .filter((it) => it.name !== name)
-      .map((it: ContractCalendarItem): ContractCalendarItem =>
+      .map((it) =>
         it.type === "machine" && it.children?.length
           ? { ...it, children: stripFromItems(it.children, name) }
           : it
@@ -859,7 +805,167 @@ const Calender: React.FC = () => {
     });
   };
 
-  /** attach an item as a child to a given machine in a cell */
+  /* helpers for resource colour */
+  const contractColorFor = (t: ContractItemType) =>
+    t === "person"
+      ? "bg-blue-100 text-blue-800"
+      : t === "tool"
+      ? "bg-amber-50 text-amber-800"
+      : "bg-green-100 text-green-800";
+
+  const timeOffColorFor = (t: TimeOffItemType) =>
+    t === "person"
+      ? "bg-blue-100 text-blue-800 ring-1 ring-blue-200"
+      : "bg-amber-50 text-amber-700 ring-1 ring-amber-200";
+
+  /* ---------- CENTRAL moveTo ---------- */
+  const moveTo = (target: {
+    zone: "sidebar" | "contract" | "timeoff";
+    id: string;
+    assignToMachine?: { machineName: string } | null;
+  }) => {
+    console.log("moveTo called:", dragged, target); 
+    if (!dragged) return;
+
+    // 1. Whole-contract drop
+    if ("contractId" in dragged && target.zone === "contract") {
+      // ----- UPDATED ANCHOR DATE HANDLING -----
+      let anchorIso = timelineDays[0].key; // fallback: first visible day
+
+      if (target.id === "area") {
+        // Dropped on the background, default to first day
+        anchorIso = timelineDays[0].key;
+      } else {
+        // Dropped on a grid cell: parse cell key to find the ISO date
+        const m = target.id.match(
+          /^(?:.+?)(?:-week(\d+))?-(mon|tue|wed|thu|fri|sat|sun)$/
+        );
+        if (m) {
+          const weekIdx = m[1] ? parseInt(m[1], 10) : 0; // week2 => 2
+          const dayIdx = dayOrder.indexOf(m[2] as (typeof dayOrder)[number]);
+          const globalIdx = weekIdx * 7 + dayIdx;
+          if (timelineDays[globalIdx]) anchorIso = timelineDays[globalIdx].key;
+        } else {
+          // Maybe it's already an ISO date
+          anchorIso = target.id;
+        }
+      }
+
+      // ② avoid duplicates
+      setScheduledContracts((prev) =>
+        prev.some((c) => c.id === dragged.contractId)
+          ? prev
+          : [
+              ...prev,
+              {
+                id: dragged.contractId,
+                title: dragged.title,
+                soList: dragged.soList
+                  .filter((s) => typeof s.soNumber === "string")
+                  .map((s) => ({ id: s.id, soNumber: s.soNumber ?? "" })),
+                anchorDateKey: anchorIso,
+              },
+            ]
+      );
+
+
+      // ③ Generate *correct* blank cells: root-mon … for each SO
+      const dayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+      setContractData((prev) => {
+        const next: ContractData = { ...prev };
+        dragged.soList.forEach((so) => {
+          dayKeys.forEach((d) => {
+            const cellKey = `${so.id}-${d}`; // <-- Only SO rows!
+            if (!next[cellKey]) next[cellKey] = [];
+          });
+        });
+        return next;
+      });
+
+      setDragged(null);
+      return; // ← stop here; resource logic continues below
+    }
+
+    // 2. Resource moves (existing behaviour)
+    if ("name" in dragged) {
+      const { name, type, meta, source } = dragged;
+
+      const isSidebarSource = source.zone === "sidebar";
+      const isSidebarTarget = target.zone === "sidebar";
+
+      if (!isSidebarSource && !isSidebarTarget) stripEverywhere(name);
+
+      if (target.zone === "sidebar") {
+        // nothing needed: resource simply removed from all grids (already done)
+      } else if (target.zone === "contract") {
+        const cellKey = target.id;
+
+        if (target.assignToMachine && type !== "machine") {
+          const item: ContractCalendarItem = {
+            name,
+            type,
+            color: contractColorFor(type),
+          };
+          attachToMachine(cellKey, target.assignToMachine.machineName, item);
+          setDragged(null);
+          return;
+        }
+
+        setContractData((prev) => {
+          const cur = prev[cellKey] || [];
+
+          if (type === "machine" && meta?.childrenSnapshot) {
+            const machineItem: ContractCalendarItem = {
+              name,
+              type: "machine",
+              color: contractColorFor("machine"),
+              children: meta.childrenSnapshot.map((c) => ({
+                ...c,
+                color: contractColorFor(c.type as ContractItemType),
+              })),
+            };
+            return { ...prev, [cellKey]: [...cur, machineItem] };
+          }
+
+          if (cur.some((it) => it.name === name)) return prev;
+          const item = { name, type, color: contractColorFor(type) };
+          return { ...prev, [cellKey]: [...cur, item] };
+        });
+      } else if (target.zone === "timeoff") {
+        const cellKey = target.id;
+        setTimeOffData((prev) => {
+          const cur = prev[cellKey] || [];
+          if (cur.some((it) => it.name === name)) return prev;
+          const item = {
+            name,
+            type,
+            color: timeOffColorFor(type),
+            startDate: new Date(),
+          };
+          return { ...prev, [cellKey]: [...cur, item] };
+        });
+      }
+    }
+
+    setDragged(null);
+  };
+
+
+  const handleAreaDrop = React.useCallback(
+    (anchorIso: string) => {
+      // If a contract is being dragged, set the active contract
+      if (dragged && "contractId" in dragged) {
+        setActiveContractId(dragged.contractId);
+      }
+      moveTo({ zone: "contract", id: anchorIso });
+    },
+    [moveTo, dragged] // Add dragged as a dependency!
+  );
+
+  
+  const isDraggingContract = !!(dragged && "contractId" in dragged);
+
+  /* ---------- helpers for attachToMachine (unchanged) ---------- */
   const attachToMachine = (
     cellKey: string,
     machineName: string,
@@ -870,9 +976,7 @@ const Calender: React.FC = () => {
       const next = cur.map((it) => {
         if (it.type === "machine" && it.name === machineName) {
           const children = it.children ? [...it.children] : [];
-          if (!children.some((c) => c.name === item.name)) {
-            children.push(item);
-          }
+          if (!children.some((c) => c.name === item.name)) children.push(item);
           return { ...it, children } as ContractCalendarItem;
         }
         return it;
@@ -881,210 +985,16 @@ const Calender: React.FC = () => {
     });
   };
 
-  // ---------- Central move ----------
-  const moveTo = (target: {
-    zone: "sidebar" | "contract" | "timeoff";
-    id: string;
-    assignToMachine?: { machineName: string } | null;
-  }) => {
-    if (!dragged) return;
-    const { name, type, meta, source } = dragged;
-
-    // Only remove from all places if moving between contract/timeoff, or dropping back to sidebar,
-    // but NOT when dragging from sidebar into contract or timeoff!
-    const isSidebarSource = source.zone === "sidebar";
-    const isSidebarTarget = target.zone === "sidebar";
-
-    if (!isSidebarSource && !isSidebarTarget) {
-      // Only strip if NOT dragging from sidebar
-      stripEverywhere(name);
-    }
-
-    // 2) place
-    if (target.zone === "sidebar") {
-      const [_cat, _section] = target.id.split(":" ) as [
-        Category,
-        keyof SidebarEmployees & keyof SidebarMachines & string,
-      ];
-    } else if (target.zone === "contract") {
-      const cellKey = target.id;
-
-      // Assign directly to a machine?
-      if (target.assignToMachine && type !== "machine") {
-        const item: ContractCalendarItem = {
-          name,
-          type,
-          color: contractColorFor(type),
-        };
-        attachToMachine(cellKey, target.assignToMachine.machineName, item);
-        setDragged(null);
-        return;
-      }
-
-      // Dropped into the cell (top-level)
-      setContractData((prev) => {
-        const cur = prev[cellKey] || [];
-
-        // If we dragged a machine with children, preserve them
-        if (type === "machine" && meta?.childrenSnapshot) {
-          const machineItem: ContractCalendarItem = {
-            name,
-            type: "machine",
-            color: contractColorFor("machine"),
-            children: meta.childrenSnapshot.map((c) => ({
-              ...c,
-              color: contractColorFor(c.type as ContractItemType),
-            })),
-          };
-          return { ...prev, [cellKey]: [...cur, machineItem] };
-        }
-
-        // Otherwise plain top-level chip
-        if (cur.some((it) => it.name === name)) return prev;
-        const item = { name, type, color: contractColorFor(type) };
-        return { ...prev, [cellKey]: [...cur, item] };
-      });
-    } else if (target.zone === "timeoff") {
-      const cellKey = target.id;
-      setTimeOffData((prev) => {
-        const cur = prev[cellKey] || [];
-        if (cur.some((it) => it.name === name)) return prev;
-        const item = { 
-          name, 
-          type, 
-          color: timeOffColorFor(type),
-          startDate: new Date() // Add required startDate property
-        };
-        return { ...prev, [cellKey]: [...cur, item] };
-      });
-    }
-
-    setDragged(null);
-  };
-
-  // ========== MODAL logic ==========
-  const [showUnavailableModal, setShowUnavailableModal] = useState(false);
-  const [modalResourceName, setModalResourceName] = useState<string | null>(null);
-
-  // Build a set of all unavailable names (vacation/sick)
-  const unavailableResourceNames = useMemo(() => {
-    const names = new Set<string>();
-    Object.entries(timeOffData).forEach(([key, items]) => {
-      if (key.startsWith("vacation-") || key.startsWith("sick-")) {
-        items.forEach((it) => names.add(it.name));
-      }
-    });
-    return names;
-  }, [timeOffData]);
-
-  // ---------- Drag starts ----------
-  const handleSidebarDragStart = (
-    e: React.DragEvent<HTMLDivElement>,
-    name: string,
-    category: Category,
-    section: string,
-  ) => {
-    // Employees -> person. Machines: if section === "tools" => tool, else machine
-    let t: "person" | "machine" | "tool" =
-      category === "employee"
-        ? "person"
-        : section === "tools"
-        ? "tool"
-        : "machine";
-
-    setDragged({
-      name,
-      type: t,
-      source: { zone: "sidebar", id: `${category}:${section}` },
-    });
-    e.dataTransfer.effectAllowed = "move";
-    try {
-      e.dataTransfer.setData("text/plain", name);
-      e.dataTransfer.setData("application/x-item-type", t);
-    } catch {}
-  };
-
-  const allowDrop = (e: React.DragEvent<HTMLElement>) => e.preventDefault();
-
-  const onContractItemDragStart = (
-    name: string,
-    sourceKey: string,
-    type: ContractItemType,
-    meta?: { childrenSnapshot?: ContractCalendarItem[]; childOf?: string },
-  ) =>
-    setDragged({
-      name,
-      type,
-      source: { zone: "contract", id: sourceKey },
-      meta,
-    });
-
-  // ========== BLOCK drop if unavailable ==========
-
-  const onContractDrop = (targetKey: string) => {
-    // Only check if currently dragging
-    if (dragged && unavailableResourceNames.has(dragged.name)) {
-      setShowUnavailableModal(true);
-      setModalResourceName(dragged.name);
-      setDragged(null);
-      return;
-    }
-    moveTo({ zone: "contract", id: targetKey });
-  };
-
-  /** assign to a specific machine on drop */
-  const onContractDropToMachine = (targetKey: string, machineName: string) => {
-    if (dragged && unavailableResourceNames.has(dragged.name)) {
-      setShowUnavailableModal(true);
-      setModalResourceName(dragged.name);
-      setDragged(null);
-      return;
-    }
-    moveTo({
-      zone: "contract",
-      id: targetKey,
-      assignToMachine: { machineName },
-    });
-  };
-
-  // ---------- TimeOff ----------
-  const onTimeOffItemDragStart = (
-    name: string,
-    sourceKey: string,
-    type: TimeOffItemType,
-  ) => {
-    setTimeout(() => {
-      setDragged({ name, type, source: { zone: "timeoff", id: sourceKey } });
-    }, 0);
-  };
-
-  const onTimeOffDrop = (targetKey: string) =>
-    moveTo({ zone: "timeoff", id: targetKey });
-
-  // ---------- Sidebar drop targets ----------
- const onDropToEmployeeSection = (section: string) => {
-   moveTo({ zone: "sidebar", id: `employee:${section}` });
- };
-
- const onDropToMachineSection = (section: string) => {
-   moveTo({ zone: "sidebar", id: `machine:${section}` });
- };
-
- const toggleSection = (section: string) => {
-   setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
- };
-
-  // ---------- RESIZE HANDLER ----------
+  /* ---------- RESIZE HANDLER (unchanged) ---------- */
   const handleResize = (
     sourceKey: string,
     itemName: string,
     itemType: ContractItemType,
     edge: "left" | "right",
-    dayDelta: number,
+    dayDelta: number
   ) => {
     if (dayDelta <= 0) return;
 
-    /** helper: parse contract root + week index */
     const baseMatch = sourceKey.match(/^(.*?)(?:-week(\d+))?-(mon|tue|wed|thu|fri|sat|sun)$/);
     if (!baseMatch) return;
     const contractRoot = baseMatch[1];
@@ -1095,20 +1005,18 @@ const Calender: React.FC = () => {
 
     setContractData((prev) => {
       const next = { ...prev } as ContractData;
-
-      const getRowKeyForWeek = (w: number) => (w === 0 ? contractRoot : `${contractRoot}-week${w + 1}`);
+      const getRowKeyForWeek = (w: number) =>
+        w === 0 ? contractRoot : `${contractRoot}-week${w + 1}`;
 
       const sourceItems = prev[sourceKey] || [];
       const original = sourceItems.find((it) => it.name === itemName);
 
-      const buildItem = (): ContractCalendarItem => {
-        if (original) return original;
-        return {
+      const buildItem = (): ContractCalendarItem =>
+        original ?? {
           name: itemName,
           type: itemType,
           color: contractColorFor(itemType),
-        } as ContractCalendarItem;
-      };
+        };
 
       for (let i = 1; i <= dayDelta; i++) {
         const offset = edge === "right" ? i : -i;
@@ -1127,9 +1035,112 @@ const Calender: React.FC = () => {
     });
   };
 
+  /* ---------- MODAL (unchanged) ---------- */
+  const [showUnavailableModal, setShowUnavailableModal] = useState(false);
+  const [modalResourceName, setModalResourceName] = useState<string | null>(null);
+
+  const unavailableResourceNames = useMemo(() => {
+    const names = new Set<string>();
+    Object.entries(timeOffData).forEach(([key, items]) => {
+      if (key.startsWith("vacation-") || key.startsWith("sick-")) {
+        items.forEach((it) => names.add(it.name));
+      }
+    });
+    return names;
+  }, [timeOffData]);
+
+  /* ---------- sidebar drag start ---------- */
+  const handleSidebarDragStart = (
+    e: React.DragEvent<HTMLDivElement>,
+    name: string,
+    category: Category,
+    section: string
+  ) => {
+    const t: "person" | "machine" | "tool" =
+      category === "employee"
+        ? "person"
+        : section === "tools"
+        ? "tool"
+        : "machine";
+
+    setDragged({
+      name,
+      type: t,
+      source: { zone: "sidebar", id: `${category}:${section}` },
+    });
+    e.dataTransfer.effectAllowed = "move";
+    try {
+      e.dataTransfer.setData("text/plain", name);
+      e.dataTransfer.setData("application/x-item-type", t);
+    } catch {}
+  };
+
+  /* ---------- contract / time-off drag-starts ---------- */
+  const onContractItemDragStart = (
+    name: string,
+    sourceKey: string,
+    type: ContractItemType,
+    meta?: { childrenSnapshot?: ContractCalendarItem[]; childOf?: string }
+  ) =>
+    setDragged({
+      name,
+      type,
+      source: { zone: "contract", id: sourceKey },
+      meta,
+    });
+
+  const onTimeOffItemDragStart = (
+    name: string,
+    sourceKey: string,
+    type: TimeOffItemType
+  ) => {
+    setTimeout(() => {
+      setDragged({ name, type, source: { zone: "timeoff", id: sourceKey } });
+    }, 0);
+  };
+
+  /* ---------- drop helpers ---------- */
+  const allowDrop = (e: React.DragEvent<HTMLElement>) => e.preventDefault();
+
+  const onContractDrop = (targetKey: string) => {
+    if (dragged && "name" in dragged && unavailableResourceNames.has(dragged.name)) {
+      setShowUnavailableModal(true);
+      setModalResourceName(dragged.name);
+      setDragged(null);
+      return;
+    }
+    moveTo({ zone: "contract", id: targetKey });
+  };
+
+  const onContractDropToMachine = (targetKey: string, machineName: string) => {
+    if (dragged && "name" in dragged && unavailableResourceNames.has(dragged.name)) {
+      setShowUnavailableModal(true);
+      setModalResourceName(dragged.name);
+      setDragged(null);
+      return;
+    }
+    moveTo({
+      zone: "contract",
+      id: targetKey,
+      assignToMachine: { machineName },
+    });
+  };
+
+  const onTimeOffDrop = (targetKey: string) => moveTo({ zone: "timeoff", id: targetKey });
+
+  /* ---------- sidebar drop targets ---------- */
+  const onDropToEmployeeSection = (section: string) =>
+    moveTo({ zone: "sidebar", id: `employee:${section}` });
+  const onDropToMachineSection = (section: string) =>
+    moveTo({ zone: "sidebar", id: `machine:${section}` });
+
+  const toggleSection = (section: string) =>
+    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+
+  /* ---------- MAIN JSX ---------- */
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* SIDEBAR */}
+      {/* ---------- SIDEBAR ---------- */}
       <Sidebar
         expandedSections={expandedSections}
         setExpandedSections={setExpandedSections}
@@ -1139,13 +1150,24 @@ const Calender: React.FC = () => {
         onDropToEmployeeSection={onDropToEmployeeSection}
         onDropToMachineSection={onDropToMachineSection}
         handleSidebarDragStart={handleSidebarDragStart}
+        onContractDragStart={({ contractId, title, soList }) =>
+          setDragged({
+            contractId,
+            title,
+            soList,
+            source: { zone: "sidebar", id: contractId },
+          })
+        }
+        onContractDragEnd={() => setDragged(null)}
         toggleSection={toggleSection}
       />
 
-      {/* MAIN CONTENT moved to a new component */}
+      {/* ---------- MAIN CONTENT ---------- */}
+
       <CalendarMainContent
         timelineDays={timelineDays}
         headerLabel={headerLabel}
+        setHeaderLabel={setHeaderLabel}
         setStartOffsetDays={setStartOffsetDays}
         contractData={contractData}
         setContractData={setContractData}
@@ -1158,9 +1180,12 @@ const Calender: React.FC = () => {
         onTimeOffItemDragStart={onTimeOffItemDragStart}
         onTimeOffDrop={onTimeOffDrop}
         setSidebarSearch={setSidebarSearch}
+        onAreaDrop={handleAreaDrop}
+        isDraggingContract={isDraggingContract}
+        activeContractId={activeContractId}
       />
 
-      {/* Sticky Vacation/Sick footer */}
+      {/* ---------- Time-off footer ---------- */}
       <TimeOffScheduler
         weekDays={timelineDays}
         data={timeOffData}
@@ -1168,7 +1193,7 @@ const Calender: React.FC = () => {
         onDrop={onTimeOffDrop}
       />
 
-      {/* Add Contract Floating Button */}
+      {/* ---------- Floating “Add contract” button ---------- */}
       <button
         className="fixed z-100 bottom-6 right-6 bg-black text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg hover:bg-gray-800"
         onClick={() =>
@@ -1179,7 +1204,7 @@ const Calender: React.FC = () => {
         Add contract
       </button>
 
-      {/* ========== Modal for Unavailable Resource ========== */}
+      {/* ---------- Unavailable modal ---------- */}
       {showUnavailableModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/30">
           <div className="bg-white rounded-2xl shadow-lg px-8 py-6 min-w-[300px] max-w-xs flex flex-col items-center">
@@ -1203,4 +1228,5 @@ const Calender: React.FC = () => {
     </div>
   );
 };
+
 export default Calender;

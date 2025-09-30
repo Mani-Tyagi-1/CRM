@@ -89,7 +89,6 @@ const ContractForm: React.FC = () => {
          workType: typeOfWork,
          agreementId: offerNumber || undefined,
          contractId: contractNumber || undefined,
-         soNumber: "",
          startDate: today,
          endDate: today,
        },
