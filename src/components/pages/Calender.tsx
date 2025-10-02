@@ -636,7 +636,7 @@ import TimeOffScheduler, {
 
 import { useLocation, useNavigate } from "react-router-dom";
 import { auth, db } from "../../lib/firebase";
-import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, getDoc, getDocs, collection } from "firebase/firestore";
 
 type Category = "employee" | "machine";
 
@@ -764,6 +764,89 @@ const Calender: React.FC = () => {
     const unsubAuth = auth.onAuthStateChanged((user) => setUid(user?.uid ?? null));
     return () => unsubAuth();
   }, []);
+
+  // Load scheduled contracts on page load
+  useEffect(() => {
+    if (!uid) return;
+    
+    const loadScheduledContracts = async () => {
+      try {
+        // Check if there's an active scheduled contract
+        const scheduledRef = doc(db, "companies", uid, "calendar", "activeContract");
+        const scheduledSnap = await getDoc(scheduledRef);
+        
+        if (scheduledSnap.exists()) {
+          const scheduledData = scheduledSnap.data();
+          if (scheduledData.contractId) {
+            // Load the contract details
+            const contractRef = doc(db, "companies", uid, "contracts", scheduledData.contractId);
+            const contractSnap = await getDoc(contractRef);
+            
+            if (contractSnap.exists()) {
+              const contractData = contractSnap.data() as any;
+              setActiveContractId(scheduledData.contractId);
+              setActiveContractTitle(contractData.name || scheduledData.contractTitle || "Contract");
+              
+              if (contractData.startDate) setScheduledStartISO(contractData.startDate);
+              if (contractData.endDate) setScheduledEndISO(contractData.endDate);
+              if (contractData.startDate && contractData.endDate) {
+                setRangeDisplayText(`${contractData.startDate} → ${contractData.endDate}`);
+              }
+              
+              // Restore contract data cells
+              if (contractData.startDate && contractData.endDate) {
+                const startDate = new Date(contractData.startDate);
+                const endDate = new Date(contractData.endDate);
+                
+                setContractData((prev) => {
+                  const next: ContractData = { ...prev };
+                  
+                  // Get SOs for this contract
+                  const fetchSOsAndCreateCells = async () => {
+                    try {
+                      const soCol = collection(db, "companies", uid, "contracts", scheduledData.contractId, "so");
+                      const soSnap = await getDocs(soCol);
+                      const soList: { id: string; soNumber: string }[] = [];
+                      
+                      soSnap.forEach((doc) => {
+                        soList.push({ id: doc.id, soNumber: doc.get("soNumber") || doc.id });
+                      });
+                      
+                      // Create cells for SOs or default SO
+                      const sosToProcess = soList.length > 0 
+                        ? soList 
+                        : [{ id: `${scheduledData.contractId}__default`, soNumber: contractData.name || "Contract" }];
+                      
+                      sosToProcess.forEach((so) => {
+                        const currentDate = new Date(startDate);
+                        while (currentDate <= endDate) {
+                          const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
+                          const cellKey = `${so.id}-${dayName}`;
+                          if (!next[cellKey]) next[cellKey] = [];
+                          currentDate.setDate(currentDate.getDate() + 1);
+                        }
+                      });
+                      
+                      setContractData(next);
+                    } catch (e) {
+                      console.error("Error loading SOs for scheduled contract:", e);
+                    }
+                  };
+                  
+                  fetchSOsAndCreateCells();
+                  return next;
+                });
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Error loading scheduled contracts:", e);
+      }
+    };
+    
+    loadScheduledContracts();
+  }, [uid]);
 
   useEffect(() => {
     if (!uid || !activeContractId) return;
@@ -945,6 +1028,18 @@ const Calender: React.FC = () => {
 
       setActiveContractId(dragged.contractId); // Set active contract
       setActiveContractTitle(dragged.title); // Set contract title
+
+      // Persist active contract to Firebase (for direct drops without range modal)
+      if (uid) {
+        const calendarRef = doc(db, "companies", uid, "calendar", "activeContract");
+        setDoc(calendarRef, {
+          contractId: dragged.contractId,
+          contractTitle: dragged.title,
+          startDate: scheduledStartISO || null,
+          endDate: scheduledEndISO || null,
+          updatedAt: new Date().toISOString(),
+        }).catch((e) => console.error("[Calendar] active contract save failed (direct drop)", e));
+      }
 
       setDragged(null); // Clear the dragged contract state
     }
@@ -1302,6 +1397,17 @@ const Calender: React.FC = () => {
                           updatedAt: new Date().toISOString(),
                         }, { merge: true }).then(() => {
                         }).catch((e) => console.error("[Calendar] contract persist failed", e));
+                        
+                        // Save active contract to calendar collection
+                        const calendarRef = doc(db, "companies", uid, "calendar", "activeContract");
+                        setDoc(calendarRef, {
+                          contractId: pendingDragged.contractId,
+                          contractTitle: pendingDragged.title,
+                          startDate: fmt(start),
+                          endDate: fmt(end),
+                          updatedAt: new Date().toISOString(),
+                        }).catch((e) => console.error("[Calendar] active contract save failed", e));
+                        
                         setScheduledStartISO(fmt(start));
                         setScheduledEndISO(fmt(end));
                         

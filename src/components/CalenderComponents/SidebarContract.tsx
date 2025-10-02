@@ -94,6 +94,7 @@ const SidebarContracts: React.FC<Props> = ({
             .map((d) => ({ ...(d.data() as ContractDoc), id: d.id }))
             .filter((c) => (c.status ?? "draft") !== "archived");
 
+
           /* reset top-level contract list */
           setContracts(
             docs.map((contract) => ({
@@ -117,17 +118,20 @@ const SidebarContracts: React.FC<Props> = ({
               soUnsubs[contract.id] = onSnapshot(
                 query(soCol, orderBy("soNumber")),
                 (soSnap) => {
+                  const soList = soSnap.docs
+                    .filter((so) => so.get("soNumber"))
+                    .map((so) => ({
+                      id: so.id,
+                      soNumber: so.get("soNumber"),
+                    }));
+                  
+                  
                   setContracts((prev) =>
                     prev.map((c) =>
                       c.id === contract.id
                         ? {
                             ...c,
-                            SOs: soSnap.docs
-                              .filter((so) => so.get("soNumber"))
-                              .map((so) => ({
-                                id: so.id,
-                                soNumber: so.get("soNumber"),
-                              })),
+                            SOs: soList,
                           }
                         : c
                     )
