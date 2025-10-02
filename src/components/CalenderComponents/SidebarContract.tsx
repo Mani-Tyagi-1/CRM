@@ -55,11 +55,6 @@ const SidebarContracts: React.FC<Props> = ({
 
   const navigate = useNavigate();
 
-  /* ---------- DEBUG: show auth state in console ---------- */
-  useEffect(() => {
-    console.log("Current auth state:", auth.currentUser);
-  }, []);
-
   /* ---------- Firestore listeners ---------- */
   useEffect(() => {
     let unsubContracts: null | (() => void) = null;
@@ -159,9 +154,6 @@ const SidebarContracts: React.FC<Props> = ({
         }
       );
     });
-
-    console.log("SidebarContracts", contracts);
-
     return () => {
       mounted = false;
       unsubAuth();

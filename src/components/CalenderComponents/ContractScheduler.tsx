@@ -674,6 +674,10 @@ interface Props {
   onMachineInfo?: (cellKey: string, machineName: string) => void;
   unavailableResourceNames?: string[];
   onUnavailableDrop?: (name: string) => void;
+  rangeWithinWeek?: { startIdx: number; days: number };
+  timelineDays?: { key: string; day: string; date: Date; isToday: boolean }[];
+  scheduledStartISO?: string | null;
+  scheduledEndISO?: string | null;
 }
 
 /* ---------- Helpers ---------- */
@@ -696,6 +700,10 @@ const ContractScheduler: React.FC<Props> = ({
   onMachineInfo,
   unavailableResourceNames = [],
   onUnavailableDrop,
+  rangeWithinWeek,
+  timelineDays = [],
+  scheduledStartISO,
+  scheduledEndISO,
 }) => {
   const [collapsedRows, setCollapsedRows] = React.useState<
     Record<string, boolean>
@@ -704,16 +712,30 @@ const ContractScheduler: React.FC<Props> = ({
   const toggleRow = (rowKey: string) =>
     setCollapsedRows((prev) => ({ ...prev, [rowKey]: !prev[rowKey] }));
 
-  /* ---------- Static week-day ruler (Mon-Sun) ---------- */
-  const weekDays: WeekDay[] = [
-    { key: "mon", label: "Mon", date: "21" },
-    { key: "tue", label: "Tue", date: "22" },
-    { key: "wed", label: "Wed", date: "23" },
-    { key: "thu", label: "Thu", date: "24" },
-    { key: "fri", label: "Fri", date: "25" },
-    { key: "sat", label: "Sat", date: "26" },
-    { key: "sun", label: "Sun", date: "27" },
-  ];
+  /* ---------- Dynamic days based on scheduled range ---------- */
+  const getScheduledDays = (): WeekDay[] => {
+    // If no scheduled range or timeline days, return empty array
+    if (!scheduledStartISO || !scheduledEndISO || timelineDays.length === 0) {
+      return [];
+    }
+
+    // Find the days within the scheduled range
+    const scheduledDays: WeekDay[] = [];
+    
+    for (const timelineDay of timelineDays) {
+      if (timelineDay.key >= scheduledStartISO && timelineDay.key <= scheduledEndISO) {
+        scheduledDays.push({
+          key: timelineDay.day.toLowerCase().slice(0, 3), // "mon", "tue", etc.
+          label: timelineDay.day.slice(0, 3), // "Mon", "Tue", etc.
+          date: timelineDay.date.getDate().toString(),
+        });
+      }
+    }
+    
+    return scheduledDays;
+  };
+
+  const weekDays = getScheduledDays();
 
   /* ---------- Resize logic (unchanged) ---------- */
   const startResize = (
@@ -855,18 +877,21 @@ const ContractScheduler: React.FC<Props> = ({
           </button>
         </div>
         {/* Days */}
-        {!isCollapsed && (
-          <div id={`${soId}-grid`} className="grid grid-cols-7">
-            {weekDates.map((day, dayIdx) => {
+        {!isCollapsed && weekDays.length > 0 && (
+          <div id={`${soId}-grid`} 
+               className="grid" 
+               style={{ gridTemplateColumns: `repeat(${weekDays.length}, minmax(120px, 1fr))` }}>
+            {weekDays.map((day, dayIdx) => {
               const cellKey = `${soId}-${day.key}`; // SO-specific!
               const items = data[cellKey] || [];
               const machines = items.filter((i) => i.type === "machine");
               const others = items.filter((i) => i.type !== "machine");
+              const inRange = !!rangeWithinWeek && dayIdx >= rangeWithinWeek.startIdx && dayIdx < rangeWithinWeek.startIdx + rangeWithinWeek.days;
 
               return (
                 <div
                   key={cellKey}
-                  className="p-3 hover:bg-gray-25 transition-colors"
+                  className={["p-3 hover:bg-gray-25 transition-colors", inRange ? "bg-blue-50/40" : ""].join(" ")}
                   onDragOver={(e) => {
                     e.preventDefault();
                     e.dataTransfer.dropEffect = "move";
@@ -1028,27 +1053,48 @@ const ContractScheduler: React.FC<Props> = ({
       </div>
     );
   }
+  
+  // Determine which SOs to render
+  const sosToRender = soList.length > 0 
+    ? soList 
+    : [{ id: `${contractId}__default`, soNumber: contractName || "Contract" }];
+
   return (
-    <div className="w-full bg-gray-100 p-2">
+    <div className="max-w-4xl mx-auto bg-white border border-gray-200 rounded-lg shadow-sm min-h-[200px]">
       {/* Show contract name at top from prop */}
-      <div className="text-lg font-semibold w-full border-b mb-4 px-3 py-2">
+      <div className="text-lg font-semibold px-3 py-2 border-b border-gray-200 bg-gray-50">
         {contractName}
       </div>
-      {soList.map((so) => (
-        <div
-          key={so.id}
-          className="w-full p-3 max-w-4xl bg-white rounded-lg shadow-sm mb-4"
-        >
-          {renderSORow(so.id, so.soNumber)}
-        </div>
-      ))}
-      {soList.length === 0 && (
-        <div className="text-sm text-gray-500 italic text-start px-40 py-12">
-          No SOs in this contract yet.
-        </div>
-      )}
+      
+      <div className=" max-w-4xl mx-auto p-2">
+        {weekDays.length > 0 ? (
+          sosToRender.map((so) => (
+            <div
+              key={so.id}
+              className=" border-b border-gray-100 last:border-b-0 py-2"
+            >
+              {renderSORow(so.id, so.soNumber)}
+            </div>
+          ))
+        ) : (
+          <div className="text-sm text-gray-500 italic px-3 py-4 text-center">
+            {scheduledStartISO && scheduledEndISO 
+              ? "No days in the scheduled range"
+              : "Please select a date range for this contract"
+            }
+          </div>
+        )}
+        
+        {/* Show loading state if no SOs and still fetching */}
+        {soList.length === 0 && contractId && weekDays.length > 0 && (
+          <div className="text-sm text-gray-500 italic px-3 py-2 text-center">
+            Loading SOs...
+          </div>
+        )}
+      </div>
     </div>
   );
 };
+
 
 export default ContractScheduler;

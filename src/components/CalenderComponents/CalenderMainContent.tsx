@@ -62,6 +62,11 @@ type Props = {
 
   // *** NEW: the contract currently being scheduled ***
   activeContractId: string | null;
+  activeContractTitle?: string;
+  rangeDisplayText?: string;
+  rangeWithinWeek?: { startIdx: number; days: number };
+  scheduledStartISO?: string | null;
+  scheduledEndISO?: string | null;
 };
 
 const CalendarMainContent: React.FC<Props> = ({
@@ -79,10 +84,14 @@ const CalendarMainContent: React.FC<Props> = ({
   handleResize,
   allUnavailableResourceNames,
   activeContractId, // <-- passed from parent!
+  activeContractTitle,
+  // rangeDisplayText,
+  rangeWithinWeek,
+  scheduledStartISO,
+  scheduledEndISO,
 }) => {
 
-  console.log("activeContractId", activeContractId);
-  console.log("contractData", contractData);
+ 
 
 
   const rulerRef = React.useRef<HTMLDivElement>(null);
@@ -107,6 +116,7 @@ const CalendarMainContent: React.FC<Props> = ({
       setSOList([]);
       return;
     }
+    
     const fetchSOs = async () => {
       try {
         const soCol = collection(
@@ -158,6 +168,12 @@ const CalendarMainContent: React.FC<Props> = ({
     };
 
     container.addEventListener("scroll", handleScroll);
+    // center on today on mount
+    const todayIndex = timelineDays.findIndex((d) => d.isToday);
+    if (todayIndex > -1 && dayRefs.current[todayIndex]) {
+      const el = dayRefs.current[todayIndex] as HTMLDivElement;
+      container.scrollLeft = el.offsetLeft - container.clientWidth / 2 + el.clientWidth / 2;
+    }
     handleScroll();
 
     return () => container.removeEventListener("scroll", handleScroll);
@@ -211,7 +227,7 @@ const CalendarMainContent: React.FC<Props> = ({
                 onChange={(e) => setSidebarSearch(e.target.value)}
               />
             </div>
-            <div className="justify-self-end flex items-center gap-0">
+            <div className="justify-self-end flex items-center gap-3">
               <div className="inline-flex items-stretch rounded-lg overflow-hidden ring-1 ring-gray-200 bg-white mr-7">
                 <button
                   className="px-2 py-2 hover:bg-gray-50"
@@ -279,16 +295,25 @@ const CalendarMainContent: React.FC<Props> = ({
           </div>
         </div>
 
+       
+
+
+
         {/* ---------- CONTRACT SCHEDULER GRID ---------- */}
         <ContractScheduler
           data={contractData}
           soList={soList}
           contractId={activeContractId || undefined}
+          contractName={activeContractTitle || undefined}
           onDragStart={onContractItemDragStart}
           onDrop={onContractDrop}
           onDropToMachine={onContractDropToMachine}
           unavailableResourceNames={allUnavailableResourceNames}
           onResize={handleResize}
+          rangeWithinWeek={rangeWithinWeek}
+          timelineDays={timelineDays}
+          scheduledStartISO={scheduledStartISO}
+          scheduledEndISO={scheduledEndISO}
         />
       </div>
     </div>
