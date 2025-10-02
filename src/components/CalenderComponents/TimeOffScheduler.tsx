@@ -326,7 +326,7 @@ const TimeOffScheduler: React.FC<Props> = ({
           </button>
         </div>
 
-        {weekDays.map(({ key }) => {
+        {weekDays.map(({ key }, weekIdx) => {
           const cellKey = `${rowKeyPrefix}-${key}`;
           return (
             <div
@@ -339,7 +339,7 @@ const TimeOffScheduler: React.FC<Props> = ({
                 <div className="flex flex-wrap gap-2">
                   {data[cellKey]?.map((item, idx) => (
                     <div
-                      key={`${cellKey}-${item.name}-${idx}`}
+                      key={`${cellKey}-${item.type}-${item.name}-timeoff-${idx}-${weekIdx}`}
                       draggable
                       style={
                         { WebkitUserDrag: "element" } as React.CSSProperties

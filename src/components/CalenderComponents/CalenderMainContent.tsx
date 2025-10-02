@@ -179,26 +179,23 @@ const CalendarMainContent: React.FC<Props> = ({
     return () => container.removeEventListener("scroll", handleScroll);
   }, [timelineDays, setHeaderLabel]);
 
-  // ----- Drag-and-drop area for contracts -----
+  // ----- Drag-and-drop area for contracts and resources -----
   const handleAreaDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    if (isDraggingContract) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-    }
+    // Allow dropping for both contracts and resources
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
   };
 
   const handleAreaDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    if (isDraggingContract) {
-      e.preventDefault();
-      const x = e.clientX;
-      let anchorIso = timelineDays[0].key;
-      dayRefs.current.forEach((el, idx) => {
-        if (!el) return;
-        const r = el.getBoundingClientRect();
-        if (x >= r.left && x <= r.right) anchorIso = timelineDays[idx].key;
-      });
-      onAreaDrop(anchorIso);
-    }
+    e.preventDefault();
+    const x = e.clientX;
+    let anchorIso = timelineDays[0].key;
+    dayRefs.current.forEach((el, idx) => {
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      if (x >= r.left && x <= r.right) anchorIso = timelineDays[idx].key;
+    });
+    onAreaDrop(anchorIso);
   };
 
 
@@ -206,7 +203,9 @@ const CalendarMainContent: React.FC<Props> = ({
   return (
     <div
       ref={mainScrollRef}
-      className="flex-1 overflow-x-auto pb-48 bg-gray-100"
+      className={`flex-1 overflow-x-auto pb-48 transition-colors duration-200 ${
+        isDraggingContract ? "bg-blue-50" : "bg-gray-100"
+      }`}
       onDragOver={handleAreaDragOver}
       onDrop={handleAreaDrop}
     >
