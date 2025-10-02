@@ -90,6 +90,8 @@ const ContractScheduler: React.FC<Props> = ({
   const toggleRow = (rowKey: string) =>
     setCollapsedRows((prev) => ({ ...prev, [rowKey]: !prev[rowKey] }));
 
+  const CELL_MIN_WIDTH = 180;
+
   /* ---------- Dynamic days based on scheduled range ---------- */
   const getScheduledDays = (): WeekDay[] => {
     // If no scheduled range or timeline days, return empty array
@@ -128,7 +130,7 @@ const ContractScheduler: React.FC<Props> = ({
     const startX = e.clientX;
     const cellEl =
       (e.currentTarget.parentElement?.parentElement as HTMLElement) || null;
-    const cellWidth = cellEl ? cellEl.offsetWidth : 120;
+    const cellWidth = cellEl ? cellEl.offsetWidth : CELL_MIN_WIDTH;
 
     const onMouseMove = (mv: MouseEvent) => mv.preventDefault();
 
@@ -212,6 +214,7 @@ const ContractScheduler: React.FC<Props> = ({
     machineName: string
   ) => {
     e.preventDefault();
+    e.stopPropagation(); // 👈 prevents the parent cell's onDrop from firing
     let draggedName = "";
     try {
       draggedName = e.dataTransfer.getData("text/plain");
@@ -258,7 +261,7 @@ const ContractScheduler: React.FC<Props> = ({
         {!isCollapsed && weekDays.length > 0 && (
           <div id={`${soId}-grid`} 
                className="grid" 
-               style={{ gridTemplateColumns: `repeat(${weekDays.length}, minmax(120px, 1fr))` }}>
+               style={{ gridTemplateColumns: `repeat(${weekDays.length}, minmax(${CELL_MIN_WIDTH}px, 1fr))` }}>
             {weekDays.map((day, dayIdx) => {
               const cellKey = `${soId}-${day.key}`; // SO-specific!
               const items = data[cellKey] || [];
@@ -440,12 +443,6 @@ const ContractScheduler: React.FC<Props> = ({
       <div className="w-full text-center text-gray-500 py-16">
         <div className="space-y-3">
           <div className="text-lg font-medium">No Contract Scheduled</div>
-          <div className="text-sm">
-            Drag a contract from the sidebar to schedule it, then add employees and machines.
-          </div>
-          <div className="text-xs text-gray-400">
-            📋 Step 1: Drag contract → 👥 Step 2: Add resources → 🏗️ Step 3: Assign to machines
-          </div>
         </div>
       </div>
     );
@@ -456,14 +453,20 @@ const ContractScheduler: React.FC<Props> = ({
     ? soList 
     : [{ id: `${contractId}__default`, soNumber: contractName || "Contract" }];
 
+    const containerWidthPx =
+  weekDays.length > 0 ? weekDays.length * CELL_MIN_WIDTH : undefined;
+
   return (
-    <div className="max-w-4xl mx-auto bg-white border border-gray-200 rounded-lg shadow-sm min-h-[200px]">
+    <div className=" mx-auto bg-white border border-gray-200 rounded-lg shadow-sm min-h-[200px]" style={{
+      width: containerWidthPx,
+      minWidth: 360, // tweak as you like
+    }}>
       {/* Show contract name at top from prop */}
       <div className="text-lg font-semibold px-3 py-2 border-b border-gray-200 bg-gray-50">
         {contractName}
       </div>
       
-      <div className=" max-w-4xl mx-auto p-2">
+      <div className="p-2">
         {weekDays.length > 0 ? (
           sosToRender.map((so, soIdx) => (
             <div

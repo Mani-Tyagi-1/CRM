@@ -91,7 +91,7 @@ const CalendarMainContent: React.FC<Props> = ({
   scheduledEndISO,
 }) => {
 
- 
+  const CELL_MIN_WIDTH = 180;
 
 
   const rulerRef = React.useRef<HTMLDivElement>(null);
@@ -270,7 +270,7 @@ const CalendarMainContent: React.FC<Props> = ({
             <div
               className="grid"
               style={{
-                gridTemplateColumns: `repeat(${timelineDays.length}, minmax(120px, 1fr))`,
+                gridTemplateColumns: `repeat(${timelineDays.length}, minmax(${CELL_MIN_WIDTH}px, 1fr))`,
               }}
             >
               {timelineDays.map((d, i) => (
