@@ -213,7 +213,7 @@
 
 
 import React from "react";
-import { ChevronDown, ChevronUp, FileText } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { addResourceToTimeoffCell, removeResourceFromTimeoffCell } from "../../services/timeoffschedular";
 import { db } from "../../lib/firebase";
 
