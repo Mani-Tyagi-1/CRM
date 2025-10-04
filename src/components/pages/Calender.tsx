@@ -21,7 +21,7 @@ import TimeOffScheduler, {
 
 import { useLocation, useNavigate } from "react-router-dom";
 import { auth, db } from "../../lib/firebase";
-import { doc, onSnapshot, setDoc, getDoc, getDocs, collection } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, getDoc, getDocs, collection, updateDoc, arrayUnion } from "firebase/firestore";
 
 type Category = "employee" | "machine";
 
@@ -277,6 +277,17 @@ const Calender: React.FC = () => {
 
   const [timeOffData, setTimeOffData] = useState<TimeOffData>(initialTimeOffData);
 
+  const onRemoveResource = (cellKey: string, item: { name: string }) => {
+    setTimeOffData((prev) => {
+      const next = { ...prev };
+      next[cellKey] = (next[cellKey] || []).filter(
+        (i) => i.name !== item.name
+      );
+      return next;
+    });
+  };
+
+
   /* unavailable resources list (vacation / sick) */
   const allUnavailableResourceNames = useMemo(() => {
     const names: string[] = [];
@@ -303,6 +314,24 @@ const Calender: React.FC = () => {
       return next;
     });
   }, [timelineDays]);
+
+  useEffect(() => {
+    if (!uid) return;
+    const colRef = collection(db, "companies", uid, "timeoff");
+    // If you want real-time updates, use onSnapshot instead of getDocs
+    const unsubscribe = onSnapshot(colRef, (snap) => {
+      const next: TimeOffData = {};
+      snap.forEach((docSnap) => {
+        const key = docSnap.id; // e.g. 'vacation-2025-10-07'
+        const data = docSnap.data();
+        next[key] = data.items || [];
+      });
+      setTimeOffData(next);
+    });
+    return () => unsubscribe();
+  }, [uid]);
+
+
 
   /* ---------- drag-and-drop ---------- */
   const [dragged, setDragged] = useState<DragPayload>(null);
@@ -464,7 +493,11 @@ const Calender: React.FC = () => {
     if (target.zone === "contract") {
       if (target.assignToMachine) {
         // Add to a specific machine and persist
-        attachToMachine(target.id, target.assignToMachine.machineName, itemToAdd);
+        attachToMachine(
+          target.id,
+          target.assignToMachine.machineName,
+          itemToAdd
+        );
         // Persist target cell after attach
         if (uid && activeContractId) {
           setContractData((prev) => {
@@ -472,15 +505,33 @@ const Calender: React.FC = () => {
             const itemsForCell = next[target.id] || [];
             // write entire cell items including updated machine children
             const payload = { items: itemsForCell } as any;
-            const scheduleRef = doc(db, "companies", uid, "contracts", activeContractId, "schedule", target.id);
+            const scheduleRef = doc(
+              db,
+              "companies",
+              uid,
+              "contracts",
+              activeContractId,
+              "schedule",
+              target.id
+            );
             setDoc(scheduleRef, payload, { merge: true }).catch(() => {});
 
             // If item originated from another contract cell, persist source cell as well
             if (draggedItem.source.zone === "contract") {
               const srcKey = draggedItem.source.id;
               const srcItems = next[srcKey] || [];
-              const srcRef = doc(db, "companies", uid, "contracts", activeContractId, "schedule", srcKey);
-              setDoc(srcRef, { items: srcItems } as any, { merge: true }).catch(() => {});
+              const srcRef = doc(
+                db,
+                "companies",
+                uid,
+                "contracts",
+                activeContractId,
+                "schedule",
+                srcKey
+              );
+              setDoc(srcRef, { items: srcItems } as any, { merge: true }).catch(
+                () => {}
+              );
             }
             return next;
           });
@@ -490,25 +541,54 @@ const Calender: React.FC = () => {
         setContractData((prev) => {
           const cur = prev[target.id] || [];
           // Check if item already exists
-          if (cur.some((it) => it.name === itemToAdd.name && it.type === itemToAdd.type)) {
+          if (
+            cur.some(
+              (it) => it.name === itemToAdd.name && it.type === itemToAdd.type
+            )
+          ) {
             return prev;
           }
 
           const updatedTargetItems = [...cur, itemToAdd];
-          const next: ContractData = { ...prev, [target.id]: updatedTargetItems };
+          const next: ContractData = {
+            ...prev,
+            [target.id]: updatedTargetItems,
+          };
 
           // Persist target cell
           if (uid && activeContractId) {
-            const scheduleRef = doc(db, "companies", uid, "contracts", activeContractId, "schedule", target.id);
-            setDoc(scheduleRef, { items: updatedTargetItems } as any, { merge: true }).catch(() => {});
+            const scheduleRef = doc(
+              db,
+              "companies",
+              uid,
+              "contracts",
+              activeContractId,
+              "schedule",
+              target.id
+            );
+            setDoc(scheduleRef, { items: updatedTargetItems } as any, {
+              merge: true,
+            }).catch(() => {});
 
             // If dragged from another contract cell, also persist the source cell after removal
             if (draggedItem.source.zone === "contract") {
               const srcKey = draggedItem.source.id;
               const srcItemsRaw = prev[srcKey] || [];
-              const srcItems = srcItemsRaw.filter((it) => it.name !== itemToAdd.name);
-              const srcRef = doc(db, "companies", uid, "contracts", activeContractId, "schedule", srcKey);
-              setDoc(srcRef, { items: srcItems } as any, { merge: true }).catch(() => {});
+              const srcItems = srcItemsRaw.filter(
+                (it) => it.name !== itemToAdd.name
+              );
+              const srcRef = doc(
+                db,
+                "companies",
+                uid,
+                "contracts",
+                activeContractId,
+                "schedule",
+                srcKey
+              );
+              setDoc(srcRef, { items: srcItems } as any, { merge: true }).catch(
+                () => {}
+              );
             }
           }
 
@@ -516,25 +596,34 @@ const Calender: React.FC = () => {
         });
       }
     } else if (target.zone === "timeoff") {
-      // Add to time-off section
       const timeOffItem = {
-        startDate: new Date(), // Add the required startDate field
+        startDate: new Date(),
         name: draggedItem.name,
         type: draggedItem.type as TimeOffItemType,
         color: timeOffColorFor(draggedItem.type as TimeOffItemType),
       };
+
       setTimeOffData((prev) => {
         const cur = prev[target.id] || [];
-        // Check if item already exists
-        if (cur.some((it) => it.name === timeOffItem.name && it.type === timeOffItem.type)) {
+        if (
+          cur.some(
+            (it) => it.name === timeOffItem.name && it.type === timeOffItem.type
+          )
+        ) {
           return prev;
         }
         return { ...prev, [target.id]: [...cur, timeOffItem] };
       });
-    } else if (target.zone === "sidebar") {
-      // Moving back to sidebar - already handled by stripEverywhere above
-    }
 
+      // NEW: Write to Firestore
+      if (uid) {
+        const ref = doc(db, "companies", uid, "timeoff", target.id);
+        updateDoc(ref, {
+          items: arrayUnion(timeOffItem),
+        });
+        console.log("Time-off item added to Firestore");
+      }
+    }
     setDragged(null);
   };
 
@@ -809,6 +898,8 @@ const Calender: React.FC = () => {
         data={timeOffData}
         onDragStart={onTimeOffItemDragStart}
         onDrop={onTimeOffDrop}
+        uid={uid}
+        onRemoveResource={onRemoveResource}
       />
 
       {/* ---------- Floating “Add contract” button ---------- */}
@@ -885,81 +976,164 @@ const Calender: React.FC = () => {
                   if (!rangeStart || !rangeEnd) return;
                   const start = new Date(rangeStart);
                   const end = new Date(rangeEnd);
-                  if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return;
+                  if (
+                    isNaN(start.getTime()) ||
+                    isNaN(end.getTime()) ||
+                    start > end
+                  )
+                    return;
                   const fmt = (d: Date) => d.toISOString().slice(0, 10);
                   setRangeDisplayText(`${fmt(start)} → ${fmt(end)}`);
 
                   if (pendingTarget && pendingDragged) {
-                    if (pendingTarget.kind === "contract-area" && "contractId" in pendingDragged) {
+                    if (
+                      pendingTarget.kind === "contract-area" &&
+                      "contractId" in pendingDragged
+                    ) {
                       setActiveContractId(pendingDragged.contractId);
                       setActiveContractTitle(pendingDragged.title);
                       moveTo({ zone: "contract", id: pendingTarget.anchorIso });
                       // persist to Firestore
                       if (uid) {
-                        const ref = doc(db, "companies", uid, "contracts", pendingDragged.contractId);
-                        setDoc(ref, {
-                          startDate: fmt(start),
-                          endDate: fmt(end),
-                          anchorDate: pendingTarget.anchorIso,
-                          updatedAt: new Date().toISOString(),
-                        }, { merge: true }).then(() => {
-                        }).catch((e) => console.error("[Calendar] contract persist failed", e));
-                        
+                        const ref = doc(
+                          db,
+                          "companies",
+                          uid,
+                          "contracts",
+                          pendingDragged.contractId
+                        );
+                        setDoc(
+                          ref,
+                          {
+                            startDate: fmt(start),
+                            endDate: fmt(end),
+                            anchorDate: pendingTarget.anchorIso,
+                            updatedAt: new Date().toISOString(),
+                          },
+                          { merge: true }
+                        )
+                          .then(() => {})
+                          .catch((e) =>
+                            console.error(
+                              "[Calendar] contract persist failed",
+                              e
+                            )
+                          );
+
                         // Save active contract to calendar collection
-                        const calendarRef = doc(db, "companies", uid, "calendar", "activeContract");
+                        const calendarRef = doc(
+                          db,
+                          "companies",
+                          uid,
+                          "calendar",
+                          "activeContract"
+                        );
                         setDoc(calendarRef, {
                           contractId: pendingDragged.contractId,
                           contractTitle: pendingDragged.title,
                           startDate: fmt(start),
                           endDate: fmt(end),
                           updatedAt: new Date().toISOString(),
-                        }).catch((e) => console.error("[Calendar] active contract save failed", e));
-                        
+                        }).catch((e) =>
+                          console.error(
+                            "[Calendar] active contract save failed",
+                            e
+                          )
+                        );
+
                         setScheduledStartISO(fmt(start));
                         setScheduledEndISO(fmt(end));
-                        
-                      // Auto-populate SO cells across the full range AND persist empty cells so drops work after reload
-                      setContractData((prev) => {
-                        const next: ContractData = { ...prev };
-                        const sosToProcess = pendingDragged.soList.length > 0 
-                          ? pendingDragged.soList 
-                          : [{ id: `${pendingDragged.contractId}__default`, soNumber: pendingDragged.title || "Contract" }];
-                        
-                        sosToProcess.forEach((so) => {
-                          const currentDate = new Date(start);
-                          const endDate = new Date(end);
-                          while (currentDate <= endDate) {
-                            const isoDate = currentDate.toISOString().slice(0, 10);
-                            const cellKey = `${so.id}-${isoDate}`;
-                            if (!next[cellKey]) next[cellKey] = [];
 
-                            // Persist an empty cell so future drops can be recovered on reload
-                            if (uid) {
-                              const scheduleRef = doc(db, "companies", uid, "contracts", pendingDragged.contractId, "schedule", cellKey);
-                              setDoc(scheduleRef, { items: [] }).catch(() => {});
+                        // Auto-populate SO cells across the full range AND persist empty cells so drops work after reload
+                        setContractData((prev) => {
+                          const next: ContractData = { ...prev };
+                          const sosToProcess =
+                            pendingDragged.soList.length > 0
+                              ? pendingDragged.soList
+                              : [
+                                  {
+                                    id: `${pendingDragged.contractId}__default`,
+                                    soNumber:
+                                      pendingDragged.title || "Contract",
+                                  },
+                                ];
+
+                          sosToProcess.forEach((so) => {
+                            const currentDate = new Date(start);
+                            const endDate = new Date(end);
+                            while (currentDate <= endDate) {
+                              const isoDate = currentDate
+                                .toISOString()
+                                .slice(0, 10);
+                              const cellKey = `${so.id}-${isoDate}`;
+                              if (!next[cellKey]) next[cellKey] = [];
+
+                              // Persist an empty cell so future drops can be recovered on reload
+                              if (uid) {
+                                const scheduleRef = doc(
+                                  db,
+                                  "companies",
+                                  uid,
+                                  "contracts",
+                                  pendingDragged.contractId,
+                                  "schedule",
+                                  cellKey
+                                );
+                                setDoc(scheduleRef, { items: [] }).catch(
+                                  () => {}
+                                );
+                              }
+                              currentDate.setDate(currentDate.getDate() + 1);
                             }
-                            currentDate.setDate(currentDate.getDate() + 1);
-                          }
+                          });
+                          return next;
                         });
-                        return next;
-                      });
                       }
                       // compute week-relative span for highlighting
                       const anchorDate = new Date(pendingTarget.anchorIso);
-                      const startDiffDays = Math.max(0, Math.min(6, Math.round((start.getTime() - anchorDate.getTime()) / 86400000)));
-                      const endDiffDays = Math.max(0, Math.min(6, Math.round((end.getTime() - anchorDate.getTime()) / 86400000)));
+                      const startDiffDays = Math.max(
+                        0,
+                        Math.min(
+                          6,
+                          Math.round(
+                            (start.getTime() - anchorDate.getTime()) / 86400000
+                          )
+                        )
+                      );
+                      const endDiffDays = Math.max(
+                        0,
+                        Math.min(
+                          6,
+                          Math.round(
+                            (end.getTime() - anchorDate.getTime()) / 86400000
+                          )
+                        )
+                      );
                       const startIdx = Math.min(startDiffDays, endDiffDays);
-                      const days = Math.min(7 - startIdx, Math.abs(endDiffDays - startDiffDays) + 1);
+                      const days = Math.min(
+                        7 - startIdx,
+                        Math.abs(endDiffDays - startDiffDays) + 1
+                      );
                       setRangeWithinWeek({ startIdx, days });
-                    } else if (pendingTarget.kind === "contract-cell" && "name" in pendingDragged) {
+                    } else if (
+                      pendingTarget.kind === "contract-cell" &&
+                      "name" in pendingDragged
+                    ) {
                       const baseKey = pendingTarget.targetKey;
-                      const m = baseKey.match(/^(.*)-(mon|tue|wed|thu|fri|sat|sun)$/);
+                      const m = baseKey.match(
+                        /^(.*)-(mon|tue|wed|thu|fri|sat|sun)$/
+                      );
                       if (m) {
                         const soId = m[1];
-                        const dayKey = m[2] as typeof dayOrder[number];
+                        const dayKey = m[2] as (typeof dayOrder)[number];
                         const startIdx = dayOrder.indexOf(dayKey);
                         const days = Math.min(
-                          Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1),
+                          Math.max(
+                            1,
+                            Math.round(
+                              (end.getTime() - start.getTime()) / 86400000
+                            ) + 1
+                          ),
                           7
                         );
                         setRangeWithinWeek({ startIdx, days });
@@ -970,15 +1144,22 @@ const Calender: React.FC = () => {
                       } else {
                         moveTo({ zone: "contract", id: baseKey });
                       }
-                    } else if (pendingTarget.kind === "contract-machine" && "name" in pendingDragged) {
+                    } else if (
+                      pendingTarget.kind === "contract-machine" &&
+                      "name" in pendingDragged
+                    ) {
                       moveTo({
                         zone: "contract",
                         id: pendingTarget.targetKey,
-                        assignToMachine: { machineName: pendingTarget.machineName },
+                        assignToMachine: {
+                          machineName: pendingTarget.machineName,
+                        },
                       });
-                      const m = pendingTarget.targetKey.match(/^(.*)-(mon|tue|wed|thu|fri|sat|sun)$/);
+                      const m = pendingTarget.targetKey.match(
+                        /^(.*)-(mon|tue|wed|thu|fri|sat|sun)$/
+                      );
                       if (m) {
-                        const dayKey = m[2] as typeof dayOrder[number];
+                        const dayKey = m[2] as (typeof dayOrder)[number];
                         const startIdx = dayOrder.indexOf(dayKey);
                         setRangeWithinWeek({ startIdx, days: 1 });
                       }

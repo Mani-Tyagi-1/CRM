@@ -290,8 +290,7 @@ const SidebarContracts: React.FC<Props> = ({
                           className="absolute left-[-12px] top-1/2 w-[16px] h-px bg-gray-300"
                           style={{ transform: "translateY(-50%)", zIndex: 1 }}
                         />
-                        <a
-                          href={`/contract/${contract.id}/so/${so.id}`}
+                        <div
                           className="flex-1 border border-gray-400 bg-white rounded-[8px] px-3 py-1 text-[14px] font-medium text-gray-800
                               text-center shadow-sm transition-colors duration-100 hover:bg-gray-50"
                           style={{
@@ -302,7 +301,7 @@ const SidebarContracts: React.FC<Props> = ({
                           }}
                         >
                           {so.soNumber || so.id}
-                        </a>
+                        </div>
                       </div>
                     ))}
 

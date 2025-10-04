@@ -314,12 +314,16 @@ const ContractScheduler: React.FC<Props> = ({
                           <div
                             className="px-2 py-1.5 pr-7 text-xs font-medium text-green-900 cursor-move select-none"
                             draggable
-                            onDragStart={(_e) =>
+                            onDragStart={(e) =>{
+                              e.dataTransfer.setData("text/plain", m.name);
+                              e.dataTransfer.setData("application/x-item-type", "machine");
                               onDragStart(m.name, cellKey, "machine", {
                                 childrenSnapshot: m.children
                                   ? [...m.children]
                                   : [],
                               })
+                            }
+                              
                             }
                             title={m.note || ""}
                           >
@@ -358,10 +362,19 @@ const ContractScheduler: React.FC<Props> = ({
                                   key={`${cellKey}-${m.name}-child-${c.type}-${c.name}-${cidx}-${dayIdx}`}
                                   className={chipCls(c.type)}
                                   draggable
-                                  onDragStart={(_e) =>
+                                  onDragStart={(e) => {
+                                    e.dataTransfer.setData(
+                                      "text/plain",
+                                      m.name
+                                    );
+                                    e.dataTransfer.setData(
+                                      "application/x-item-type",
+                                      "machine"
+                                    );
                                     onDragStart(c.name, cellKey, c.type, {
                                       childOf: m.name,
                                     })
+                                  }
                                   }
                                   title={c.note || ""}
                                 >
@@ -406,8 +419,14 @@ const ContractScheduler: React.FC<Props> = ({
                           key={`${cellKey}-${item.type}-${item.name}-nonmachine-${idx}-${dayIdx}`}
                           className={chipCls(item.type, joinsLeft, joinsRight)}
                           draggable
-                          onDragStart={(_e) =>
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData("text/plain", item.name);
+                            e.dataTransfer.setData(
+                              "application/x-item-type",
+                              item.type
+                            );
                             onDragStart(item.name, cellKey, item.type)
+                          }
                           }
                           title={item.note || ""}
                         >
