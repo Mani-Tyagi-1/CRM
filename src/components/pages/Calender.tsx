@@ -346,11 +346,14 @@ const Calender: React.FC = () => {
       : "bg-amber-50 text-amber-700 ring-1 ring-amber-200";
 
   /* ---------- CENTRAL moveTo ---------- */
-  const moveTo = (target: {
+  const moveTo = (
+    
+    target: {
     zone: "sidebar" | "contract" | "timeoff";
     id: string;
     assignToMachine?: { machineName: string } | null;
   }) => {
+    console.log("running");
     if (!dragged) return;
 
     // Whole contract drop logic
@@ -372,6 +375,7 @@ const Calender: React.FC = () => {
           if (timelineDays[globalIdx]) anchorIso = timelineDays[globalIdx].key;
         }
       }
+
 
       // Avoid duplicate contract if already added
       setScheduledContracts((prev) =>
@@ -416,6 +420,7 @@ const Calender: React.FC = () => {
         
         sosToProcess.forEach((so) => {
           const currentDate = new Date(startDate);
+
           while (currentDate <= endDate) {
             const isoDate = currentDate.toISOString().slice(0, 10);
             const cellKey = `${so.id}-${isoDate}`;
@@ -882,113 +887,82 @@ const Calender: React.FC = () => {
               <button
                 className="px-4 py-1.5 rounded-md bg-blue-600 text-white"
                 onClick={() => {
-                  if (!rangeStart || !rangeEnd) return;
-                  const start = new Date(rangeStart);
-                  const end = new Date(rangeEnd);
-                  if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return;
-                  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-                  setRangeDisplayText(`${fmt(start)} → ${fmt(end)}`);
+  if (!rangeStart || !rangeEnd) return;
+  
+  const start = new Date(rangeStart);
+  const end = new Date(rangeEnd);
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return;
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
-                  if (pendingTarget && pendingDragged) {
-                    if (pendingTarget.kind === "contract-area" && "contractId" in pendingDragged) {
-                      setActiveContractId(pendingDragged.contractId);
-                      setActiveContractTitle(pendingDragged.title);
-                      moveTo({ zone: "contract", id: pendingTarget.anchorIso });
-                      // persist to Firestore
-                      if (uid) {
-                        const ref = doc(db, "companies", uid, "contracts", pendingDragged.contractId);
-                        setDoc(ref, {
-                          startDate: fmt(start),
-                          endDate: fmt(end),
-                          anchorDate: pendingTarget.anchorIso,
-                          updatedAt: new Date().toISOString(),
-                        }, { merge: true }).then(() => {
-                        }).catch((e) => console.error("[Calendar] contract persist failed", e));
-                        
-                        // Save active contract to calendar collection
-                        const calendarRef = doc(db, "companies", uid, "calendar", "activeContract");
-                        setDoc(calendarRef, {
-                          contractId: pendingDragged.contractId,
-                          contractTitle: pendingDragged.title,
-                          startDate: fmt(start),
-                          endDate: fmt(end),
-                          updatedAt: new Date().toISOString(),
-                        }).catch((e) => console.error("[Calendar] active contract save failed", e));
-                        
-                        setScheduledStartISO(fmt(start));
-                        setScheduledEndISO(fmt(end));
-                        
-                      // Auto-populate SO cells across the full range AND persist empty cells so drops work after reload
-                      setContractData((prev) => {
-                        const next: ContractData = { ...prev };
-                        const sosToProcess = pendingDragged.soList.length > 0 
-                          ? pendingDragged.soList 
-                          : [{ id: `${pendingDragged.contractId}__default`, soNumber: pendingDragged.title || "Contract" }];
-                        
-                        sosToProcess.forEach((so) => {
-                          const currentDate = new Date(start);
-                          const endDate = new Date(end);
-                          while (currentDate <= endDate) {
-                            const isoDate = currentDate.toISOString().slice(0, 10);
-                            const cellKey = `${so.id}-${isoDate}`;
-                            if (!next[cellKey]) next[cellKey] = [];
+  setRangeDisplayText(`${fmt(start)} → ${fmt(end)}`);
 
-                            // Persist an empty cell so future drops can be recovered on reload
-                            if (uid) {
-                              const scheduleRef = doc(db, "companies", uid, "contracts", pendingDragged.contractId, "schedule", cellKey);
-                              setDoc(scheduleRef, { items: [] }).catch(() => {});
-                            }
-                            currentDate.setDate(currentDate.getDate() + 1);
-                          }
-                        });
-                        return next;
-                      });
-                      }
-                      // compute week-relative span for highlighting
-                      const anchorDate = new Date(pendingTarget.anchorIso);
-                      const startDiffDays = Math.max(0, Math.min(6, Math.round((start.getTime() - anchorDate.getTime()) / 86400000)));
-                      const endDiffDays = Math.max(0, Math.min(6, Math.round((end.getTime() - anchorDate.getTime()) / 86400000)));
-                      const startIdx = Math.min(startDiffDays, endDiffDays);
-                      const days = Math.min(7 - startIdx, Math.abs(endDiffDays - startDiffDays) + 1);
-                      setRangeWithinWeek({ startIdx, days });
-                    } else if (pendingTarget.kind === "contract-cell" && "name" in pendingDragged) {
-                      const baseKey = pendingTarget.targetKey;
-                      const m = baseKey.match(/^(.*)-(mon|tue|wed|thu|fri|sat|sun)$/);
-                      if (m) {
-                        const soId = m[1];
-                        const dayKey = m[2] as typeof dayOrder[number];
-                        const startIdx = dayOrder.indexOf(dayKey);
-                        const days = Math.min(
-                          Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1),
-                          7
-                        );
-                        setRangeWithinWeek({ startIdx, days });
-                        for (let i = 0; i < days && startIdx + i < 7; i++) {
-                          const targetKey = `${soId}-${dayOrder[startIdx + i]}`;
-                          moveTo({ zone: "contract", id: targetKey });
-                        }
-                      } else {
-                        moveTo({ zone: "contract", id: baseKey });
-                      }
-                    } else if (pendingTarget.kind === "contract-machine" && "name" in pendingDragged) {
-                      moveTo({
-                        zone: "contract",
-                        id: pendingTarget.targetKey,
-                        assignToMachine: { machineName: pendingTarget.machineName },
-                      });
-                      const m = pendingTarget.targetKey.match(/^(.*)-(mon|tue|wed|thu|fri|sat|sun)$/);
-                      if (m) {
-                        const dayKey = m[2] as typeof dayOrder[number];
-                        const startIdx = dayOrder.indexOf(dayKey);
-                        setRangeWithinWeek({ startIdx, days: 1 });
-                      }
-                    }
-                  }
+ 
 
-                  setShowRangeModal(false);
-                  setPendingTarget(null);
-                  setPendingDragged(null);
-                }}
+  if (pendingTarget && pendingDragged) {
+    if (pendingTarget.kind === "contract-area" && "contractId" in pendingDragged) {
+      setActiveContractId(pendingDragged.contractId);
+      setActiveContractTitle(pendingDragged.title);
+      setScheduledStartISO(fmt(start));
+      setScheduledEndISO(fmt(end));
+      // Persist in Firestore (contract doc & calendar doc)
+      if (uid) {
+        const contractRef = doc(db, "companies", uid, "contracts", pendingDragged.contractId);
+        setDoc(contractRef, {
+          startDate: fmt(start),
+          endDate: fmt(end),
+          anchorDate: pendingTarget.anchorIso,
+          updatedAt: new Date().toISOString(),
+        }, { merge: true });
+        const calendarRef = doc(db, "companies", uid, "calendar", "activeContract");
+        setDoc(calendarRef, {
+          contractId: pendingDragged.contractId,
+          contractTitle: pendingDragged.title,
+          startDate: fmt(start),
+          endDate: fmt(end),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      // Create the cells (area) for each SO between start and end date
+      setContractData((prev) => {
+        const next: ContractData = { ...prev };
+        const sosToProcess = pendingDragged.soList.length > 0
+          ? pendingDragged.soList
+          : [{ id: `${pendingDragged.contractId}__default`, soNumber: pendingDragged.title || "Contract" }];
+        sosToProcess.forEach((so) => {
+          let currentDate = new Date(start);
+          while (currentDate <= end) {
+            const isoDate = currentDate.toISOString().slice(0, 10);
+            const cellKey = `${so.id}-${isoDate}`;
+            if (!next[cellKey]) next[cellKey] = [];
+            // Optional: create the cell in Firestore too
+            if (uid) {
+              const scheduleRef = doc(db, "companies", uid, "contracts", pendingDragged.contractId, "schedule", cellKey);
+              setDoc(scheduleRef, { items: [] }).catch(() => {});
+            }
+            currentDate.setDate(currentDate.getDate() + 1);
+          }
+        });
+        return next;
+      });
+      setRangeWithinWeek(undefined);
+
+      // ------------ AUTO-SCROLL CALENDAR TO START DATE -------------
+      const startIso = fmt(start);
+      const startIdx = timelineDays.findIndex(d => d.key === startIso);
+      if (startIdx !== -1) {
+        setStartOffsetDays(startIdx - Math.floor(timelineDays.length / 2));
+      }
+      // ------------------------------------------------------------
+    }
+  }
+
+  setShowRangeModal(false);
+  setPendingTarget(null);
+  setPendingDragged(null);
+  setRangeStart("");
+  setRangeEnd("");
+}}
+               
               >
                 Apply
               </button>

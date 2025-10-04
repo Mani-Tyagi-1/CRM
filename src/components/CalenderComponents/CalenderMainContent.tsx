@@ -109,6 +109,13 @@ const CalendarMainContent: React.FC<Props> = ({
     });
     return () => unsub();
   }, []);
+  React.useEffect(() => {
+  if (!scheduledStartISO || !mainScrollRef.current || !timelineDays.length) return;
+  const idx = timelineDays.findIndex(d => d.key === scheduledStartISO);
+  if (idx > -1 && dayRefs.current[idx]) {
+    mainScrollRef.current.scrollLeft = dayRefs.current[idx].offsetLeft - mainScrollRef.current.clientWidth / 2 + dayRefs.current[idx].clientWidth / 2;
+  }
+}, [scheduledStartISO, timelineDays]);
 
   // Fetch SOs when contract changes (needs uid)
   React.useEffect(() => {
