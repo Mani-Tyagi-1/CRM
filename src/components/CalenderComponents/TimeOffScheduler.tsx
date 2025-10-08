@@ -1,6 +1,9 @@
 import React from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { addResourceToTimeoffCell, removeResourceFromTimeoffCell } from "../../services/timeoffschedular";
+import {
+  addResourceToTimeoffCell,
+  removeResourceFromTimeoffCell,
+} from "../../services/timeoffschedular";
 import { db } from "../../lib/firebase";
 
 export type ItemType = "person" | "machine" | "tool";
@@ -76,32 +79,117 @@ const TimeOffScheduler: React.FC<Props> = ({
     e.dataTransfer.dropEffect = "move";
   };
 
- const handleDropHere = async (
-   e: React.DragEvent<HTMLDivElement>,
-   targetKey: string
- ) => {
-   e.preventDefault();
-   onDrop(targetKey); // local state update
-    console.log("handleDropHere", targetKey);
-   // Get the resource details (you may need to adapt this depending on how your drag works)
-   const draggedName = e.dataTransfer.getData("text/plain");
-  //  let itemType = e.dataTransfer.getData("application/x-item-type");
-   let droppedItem: CalendarItem | undefined;
-   for (const items of Object.values(data)) {
-     const found = items.find((it) => it.name === draggedName);
-     if (found) {
-       droppedItem = found;
-       break;
-     }
-   }
-   if (!droppedItem) return; // can't save to Firebase if no info
+  const handleDropHere = async (
+    e: React.DragEvent<HTMLDivElement>,
+    targetKey: string
+  ) => {
+    e.preventDefault();
+    onDrop(targetKey); // local state update
 
-   // Save to Firebase
-   if (uid) {
-     await addResourceToTimeoffCell(db, uid, targetKey, droppedItem);
-   }
- };
+    // Get the resource details (you may need to adapt this depending on how your drag works)
+    const draggedName = e.dataTransfer.getData("text/plain");
+    //  let itemType = e.dataTransfer.getData("application/x-item-type");
+    let droppedItem: CalendarItem | undefined;
+    for (const items of Object.values(data)) {
+      const found = items.find((it) => it.name === draggedName);
+      if (found) {
+        droppedItem = found;
+        break;
+      }
+    }
+    if (!droppedItem) return; // can't save to Firebase if no info
 
+    // Save to Firebase
+    if (uid) {
+      await addResourceToTimeoffCell(db, uid, targetKey, droppedItem);
+    }
+  };
+
+  // --- NEW: Only allow person in Vacation section ---
+  const handleDropVacation = async (
+    e: React.DragEvent<HTMLDivElement>,
+    targetKey: string
+  ) => {
+    e.preventDefault();
+
+    let itemType =
+      e.dataTransfer.getData("application/x-item-type") ||
+      e.dataTransfer.getData("text/item-type");
+    const draggedName = e.dataTransfer.getData("text/plain");
+    let droppedItem: CalendarItem | undefined;
+
+    if (!itemType) {
+      for (const items of Object.values(data)) {
+        const found = items.find((it) => it.name === draggedName);
+        if (found) {
+          itemType = found.type;
+          droppedItem = found;
+          break;
+        }
+      }
+    } else {
+      for (const items of Object.values(data)) {
+        const found = items.find((it) => it.name === draggedName);
+        if (found) {
+          droppedItem = found;
+          break;
+        }
+      }
+    }
+
+    if (itemType !== "person") {
+      setErrorMsg("Only employees can be added to the Vacation section.");
+      return;
+    }
+
+    onDrop(targetKey);
+    if (uid && droppedItem) {
+      await addResourceToTimeoffCell(db, uid, targetKey, droppedItem);
+    }
+  };
+
+  // --- NEW: Only allow person in Sick section ---
+  const handleDropSick = async (
+    e: React.DragEvent<HTMLDivElement>,
+    targetKey: string
+  ) => {
+    e.preventDefault();
+
+    let itemType =
+      e.dataTransfer.getData("application/x-item-type") ||
+      e.dataTransfer.getData("text/item-type");
+    const draggedName = e.dataTransfer.getData("text/plain");
+    let droppedItem: CalendarItem | undefined;
+
+    if (!itemType) {
+      for (const items of Object.values(data)) {
+        const found = items.find((it) => it.name === draggedName);
+        if (found) {
+          itemType = found.type;
+          droppedItem = found;
+          break;
+        }
+      }
+    } else {
+      for (const items of Object.values(data)) {
+        const found = items.find((it) => it.name === draggedName);
+        if (found) {
+          droppedItem = found;
+          break;
+        }
+      }
+    }
+
+    if (itemType !== "person") {
+      setErrorMsg("Only employees can be added to the Sick section.");
+      return;
+    }
+
+    onDrop(targetKey);
+    if (uid && droppedItem) {
+      await addResourceToTimeoffCell(db, uid, targetKey, droppedItem);
+    }
+  };
 
   // This handles the drop for service (machines only) and supports drags from contract cells!
   const handleDropService = async (
@@ -173,8 +261,6 @@ const TimeOffScheduler: React.FC<Props> = ({
     }
   };
 
-
-
   const handleItemDragStart = (
     e: React.DragEvent<HTMLDivElement>,
     itemName: string,
@@ -189,7 +275,7 @@ const TimeOffScheduler: React.FC<Props> = ({
     onDragStart(itemName, sourceKey, itemType);
   };
 
-  async function handleRemoveTimeOffResource(cellKeyL:any, item:any) {
+  async function handleRemoveTimeOffResource(cellKeyL: any, item: any) {
     // Remove from UI state (call parent function)
     onRemoveResource(cellKeyL, item);
 
@@ -217,7 +303,7 @@ const TimeOffScheduler: React.FC<Props> = ({
   }) => (
     <div className="w-full">
       <div
-        className="grid items-start gap-x-2"
+        className="flex flex-col items-start gap-x-2"
         style={{
           gridTemplateColumns: `120px repeat(${weekDays.length}, minmax(120px, 1fr))`,
         }}
@@ -237,15 +323,15 @@ const TimeOffScheduler: React.FC<Props> = ({
             )}
           </button>
         </div>
+
+        <div className="flex gap-1">
+
         {weekDays.map(({ key }, weekIdx) => {
           const cellKey = `${rowKeyPrefix}-${key}`;
           return (
             <div
               key={cellKey}
-              className={[
-                "px-6 py-6 min-h-24",
-                weekIdx > 0 ? "border-l border-gray-400" : "",
-              ].join(" ")}
+              className="px-2 py-2 w-40 min-h-24"
               onDragOver={handleDragOver}
               onDrop={
                 customDropHandler
@@ -266,10 +352,10 @@ const TimeOffScheduler: React.FC<Props> = ({
                         handleItemDragStart(e, item.name, cellKey, item.type)
                       }
                       className={[
-                        "inline-flex items-center gap-1 px-7 py-3 rounded-2xl text-xs font-medium select-none cursor-grab active:cursor-grabbing",
-                        "shadow-[0_1px_0_rgba(0,0,0,0.03)] ring-1",
+                        "flex items-center gap-1 px-2 py-2 w-full justify-center rounded-lg text-xs font-medium select-none cursor-grab active:cursor-grabbing",
+                        "shadow-[0_1px_0_rgba(0,0,0,0.03)] ",
                         item.type === "person"
-                          ? "bg-sky-100 text-sky-800 ring-sky-200"
+                          ? "bg-sky-100 text-sky-700 ring-sky-200"
                           : item.type === "machine"
                           ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
                           : "bg-amber-50 text-amber-800 ring-amber-200",
@@ -307,6 +393,7 @@ const TimeOffScheduler: React.FC<Props> = ({
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );
@@ -341,6 +428,7 @@ const TimeOffScheduler: React.FC<Props> = ({
                   onToggle={() =>
                     setCollapsed((s) => ({ ...s, vacation: !s.vacation }))
                   }
+                  customDropHandler={handleDropVacation} // <--- added
                 />
                 <div className="h-2" />
                 <Row
@@ -350,6 +438,7 @@ const TimeOffScheduler: React.FC<Props> = ({
                   onToggle={() =>
                     setCollapsed((s) => ({ ...s, sick: !s.sick }))
                   }
+                  customDropHandler={handleDropSick} // <--- added
                 />
                 <div className="h-2" />
                 <Row
@@ -374,6 +463,7 @@ const TimeOffScheduler: React.FC<Props> = ({
           </div>
         </div>
       </div>
+
       <style>{`[draggable="true"]{ -webkit-user-drag: element !important; }`}</style>
     </>
   );

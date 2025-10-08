@@ -276,9 +276,9 @@ const SidebarContracts: React.FC<Props> = ({
                   </div>
 
                   {/* ---------- SO list ---------- */}
-                  <div className="flex flex-col gap-2 ml-6 relative">
+                  <div className="flex flex-col gap-2 ml-1 relative">
                     {/* vertical branch */}
-                    <div className="absolute left-[-12px] top-0 bottom-0 w-px bg-gray-300 z-0" />
+                    <div className="absolute left-[-12px] top-[-14px] bottom-0 w-px bg-gray-300 z-0 " />
                     {contract.SOs.map((so) => (
                       <div
                         key={so.id}

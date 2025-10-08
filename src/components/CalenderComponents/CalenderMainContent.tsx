@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   collection,
@@ -121,33 +121,13 @@ const CalendarMainContent: React.FC<Props> = ({
     if (startIdx > -1 && dayRefs.current[startIdx]) {
       // Adjust the scroll position to center the start date
       const dayElement = dayRefs.current[startIdx];
-      mainScrollRef.current.scrollLeft =
-        dayElement.offsetLeft -
-        mainScrollRef.current.clientWidth / 2 +
-        dayElement.clientWidth / 2;
-    }
-  }, [scheduledStartISO, timelineDays]);
-
-
-  useEffect(() => {
-    if (!scheduledStartISO || !mainScrollRef.current || !timelineDays.length)
-      return;
-
-    const adjustScroll = () => {
-      const startIdx = timelineDays.findIndex(
-        (d) => d.key === scheduledStartISO
-      );
-      if (startIdx > -1 && dayRefs.current[startIdx]) {
-        const dayElement = dayRefs.current[startIdx];
+      if (mainScrollRef.current) {
         mainScrollRef.current.scrollLeft =
           dayElement.offsetLeft -
           mainScrollRef.current.clientWidth / 2 +
           dayElement.clientWidth / 2;
       }
-    };
-
-    // Delay the scroll adjustment to allow rendering to complete
-    setTimeout(adjustScroll, 100); // Adjust the delay if necessary
+    }
   }, [scheduledStartISO, timelineDays]);
 
 

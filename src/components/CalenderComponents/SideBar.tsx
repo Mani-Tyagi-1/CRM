@@ -252,7 +252,7 @@ const Sidebar: React.FC<Props> = ({
                   {/* Resources */}
                   {expandedSections[catKey] && (
                     <div
-                      className="relative ml-2 pl-4 pb-2 space-y-1 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-gray-300"
+                      className="relative ml-[-7px] pl-4 pb-2 h-min  before:absolute before:left-0 before:top-[-14px] before:bottom-0 before:w-px before:bg-gray-300"
                       onDragOver={allowDrop}
                       onDrop={() => onDropToEmployeeSection(catKey)}
                     >
@@ -348,7 +348,7 @@ const Sidebar: React.FC<Props> = ({
                 {/* Resources */}
                 {expandedSections[catKey] && (
                   <div
-                    className="relative ml-2 pl-4 pb-2 space-y-1 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-gray-300"
+                    className="relative ml-[-7px] pl-4 pb-2 h-min  before:absolute before:left-0 before:top-[-14px] before:bottom-0 before:w-px before:bg-gray-300"
                     onDragOver={allowDrop}
                     onDrop={() => onDropToMachineSection(catKey)}
                   >
@@ -415,7 +415,10 @@ const Sidebar: React.FC<Props> = ({
       )}
 
       {/* ---------------- Contracts (Static) ---------------- */}
-      <SidebarContracts onContractDragStart={onContractDragStart} onContractDragEnd={onContractDragEnd} />
+      <SidebarContracts
+        onContractDragStart={onContractDragStart}
+        onContractDragEnd={onContractDragEnd}
+      />
     </div>
   );
 };
