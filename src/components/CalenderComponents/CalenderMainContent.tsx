@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   collection,
@@ -63,7 +63,6 @@ type Props = {
   // *** NEW: the contract currently being scheduled ***
   activeContractId: string | null;
   activeContractTitle?: string;
-  rangeDisplayText?: string;
   rangeWithinWeek?: { startIdx: number; days: number };
   scheduledStartISO?: string | null;
   scheduledEndISO?: string | null;
@@ -85,7 +84,6 @@ const CalendarMainContent: React.FC<Props> = ({
   allUnavailableResourceNames,
   activeContractId, // <-- passed from parent!
   activeContractTitle,
-  // rangeDisplayText,
   rangeWithinWeek,
   scheduledStartISO,
   scheduledEndISO,
@@ -102,6 +100,10 @@ const CalendarMainContent: React.FC<Props> = ({
   const [soList, setSOList] = React.useState<SOItem[]>([]);
   const [uid, setUid] = React.useState<string | null>(null);
 
+  console.log("Scheduled Start ISO", scheduledStartISO);
+  console.log("Scheduled End ISO", scheduledEndISO);
+
+
   // Get uid (if using Firebase Auth)
   React.useEffect(() => {
     const unsub = auth.onAuthStateChanged((user) => {
@@ -109,13 +111,45 @@ const CalendarMainContent: React.FC<Props> = ({
     });
     return () => unsub();
   }, []);
+
   React.useEffect(() => {
-  if (!scheduledStartISO || !mainScrollRef.current || !timelineDays.length) return;
-  const idx = timelineDays.findIndex(d => d.key === scheduledStartISO);
-  if (idx > -1 && dayRefs.current[idx]) {
-    mainScrollRef.current.scrollLeft = dayRefs.current[idx].offsetLeft - mainScrollRef.current.clientWidth / 2 + dayRefs.current[idx].clientWidth / 2;
-  }
-}, [scheduledStartISO, timelineDays]);
+    if (!scheduledStartISO || !mainScrollRef.current || !timelineDays.length)
+      return;
+
+    // Find the day element corresponding to the scheduled start date
+    const startIdx = timelineDays.findIndex((d) => d.key === scheduledStartISO);
+    if (startIdx > -1 && dayRefs.current[startIdx]) {
+      // Adjust the scroll position to center the start date
+      const dayElement = dayRefs.current[startIdx];
+      mainScrollRef.current.scrollLeft =
+        dayElement.offsetLeft -
+        mainScrollRef.current.clientWidth / 2 +
+        dayElement.clientWidth / 2;
+    }
+  }, [scheduledStartISO, timelineDays]);
+
+
+  useEffect(() => {
+    if (!scheduledStartISO || !mainScrollRef.current || !timelineDays.length)
+      return;
+
+    const adjustScroll = () => {
+      const startIdx = timelineDays.findIndex(
+        (d) => d.key === scheduledStartISO
+      );
+      if (startIdx > -1 && dayRefs.current[startIdx]) {
+        const dayElement = dayRefs.current[startIdx];
+        mainScrollRef.current.scrollLeft =
+          dayElement.offsetLeft -
+          mainScrollRef.current.clientWidth / 2 +
+          dayElement.clientWidth / 2;
+      }
+    };
+
+    // Delay the scroll adjustment to allow rendering to complete
+    setTimeout(adjustScroll, 100); // Adjust the delay if necessary
+  }, [scheduledStartISO, timelineDays]);
+
 
   // Fetch SOs when contract changes (needs uid)
   React.useEffect(() => {
@@ -186,6 +220,7 @@ const CalendarMainContent: React.FC<Props> = ({
     return () => container.removeEventListener("scroll", handleScroll);
   }, [timelineDays, setHeaderLabel]);
 
+
   // ----- Drag-and-drop area for contracts and resources -----
   const handleAreaDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     // Allow dropping for both contracts and resources
@@ -200,9 +235,11 @@ const CalendarMainContent: React.FC<Props> = ({
     dayRefs.current.forEach((el, idx) => {
       if (!el) return;
       const r = el.getBoundingClientRect();
-      if (x >= r.left && x <= r.right) anchorIso = timelineDays[idx].key;
+      if (x >= r.left && x <= r.right) anchorIso = timelineDays[idx+1].key;
     });
     onAreaDrop(anchorIso);
+
+    console.log("handleAreaDrop", anchorIso);
   };
 
 
@@ -212,7 +249,7 @@ const CalendarMainContent: React.FC<Props> = ({
       ref={mainScrollRef}
       className={`flex-1 overflow-x-auto pb-48 transition-colors duration-200 ${
         isDraggingContract ? "bg-blue-50" : "bg-gray-100"
-      }`}
+        }`}
       onDragOver={handleAreaDragOver}
       onDrop={handleAreaDrop}
     >
@@ -286,9 +323,11 @@ const CalendarMainContent: React.FC<Props> = ({
                   ref={(el) => {
                     dayRefs.current[i] = el;
                   }}
-                  className={`p-1 text-center text-[13px] ${
-                    d.isToday ? "text-black font-semibold" : "text-gray-600"
-                  }`}
+                  className={[
+                    "p-1 text-center text-[13px]",
+                    i > 0 ? "border-l border-gray-400" : "", // <--- border between columns, except first
+                    d.isToday ? "text-black font-semibold" : "text-gray-600",
+                  ].join(" ")}
                   title={d.date.toLocaleDateString()}
                 >
                   <div>{d.day}</div>
@@ -301,26 +340,24 @@ const CalendarMainContent: React.FC<Props> = ({
           </div>
         </div>
 
-       
-
-
-
-        {/* ---------- CONTRACT SCHEDULER GRID ---------- */}
-        <ContractScheduler
-          data={contractData}
-          soList={soList}
-          contractId={activeContractId || undefined}
-          contractName={activeContractTitle || undefined}
-          onDragStart={onContractItemDragStart}
-          onDrop={onContractDrop}
-          onDropToMachine={onContractDropToMachine}
-          unavailableResourceNames={allUnavailableResourceNames}
-          onResize={handleResize}
-          rangeWithinWeek={rangeWithinWeek}
-          timelineDays={timelineDays}
-          scheduledStartISO={scheduledStartISO}
-          scheduledEndISO={scheduledEndISO}
-        />
+        
+          {/* ---------- CONTRACT SCHEDULER GRID ---------- */}
+          <ContractScheduler
+            data={contractData}
+            soList={soList}
+            contractId={activeContractId || undefined}
+            contractName={activeContractTitle || undefined}
+            onDragStart={onContractItemDragStart}
+            onDrop={onContractDrop}
+            onDropToMachine={onContractDropToMachine}
+            unavailableResourceNames={allUnavailableResourceNames}
+            onResize={handleResize}
+            rangeWithinWeek={rangeWithinWeek}
+            timelineDays={timelineDays}
+            scheduledStartISO={scheduledStartISO}
+            scheduledEndISO={scheduledEndISO}
+          />
+        
       </div>
     </div>
   );

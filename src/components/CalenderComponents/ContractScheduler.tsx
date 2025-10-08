@@ -78,7 +78,6 @@ const ContractScheduler: React.FC<Props> = ({
   onMachineInfo,
   unavailableResourceNames = [],
   onUnavailableDrop,
-  rangeWithinWeek,
   timelineDays = [],
   scheduledStartISO,
   scheduledEndISO,
@@ -93,29 +92,32 @@ const ContractScheduler: React.FC<Props> = ({
   const CELL_MIN_WIDTH = 180;
 
   /* ---------- Dynamic days based on scheduled range ---------- */
+  // Dynamic days based on scheduled range
   const getScheduledDays = (): WeekDay[] => {
-    // If no scheduled range or timeline days, return empty array
     if (!scheduledStartISO || !scheduledEndISO || timelineDays.length === 0) {
       return [];
     }
 
-    // Find the days within the scheduled range
     const scheduledDays: WeekDay[] = [];
-    
+
     for (const timelineDay of timelineDays) {
-      if (timelineDay.key >= scheduledStartISO && timelineDay.key <= scheduledEndISO) {
+      // Only include days within the scheduled range
+      if (
+        timelineDay.key >= scheduledStartISO &&
+        timelineDay.key <= scheduledEndISO
+      ) {
         scheduledDays.push({
-          key: timelineDay.key, // Use the full ISO date as key (e.g., "2024-01-15")
+          key: timelineDay.key,
           label: timelineDay.day.slice(0, 3), // "Mon", "Tue", etc.
           date: timelineDay.date.getDate().toString(),
         });
       }
     }
-    
+
     return scheduledDays;
   };
 
-  const weekDays = getScheduledDays();
+const weekDays: WeekDay[] = getScheduledDays();
 
   /* ---------- Resize logic (unchanged) ---------- */
   const startResize = (
@@ -194,6 +196,7 @@ const ContractScheduler: React.FC<Props> = ({
   ) => {
     e.preventDefault();
     let draggedName = "";
+    console.log("handleDrop", targetKey);
     try {
       draggedName = e.dataTransfer.getData("text/plain");
     } catch {}
@@ -233,8 +236,13 @@ const ContractScheduler: React.FC<Props> = ({
   /* ---------- Row renderer: Per SO ---------- */
   const renderSORow = (soId: string, soNumber: string) => {
     const weekDates = weekDays; // always Mon-Sun
-
     const isCollapsed = !!collapsedRows[soId];
+
+    // Find the indices of the scheduled start and end dates in the timelineDays array
+    const startIdx = timelineDays.findIndex((d) => d.key === scheduledStartISO);
+    const endIdx = timelineDays.findIndex((d) => d.key === scheduledEndISO);
+
+    console.log("renderSORow", soId, soNumber, startIdx, endIdx);
 
     return (
       <div>
@@ -257,24 +265,32 @@ const ContractScheduler: React.FC<Props> = ({
             />
           </button>
         </div>
+
         {/* Days */}
-        {!isCollapsed && weekDays.length > 0 && (
-          <div id={`${soId}-grid`} 
-               className="grid" 
-               style={{ gridTemplateColumns: `repeat(${weekDays.length}, minmax(${CELL_MIN_WIDTH}px, 1fr))` }}>
-            {weekDays.map((day, dayIdx) => {
+        {!isCollapsed && weekDates.length > 0 && (
+          <div
+            id={`${soId}-grid`}
+            className="grid"
+            style={{
+              gridTemplateColumns: `repeat(${weekDates.length}, minmax(${CELL_MIN_WIDTH}px, 1fr))`,
+            }}
+          >
+            {weekDates.map((day, dayIdx) => {
               const cellKey = `${soId}-${day.key}`; // SO-specific!
+              console.log("cellKey", cellKey);
               const items = data[cellKey] || [];
               const machines = items.filter((i) => i.type === "machine");
               const others = items.filter((i) => i.type !== "machine");
-              const inRange = !!rangeWithinWeek && dayIdx >= rangeWithinWeek.startIdx && dayIdx < rangeWithinWeek.startIdx + rangeWithinWeek.days;
+
+              // Determine if the current day is within the scheduled range
+              const inRange = dayIdx >= startIdx && dayIdx <= endIdx;
 
               return (
                 <div
                   key={cellKey}
                   className={[
-                    "p-3 hover:bg-gray-25 transition-colors border border-transparent hover:border-gray-200 hover:border-dashed min-h-[80px]", 
-                    inRange ? "bg-blue-50/40" : ""
+                    "p-3 hover:bg-gray-25 transition-colors border border-transparent hover:border-gray-200 hover:border-dashed min-h-[80px]",
+                    inRange ? "bg-blue-50/40" : "", // Highlight if in range
                   ].join(" ")}
                   onDragOver={(e) => {
                     e.preventDefault();
@@ -283,7 +299,7 @@ const ContractScheduler: React.FC<Props> = ({
                   onDrop={(e) => handleDrop(e, cellKey)}
                 >
                   <div className="space-y-2">
-                    {/* Machines */}
+                    {/* Render machines */}
                     {machines.map((m, midx) => {
                       const prevCellKey =
                         dayIdx > 0
@@ -314,17 +330,18 @@ const ContractScheduler: React.FC<Props> = ({
                           <div
                             className="px-2 py-1.5 pr-7 text-xs font-medium text-green-900 cursor-move select-none"
                             draggable
-                            onDragStart={(e) =>{
+                            onDragStart={(e) => {
                               e.dataTransfer.setData("text/plain", m.name);
-                              e.dataTransfer.setData("application/x-item-type", "machine");
+                              e.dataTransfer.setData(
+                                "application/x-item-type",
+                                "machine"
+                              );
                               onDragStart(m.name, cellKey, "machine", {
                                 childrenSnapshot: m.children
                                   ? [...m.children]
                                   : [],
-                              })
-                            }
-                              
-                            }
+                              });
+                            }}
                             title={m.note || ""}
                           >
                             {m.name}
@@ -373,9 +390,8 @@ const ContractScheduler: React.FC<Props> = ({
                                     );
                                     onDragStart(c.name, cellKey, c.type, {
                                       childOf: m.name,
-                                    })
-                                  }
-                                  }
+                                    });
+                                  }}
                                   title={c.note || ""}
                                 >
                                   {c.name}
@@ -392,7 +408,7 @@ const ContractScheduler: React.FC<Props> = ({
                       );
                     })}
 
-                    {/* Non-machine resources */}
+                    {/* Render non-machine resources */}
                     {others.map((item, idx) => {
                       const prevCellKey =
                         dayIdx > 0
@@ -425,9 +441,8 @@ const ContractScheduler: React.FC<Props> = ({
                               "application/x-item-type",
                               item.type
                             );
-                            onDragStart(item.name, cellKey, item.type)
-                          }
-                          }
+                            onDragStart(item.name, cellKey, item.type);
+                          }}
                           title={item.note || ""}
                         >
                           {renderResizeHandles(soId, item.name, item.type)}
@@ -440,11 +455,10 @@ const ContractScheduler: React.FC<Props> = ({
                         </div>
                       );
                     })}
-                    
+
                     {/* Show placeholder if cell is empty */}
                     {machines.length === 0 && others.length === 0 && (
-                      <div className="text-xs text-gray-400 italic py-4 text-center">
-                      </div>
+                      <div className="text-xs text-gray-400 italic py-4 text-center"></div>
                     )}
                   </div>
                 </div>
@@ -466,25 +480,34 @@ const ContractScheduler: React.FC<Props> = ({
       </div>
     );
   }
-  
-  // Determine which SOs to render
-  const sosToRender = soList.length > 0 
-    ? soList 
-    : [{ id: `${contractId}__default`, soNumber: contractName || "Contract" }];
 
-    const containerWidthPx =
-  weekDays.length > 0 ? weekDays.length * CELL_MIN_WIDTH : undefined;
+  // Determine which SOs to render
+  const sosToRender =
+    soList.length > 0
+      ? soList
+      : [
+          {
+            id: `${contractId}__default`,
+            soNumber: contractName || "Contract",
+          },
+        ];
+
+  const containerWidthPx = weekDays.length * CELL_MIN_WIDTH;
+    
 
   return (
-    <div className=" mx-auto bg-white border border-gray-200 rounded-lg shadow-sm min-h-[200px]" style={{
-      width: containerWidthPx,
-      minWidth: 360, // tweak as you like
-    }}>
+    <div
+      className=" mx-auto bg-white border border-gray-200 rounded-lg shadow-sm min-h-[200px]"
+      style={{
+        width: containerWidthPx,
+        minWidth: 360, // tweak as you like
+      }}
+    >
       {/* Show contract name at top from prop */}
       <div className="text-lg font-semibold px-3 py-2 border-b border-gray-200 bg-gray-50">
         {contractName}
       </div>
-      
+
       <div className="p-2">
         {weekDays.length > 0 ? (
           sosToRender.map((so, soIdx) => (
@@ -497,13 +520,12 @@ const ContractScheduler: React.FC<Props> = ({
           ))
         ) : (
           <div className="text-sm text-gray-500 italic px-3 py-4 text-center">
-            {scheduledStartISO && scheduledEndISO 
+            {scheduledStartISO && scheduledEndISO
               ? "No days in the scheduled range"
-              : "Please select a date range for this contract"
-            }
+              : "Please select a date range for this contract"}
           </div>
         )}
-        
+
         {/* Show loading state if no SOs and still fetching */}
         {soList.length === 0 && contractId && weekDays.length > 0 && (
           <div className="text-sm text-gray-500 italic px-3 py-2 text-center">
