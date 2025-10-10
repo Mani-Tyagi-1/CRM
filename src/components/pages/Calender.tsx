@@ -24,9 +24,8 @@ import {
   getDoc,
   getDocs,
   collection,
-  updateDoc,
-  arrayUnion,
 } from "firebase/firestore";
+import { addResourceToTimeoffCell, removeResourceFromTimeoffCell } from "../../services/timeoffschedular";
 
 type Category = "employee" | "machine";
 
@@ -443,7 +442,7 @@ const Calender: React.FC = () => {
       : "bg-amber-50 text-amber-700 ring-1 ring-amber-200";
 
   /* ---------- CENTRAL moveTo ---------- */
-  const moveTo = (target: {
+  const moveTo = async (target: {
     zone: "sidebar" | "contract" | "timeoff";
     id: string;
     assignToMachine?: { machineName: string } | null;
@@ -682,6 +681,42 @@ const Calender: React.FC = () => {
           return next;
         });
       }
+    } else if (
+      dragged &&
+      dragged.source &&
+      dragged.source.zone === "timeoff" &&
+      target.zone === "sidebar"
+    ) {
+      // Find the full item from state BEFORE updating it!
+      const items = timeOffData[dragged.source.id] || [];
+      const fullItem = items.find(
+        (it) => it.name === dragged.name && it.type === dragged.type
+      );
+
+      setTimeOffData((prev) => {
+        const updated = { ...prev };
+        if (!updated[dragged.source.id]) return prev;
+        updated[dragged.source.id] = updated[dragged.source.id].filter(
+          (it) => !(it.name === dragged.name && it.type === dragged.type)
+        );
+        if (updated[dragged.source.id].length === 0)
+          delete updated[dragged.source.id];
+        return updated;
+      });
+
+      if (uid && fullItem) {
+        await removeResourceFromTimeoffCell(
+          db,
+          uid,
+          dragged.source.id,
+          fullItem
+        );
+        console.log("removed from timeoff from firebase");
+      } else {
+        console.warn("No full item to remove from Firestore");
+      }
+      setDragged(null);
+      return;
     } else if (target.zone === "timeoff") {
       const timeOffItem = {
         startDate: new Date(),
@@ -704,10 +739,8 @@ const Calender: React.FC = () => {
 
       // NEW: Write to Firestore
       if (uid) {
-        const ref = doc(db, "companies", uid, "timeoff", target.id);
-        updateDoc(ref, {
-          items: arrayUnion(timeOffItem),
-        });
+        console.log("Uid for timeoff:", uid);
+        await addResourceToTimeoffCell(db, uid, target.id, timeOffItem);
         console.log("Time-off item added to Firestore");
       }
     }
@@ -1044,13 +1077,13 @@ const Calender: React.FC = () => {
     const startISO = fmt(start);
     const endISO = fmt(end);
 
-    console.log("handleRangeApply", startISO, endISO);
-    console.log("RangeDisplay Text", rangeDisplayText );
+    // console.log("handleRangeApply", startISO, endISO);
+    // console.log("RangeDisplay Text", rangeDisplayText );
 
 
     setRangeDisplayText(`${startISO} → ${endISO}`);
 
-    console.log("RangeDisplay after setting  Text", rangeDisplayText);
+    // console.log("RangeDisplay after setting  Text", rangeDisplayText);
 
 
 

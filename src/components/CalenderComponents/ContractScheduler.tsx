@@ -196,7 +196,7 @@ const weekDays: WeekDay[] = getScheduledDays();
   ) => {
     e.preventDefault();
     let draggedName = "";
-    console.log("handleDrop", targetKey);
+    // console.log("handleDrop", targetKey);
     try {
       draggedName = e.dataTransfer.getData("text/plain");
     } catch {}
@@ -242,7 +242,7 @@ const weekDays: WeekDay[] = getScheduledDays();
     const startIdx = timelineDays.findIndex((d) => d.key === scheduledStartISO);
     const endIdx = timelineDays.findIndex((d) => d.key === scheduledEndISO);
 
-    console.log("renderSORow", soId, soNumber, startIdx, endIdx);
+    // console.log("renderSORow", soId, soNumber, startIdx, endIdx);
 
     return (
       <div>
@@ -277,7 +277,7 @@ const weekDays: WeekDay[] = getScheduledDays();
           >
             {weekDates.map((day, dayIdx) => {
               const cellKey = `${soId}-${day.key}`; // SO-specific!
-              console.log("cellKey", cellKey);
+              // console.log("cellKey", cellKey);
               const items = data[cellKey] || [];
               const machines = items.filter((i) => i.type === "machine");
               const others = items.filter((i) => i.type !== "machine");

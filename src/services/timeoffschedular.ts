@@ -8,27 +8,38 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 
-/**
- * Add a resource to a given timeoff cell (e.g. vacation-2025-10-06)
- */
+
+
 export async function addResourceToTimeoffCell(
   db: any,
   uid: string,
   cellKey: string,
   resource: any
 ) {
+  // ─── Derive metadata ────────────────────────────────────────────────────────
+  const [section, ...dateParts] = cellKey.split("-"); 
+  const date = dateParts.join("-"); 
+
+  
   const ref = doc(db, "companies", uid, "timeoff", cellKey);
   const snap = await getDoc(ref);
+
   if (snap.exists()) {
-    await updateDoc(ref, { items: arrayUnion(resource) });
+    await updateDoc(ref, {
+      section,
+      date,
+      items: arrayUnion(resource),
+    });
   } else {
-    await setDoc(ref, { items: [resource] });
+    await setDoc(ref, {
+      section,
+      date,
+      items: [resource],
+    });
   }
 }
 
-/**
- * Remove a resource from a given timeoff cell
- */
+
 export async function removeResourceFromTimeoffCell(
   db: any,
   uid: string,
@@ -36,9 +47,18 @@ export async function removeResourceFromTimeoffCell(
   resource: any
 ) {
   const ref = doc(db, "companies", uid, "timeoff", cellKey);
+
+  // 1. Remove the resource from the array
+  await updateDoc(ref, { items: arrayRemove(resource) });
+
+  // 2. Clean up if nothing is left
   const snap = await getDoc(ref);
-  if (snap.exists()) {
-    await updateDoc(ref, { items: arrayRemove(resource) });
+  if (
+    snap.exists() &&
+    Array.isArray(snap.data().items) &&
+    snap.data().items.length === 0
+  ) {
+    await deleteDoc(ref);
   }
 }
 

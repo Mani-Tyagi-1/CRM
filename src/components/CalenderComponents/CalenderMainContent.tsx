@@ -100,8 +100,8 @@ const CalendarMainContent: React.FC<Props> = ({
   const [soList, setSOList] = React.useState<SOItem[]>([]);
   const [uid, setUid] = React.useState<string | null>(null);
 
-  console.log("Scheduled Start ISO", scheduledStartISO);
-  console.log("Scheduled End ISO", scheduledEndISO);
+  // console.log("Scheduled Start ISO", scheduledStartISO);
+  // console.log("Scheduled End ISO", scheduledEndISO);
 
 
   // Get uid (if using Firebase Auth)
@@ -219,7 +219,7 @@ const CalendarMainContent: React.FC<Props> = ({
     });
     onAreaDrop(anchorIso);
 
-    console.log("handleAreaDrop", anchorIso);
+    // console.log("handleAreaDrop", anchorIso);
   };
 
 

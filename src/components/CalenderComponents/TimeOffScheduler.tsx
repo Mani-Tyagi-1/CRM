@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, X } from "lucide-react";
 import {
   addResourceToTimeoffCell,
   removeResourceFromTimeoffCell,
@@ -86,6 +86,8 @@ const TimeOffScheduler: React.FC<Props> = ({
     e.preventDefault();
     onDrop(targetKey); // local state update
 
+    console.log("In the handleDropHere function")
+
     // Get the resource details (you may need to adapt this depending on how your drag works)
     const draggedName = e.dataTransfer.getData("text/plain");
     //  let itemType = e.dataTransfer.getData("application/x-item-type");
@@ -97,7 +99,7 @@ const TimeOffScheduler: React.FC<Props> = ({
         break;
       }
     }
-    if (!droppedItem) return; // can't save to Firebase if no info
+    if (!droppedItem) return; 
 
     // Save to Firebase
     if (uid) {
@@ -236,13 +238,13 @@ const TimeOffScheduler: React.FC<Props> = ({
     }
 
     // Print info
-    console.log(`Dropped resource:`, {
-      name: draggedName,
-      type: itemType,
-      dateFromTargetKey: dropDate,
-      resourceStartDate: droppedItem?.startDate,
-      fullResource: droppedItem,
-    });
+    // console.log(`Dropped resource:`, {
+    //   name: draggedName,
+    //   type: itemType,
+    //   dateFromTargetKey: dropDate,
+    //   resourceStartDate: droppedItem?.startDate,
+    //   fullResource: droppedItem,
+    // });
 
     if (
       itemType !== "machine" &&
@@ -275,14 +277,18 @@ const TimeOffScheduler: React.FC<Props> = ({
     onDragStart(itemName, sourceKey, itemType);
   };
 
-  async function handleRemoveTimeOffResource(cellKeyL: any, item: any) {
-    // Remove from UI state (call parent function)
-    onRemoveResource(cellKeyL, item);
+async function handleRemoveTimeOffResource(cellKeyL: any, item: any) {
+  onRemoveResource(cellKeyL, item);
 
-    // Remove from Firebase
-    if (!uid) return;
+  if (!uid) return;
+  try {
+    console.log("Removing from Firebase:", cellKeyL, item);
     await removeResourceFromTimeoffCell(db, uid, cellKeyL, item);
+  } catch (err) {
+    console.error("Failed to remove resource from Firebase:", err);
   }
+}
+
 
   // ---- Row: accepts an optional customDropHandler for Service ----
   const Row = ({
@@ -352,7 +358,7 @@ const TimeOffScheduler: React.FC<Props> = ({
                         handleItemDragStart(e, item.name, cellKey, item.type)
                       }
                       className={[
-                        "flex items-center gap-1 px-2 py-2 w-full justify-center rounded-lg text-xs font-medium select-none cursor-grab active:cursor-grabbing",
+                        "relative flex items-center gap-1 px-2 py-2 w-full justify-center rounded-lg text-xs font-medium select-none cursor-grab active:cursor-grabbing",
                         "shadow-[0_1px_0_rgba(0,0,0,0.03)] ",
                         item.type === "person"
                           ? "bg-sky-100 text-sky-700 ring-sky-200"
@@ -365,7 +371,7 @@ const TimeOffScheduler: React.FC<Props> = ({
                       <span>{item.name}</span>
                       <button
                         type="button"
-                        className="absolute right-1.5 top-1.5 p-1 rounded-full opacity-0 group-hover:opacity-100 bg-white/80 hover:bg-red-100 transition"
+                        className="absolute right-0 top-0 p-1 rounded-full text-red-500 bg-white/80 hover:bg-red-100 transition"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleRemoveTimeOffResource(cellKey, item);
@@ -373,15 +379,7 @@ const TimeOffScheduler: React.FC<Props> = ({
                         title="Remove"
                       >
                         {/* Use your favorite icon or just ✕ */}
-                        <svg
-                          viewBox="0 0 16 16"
-                          className="w-3.5 h-3.5 text-red-500"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                        >
-                          <path d="M4 4l8 8m0-8l-8 8" />
-                        </svg>
+                        <X className="h-3.5 w-3.5" />
                       </button>
                       {/* {item.type === "person" && (
                         <FileText className="h-3.5 w-3.5 text-sky-600/80 pointer-events-none" />
