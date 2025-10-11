@@ -24,8 +24,12 @@ import {
   getDoc,
   getDocs,
   collection,
+  arrayUnion,
 } from "firebase/firestore";
-import { addResourceToTimeoffCell, removeResourceFromTimeoffCell } from "../../services/timeoffschedular";
+import {
+  addResourceToTimeoffCell,
+  removeResourceFromTimeoffCell,
+} from "../../services/timeoffschedular";
 
 type Category = "employee" | "machine";
 
@@ -836,19 +840,19 @@ const Calender: React.FC = () => {
 
   /* ---------- MODAL (unchanged) ---------- */
   const [showUnavailableModal, setShowUnavailableModal] = useState(false);
-  const [modalResourceName, setModalResourceName] = useState<string | null>(
+  const [modalResourceName, _setModalResourceName] = useState<string | null>(
     null
   );
 
-  const unavailableResourceNames = useMemo(() => {
-    const names = new Set<string>();
-    Object.entries(timeOffData).forEach(([key, items]) => {
-      if (key.startsWith("vacation-") || key.startsWith("sick-")) {
-        items.forEach((it) => names.add(it.name));
-      }
-    });
-    return names;
-  }, [timeOffData]);
+  // const unavailableResourceNames = useMemo(() => {
+  //   const names = new Set<string>();
+  //   Object.entries(timeOffData).forEach(([key, items]) => {
+  //     if (key.startsWith("vacation-") || key.startsWith("sick-")) {
+  //       items.forEach((it) => names.add(it.name));
+  //     }
+  //   });
+  //   return names;
+  // }, [timeOffData]);
 
   /* ---------- sidebar drag start ---------- */
   const handleSidebarDragStart = (
@@ -903,61 +907,41 @@ const Calender: React.FC = () => {
   /* ---------- drop helpers ---------- */
   const allowDrop = (e: React.DragEvent<HTMLElement>) => e.preventDefault();
 
+  /* ---------- contract-grid drop TARGETS ---------- */
   const onContractDrop = (targetKey: string) => {
-    if (
-      dragged &&
-      "name" in dragged &&
-      unavailableResourceNames.has(dragged.name)
-    ) {
-      setShowUnavailableModal(true);
-      setModalResourceName(dragged.name);
-      setDragged(null);
+    // if a resource (person / machine / tool) is being dropped → open the modal
+    if (dragged && "name" in dragged) {
+      /* pre-fill the modal with the day we dropped on */
+      const iso = targetKey.match(/\d{4}-\d{2}-\d{2}$/)?.[0] ?? "";
+      setRangeStart(iso);
+      setRangeEnd(iso);
+
+      setPendingTarget({ kind: "contract-cell", targetKey });
+      setPendingDragged(dragged);
+      setShowRangeModal(true);
       return;
     }
-    if (dragged && "name" in dragged && dragged.source.zone === "sidebar") {
-      // For resources from sidebar, check if we have an active contract
-      if (activeContractId) {
-        // Direct drop into active contract without range modal
-        moveTo({ zone: "contract", id: targetKey });
-      } else {
-        // No active contract, show range modal to select dates first
-        setPendingTarget({ kind: "contract-cell", targetKey });
-        setPendingDragged(dragged);
-        setShowRangeModal(true);
-      }
-      return;
-    }
+
+    // anything else (e.g. whole-contract rows) keeps the old behaviour
     moveTo({ zone: "contract", id: targetKey });
   };
 
   const onContractDropToMachine = (targetKey: string, machineName: string) => {
-    if (
-      dragged &&
-      "name" in dragged &&
-      unavailableResourceNames.has(dragged.name)
-    ) {
-      setShowUnavailableModal(true);
-      setModalResourceName(dragged.name);
-      setDragged(null);
+    if (dragged && "name" in dragged) {
+      const iso = targetKey.match(/\d{4}-\d{2}-\d{2}$/)?.[0] ?? "";
+      setRangeStart(iso);
+      setRangeEnd(iso);
+
+      setPendingTarget({
+        kind: "contract-machine",
+        targetKey,
+        machineName,
+      });
+      setPendingDragged(dragged);
+      setShowRangeModal(true);
       return;
     }
-    if (dragged && "name" in dragged && dragged.source.zone === "sidebar") {
-      // For resources from sidebar, check if we have an active contract
-      if (activeContractId) {
-        // Direct drop into machine without range modal
-        moveTo({
-          zone: "contract",
-          id: targetKey,
-          assignToMachine: { machineName },
-        });
-      } else {
-        // No active contract, show range modal to select dates first
-        setPendingTarget({ kind: "contract-machine", targetKey, machineName });
-        setPendingDragged(dragged);
-        setShowRangeModal(true);
-      }
-      return;
-    }
+
     moveTo({
       zone: "contract",
       id: targetKey,
@@ -1080,12 +1064,9 @@ const Calender: React.FC = () => {
     // console.log("handleRangeApply", startISO, endISO);
     // console.log("RangeDisplay Text", rangeDisplayText );
 
-
     setRangeDisplayText(`${startISO} → ${endISO}`);
 
     // console.log("RangeDisplay after setting  Text", rangeDisplayText);
-
-
 
     // Whole contract row drop with range
     if (
@@ -1110,9 +1091,9 @@ const Calender: React.FC = () => {
       // Create empty cells in local state & Firestore
       await createContractCells(
         pendingDragged.contractId,
-        pendingDragged.soList.map(so => ({
+        pendingDragged.soList.map((so) => ({
           id: so.id,
-          soNumber: so.soNumber || 'Contract'
+          soNumber: so.soNumber || "Contract",
         })),
         start,
         end
@@ -1126,52 +1107,102 @@ const Calender: React.FC = () => {
       setRangeWithinWeek(undefined);
     }
     // Bulk scheduling resources for date range in a row
+    // ── resource dropped on a CELL ─────────────────────────────────────────
+    /* ───────────── 2 A. resource dropped on a CELL ───────────── */
     else if (
       pendingTarget?.kind === "contract-cell" &&
       pendingDragged &&
       "name" in pendingDragged
     ) {
-      const baseKey = pendingTarget.targetKey;
-      const m = baseKey.match(/^(.*)-(mon|tue|wed|thu|fri|sat|sun)$/);
-      if (m) {
-        const soId = m[1];
-        const dayKey = m[2] as (typeof dayOrder)[number];
-        const startIdx = dayOrder.indexOf(dayKey);
-        const days = Math.min(
-          Math.max(
-            1,
-            Math.round((end.getTime() - start.getTime()) / 86400000) + 1
-          ),
-          7
-        );
-        setRangeWithinWeek({ startIdx, days });
-        for (let i = 0; i < days && startIdx + i < 7; i++) {
-          const targetKey = `${soId}-${dayOrder[startIdx + i]}`;
-          moveTo({ zone: "contract", id: targetKey });
-        }
-      } else {
-        moveTo({ zone: "contract", id: baseKey });
+      const base = pendingTarget.targetKey.match(/^(.*)-\d{4}-\d{2}-\d{2}$/);
+      if (!base) return; // could not parse key
+      const soId = base[1];
+
+      // build the item once
+      const item: ContractCalendarItem = {
+        name: pendingDragged.name,
+        type: pendingDragged.type,
+        color: contractColorFor(pendingDragged.type),
+      };
+
+      setContractData((prev) => {
+        const next: ContractData = { ...prev };
+
+        timelineDays.forEach(({ key }) => {
+          if (key < startISO || key > endISO) return;
+          const cellKey = `${soId}-${key}`;
+          const current = next[cellKey] || [];
+          if (!current.some((i) => i.name === item.name)) {
+            next[cellKey] = [...current, item];
+          }
+        });
+        return next;
+      });
+
+      // persist to Firestore
+      if (uid && activeContractId) {
+        timelineDays.forEach(({ key }) => {
+          if (key < startISO || key > endISO) return;
+          const cellKey = `${soId}-${key}`;
+          const ref = doc(
+            db,
+            "companies",
+            uid,
+            "contracts",
+            activeContractId,
+            "schedule",
+            cellKey
+          );
+          setDoc(ref, { items: arrayUnion(item) }, { merge: true }).catch(
+            () => {}
+          );
+        });
       }
-    }
-    // Assign resource to a machine in a cell for a range
-    else if (
+    } else if (
+      /* ───────────── 2 B. resource dropped INSIDE A MACHINE ───────────── */
       pendingTarget?.kind === "contract-machine" &&
       pendingDragged &&
       "name" in pendingDragged
     ) {
-      moveTo({
-        zone: "contract",
-        id: pendingTarget.targetKey,
-        assignToMachine: { machineName: pendingTarget.machineName },
+      const { machineName, targetKey } = pendingTarget;
+      const base = targetKey.match(/^(.*)-\d{4}-\d{2}-\d{2}$/);
+      if (!base) return;
+      const soId = base[1];
+
+      const item: ContractCalendarItem = {
+        name: pendingDragged.name,
+        type: pendingDragged.type,
+        color: contractColorFor(pendingDragged.type),
+      };
+
+      timelineDays.forEach(({ key }) => {
+        if (key < startISO || key > endISO) return;
+        const cellKey = `${soId}-${key}`;
+
+        /* update React state */
+        attachToMachine(cellKey, machineName, item);
+
+        /* update Firestore */
+        if (uid && activeContractId) {
+          const ref = doc(
+            db,
+            "companies",
+            uid,
+            "contracts",
+            activeContractId,
+            "schedule",
+            cellKey
+          );
+          // we need the whole cell after attachToMachine finished; queue it
+          setTimeout(() => {
+            setDoc(
+              ref,
+              { items: contractData[cellKey] || [] },
+              { merge: true }
+            ).catch(() => {});
+          }, 0);
+        }
       });
-      const m = pendingTarget.targetKey.match(
-        /^(.*)-(mon|tue|wed|thu|fri|sat|sun)$/
-      );
-      if (m) {
-        const dayKey = m[2] as (typeof dayOrder)[number];
-        const startIdx = dayOrder.indexOf(dayKey);
-        setRangeWithinWeek({ startIdx, days: 1 });
-      }
     }
 
     // Clean up modal and pending state

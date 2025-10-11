@@ -155,20 +155,20 @@ const weekDays: WeekDay[] = getScheduledDays();
   /* ---------- Styling helpers ---------- */
   const chipCls = (t: ItemType, joinsLeft = false, joinsRight = false) =>
     [
-      "px-2 py-1.5 rounded-md text-xs cursor-move hover:shadow-sm transition-all duration-200 border relative group",
+      "px-2 py-1.5 rounded-md text-xs cursor-move hover:shadow-sm transition-all duration-200 relative group",
       t === "person"
         ? "bg-blue-100 text-blue-800 border-blue-300/50"
         : t === "tool"
         ? "bg-amber-50 text-amber-800 border-amber-300/60"
         : "bg-green-100 text-green-800 border-green-300/50",
-      joinsLeft ? "-ml-6 border-l-0 rounded-l-none" : "",
+      joinsLeft ? "-ml-7 border-l-0 rounded-l-none" : "",
       joinsRight ? "rounded-r-none" : "",
     ].join(" ");
 
   const machineContainerCls = (joinsLeft = false, joinsRight = false) =>
     [
-      "relative bg-green-50 border border-green-200/70 group",
-      joinsLeft ? "-ml-6 border-l-0 rounded-l-none" : "rounded-l-lg",
+      "relative bg-green-50  border-green-200/70 group",
+      joinsLeft ? "-ml-7 border-l-0 rounded-l-none" : "rounded-l-lg",
       joinsRight ? "rounded-r-none" : "rounded-r-lg",
     ].join(" ");
 
