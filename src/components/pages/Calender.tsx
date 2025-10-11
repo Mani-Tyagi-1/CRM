@@ -24,12 +24,64 @@ import {
   getDoc,
   getDocs,
   collection,
-  arrayUnion,
+  // arrayUnion,
 } from "firebase/firestore";
 import {
   addResourceToTimeoffCell,
   removeResourceFromTimeoffCell,
 } from "../../services/timeoffschedular";
+
+/* ------------------------------------------------------------------ */
+/* Firestore path helpers                                              */
+/* ------------------------------------------------------------------ */
+const resourceDoc = (
+  uid: string,
+  contractId: string,
+  soId: string,
+  resId: string
+) =>
+  doc(
+    db,
+    "companies",
+    uid,
+    "contracts",
+    contractId,
+    "so",
+    soId,
+    "resources",
+    resId
+  );
+
+const machineEmployeeDoc = (
+  uid: string,
+  contractId: string,
+  soId: string,
+  machineId: string,
+  employeeId: string
+) =>
+  doc(
+    db,
+    "companies",
+    uid,
+    "contracts",
+    contractId,
+    "so",
+    soId,
+    "resources",
+    machineId,
+    "resources",
+    employeeId
+  );
+
+/* little util to split the old cellKey (`{soId}-{yyyy-mm-dd}`) */
+const splitCellKey = (cellKey: string) => {
+  console.log("Cell kwy in the calender passed ot store data in fb"+cellKey)
+  const match = cellKey.match(/^(.+)-(\d{4}-\d{2}-\d{2})$/);
+  if (!match) throw new Error(`Invalid cellKey: ${cellKey}`);
+  return { soId: match[1], dateIso: match[2] };
+};
+
+
 
 type Category = "employee" | "machine";
 
@@ -452,6 +504,9 @@ const Calender: React.FC = () => {
     assignToMachine?: { machineName: string } | null;
   }) => {
     console.log("running");
+
+    console.log("moveTo", target);
+
     if (!dragged) return;
 
     // Whole contract drop logic
@@ -590,23 +645,40 @@ const Calender: React.FC = () => {
         );
         // Persist target cell after attach
         if (uid && activeContractId) {
-          setContractData((prev) => {
-            const next = { ...prev } as ContractData;
-            const itemsForCell = next[target.id] || [];
-            // write entire cell items including updated machine children
-            const payload = { items: itemsForCell } as any;
-            const scheduleRef = doc(
-              db,
-              "companies",
-              uid,
-              "contracts",
-              activeContractId,
-              "schedule",
-              target.id
-            );
-            setDoc(scheduleRef, payload, { merge: true }).catch(() => {});
+          const next = { ...contractData };
+          // const itemsForCell = next[target.id] || [];
+          const { soId, dateIso } = splitCellKey(target.id);
+          
+          // First update the state
+          setContractData(next);
 
-            // If item originated from another contract cell, persist source cell as well
+          // Then handle the async operations
+          const machineRef = resourceDoc(
+            uid,
+            activeContractId,
+            soId,
+            target.assignToMachine!.machineName
+          );
+          
+          try {
+            // create / update the machine document
+            await setDoc(machineRef, { type: "machine" }, { merge: true });
+
+            // write the employee under its sub-collection
+            const empRef = machineEmployeeDoc(
+              uid,
+              activeContractId,
+              soId,
+              target.assignToMachine!.machineName,
+              draggedItem.name
+            );
+            await setDoc(
+              empRef,
+              { type: draggedItem.type, name: draggedItem.name },
+              { merge: true }
+            );
+
+            // If item originated from another contract cell, persist source cell
             if (draggedItem.source.zone === "contract") {
               const srcKey = draggedItem.source.id;
               const srcItems = next[srcKey] || [];
@@ -619,71 +691,74 @@ const Calender: React.FC = () => {
                 "schedule",
                 srcKey
               );
-              setDoc(srcRef, { items: srcItems } as any, { merge: true }).catch(
-                () => {}
-              );
+              await setDoc(srcRef, { items: srcItems } as any, { merge: true });
             }
-            return next;
-          });
+          } catch (error) {
+            console.error('Error updating Firebase:', error);
+          }
         }
       } else {
         // Add directly to contract cell and persist
-        setContractData((prev) => {
-          const cur = prev[target.id] || [];
-          // Check if item already exists
-          if (
-            cur.some(
-              (it) => it.name === itemToAdd.name && it.type === itemToAdd.type
-            )
-          ) {
-            return prev;
-          }
+       setContractData((prev) => {
+         const cur = prev[target.id] || [];
+         if (
+           cur.some(
+             (it) => it.name === itemToAdd.name && it.type === itemToAdd.type
+           )
+         ) {
+           return prev;
+         }
 
-          const updatedTargetItems = [...cur, itemToAdd];
-          const next: ContractData = {
-            ...prev,
-            [target.id]: updatedTargetItems,
-          };
+         const updatedTargetItems = [...cur, itemToAdd];
+         const next: ContractData = {
+           ...prev,
+           [target.id]: updatedTargetItems,
+         };
 
-          // Persist target cell
-          if (uid && activeContractId) {
-            const scheduleRef = doc(
-              db,
-              "companies",
-              uid,
-              "contracts",
-              activeContractId,
-              "schedule",
-              target.id
-            );
-            setDoc(scheduleRef, { items: updatedTargetItems } as any, {
-              merge: true,
-            }).catch(() => {});
+         // Firestore write (not awaited)
+         if (uid && activeContractId) {
+           const { soId, dateIso } = splitCellKey(target.id);
+           const resRef = resourceDoc(
+             uid,
+             activeContractId,
+             soId,
+             draggedItem.name
+           );
+           setDoc(
+             resRef,
+             {
+               type: draggedItem.type,
+               name: draggedItem.name,
+               date: dateIso,
+             },
+             { merge: true }
+           ).catch(console.error);
 
-            // If dragged from another contract cell, also persist the source cell after removal
-            if (draggedItem.source.zone === "contract") {
-              const srcKey = draggedItem.source.id;
-              const srcItemsRaw = prev[srcKey] || [];
-              const srcItems = srcItemsRaw.filter(
-                (it) => it.name !== itemToAdd.name
-              );
-              const srcRef = doc(
-                db,
-                "companies",
-                uid,
-                "contracts",
-                activeContractId,
-                "schedule",
-                srcKey
-              );
-              setDoc(srcRef, { items: srcItems } as any, { merge: true }).catch(
-                () => {}
-              );
-            }
-          }
+           // If dragged from another contract cell, also persist the source cell after removal
+           if (draggedItem.source.zone === "contract") {
+             const srcKey = draggedItem.source.id;
+             const srcItemsRaw = prev[srcKey] || [];
+             const srcItems = srcItemsRaw.filter(
+               (it) => it.name !== itemToAdd.name
+             );
+             const srcRef = doc(
+               db,
+               "companies",
+               uid,
+               "contracts",
+               activeContractId,
+               "schedule",
+               srcKey
+             );
+             setDoc(srcRef, { items: srcItems } as any, { merge: true }).catch(
+               console.error
+             );
+           }
+         }
 
-          return next;
-        });
+         return next;
+       });
+
       }
     } else if (
       dragged &&
@@ -751,18 +826,18 @@ const Calender: React.FC = () => {
     setDragged(null);
   };
 
-  const handleAreaDrop = React.useCallback(
-    (anchorIso: string) => {
-      if (dragged && "contractId" in dragged) {
-        setPendingTarget({ kind: "contract-area", anchorIso });
-        setPendingDragged(dragged);
-        setShowRangeModal(true);
-        return;
-      }
-      moveTo({ zone: "contract", id: anchorIso });
-    },
-    [moveTo, dragged]
-  );
+  // const handleAreaDrop = React.useCallback(
+  //   (anchorIso: string) => {
+  //     if (dragged && "contractId" in dragged) {
+  //       setPendingTarget({ kind: "contract-area", anchorIso });
+  //       setPendingDragged(dragged);
+  //       setShowRangeModal(true);
+  //       return;
+  //     }
+  //     moveTo({ zone: "contract", id: anchorIso });
+  //   },
+  //   [moveTo, dragged]
+  // );
 
   const isDraggingContract = !!(dragged && "contractId" in dragged);
 
@@ -910,6 +985,9 @@ const Calender: React.FC = () => {
   /* ---------- contract-grid drop TARGETS ---------- */
   const onContractDrop = (targetKey: string) => {
     // if a resource (person / machine / tool) is being dropped → open the modal
+
+    console.log("inside the contract drop ", targetKey);
+
     if (dragged && "name" in dragged) {
       /* pre-fill the modal with the day we dropped on */
       const iso = targetKey.match(/\d{4}-\d{2}-\d{2}$/)?.[0] ?? "";
@@ -921,6 +999,7 @@ const Calender: React.FC = () => {
       setShowRangeModal(true);
       return;
     }
+
 
     // anything else (e.g. whole-contract rows) keeps the old behaviour
     moveTo({ zone: "contract", id: targetKey });
@@ -1140,24 +1219,23 @@ const Calender: React.FC = () => {
       });
 
       // persist to Firestore
-      if (uid && activeContractId) {
-        timelineDays.forEach(({ key }) => {
-          if (key < startISO || key > endISO) return;
-          const cellKey = `${soId}-${key}`;
-          const ref = doc(
-            db,
-            "companies",
-            uid,
-            "contracts",
-            activeContractId,
-            "schedule",
-            cellKey
-          );
-          setDoc(ref, { items: arrayUnion(item) }, { merge: true }).catch(
-            () => {}
-          );
-        });
-      }
+     if (uid && activeContractId) {
+       timelineDays.forEach(({ key }) => {
+         if (key < startISO || key > endISO) return;
+         // for each date in range, add a resource doc under the correct SO
+         const resourceRef = resourceDoc(
+           uid,
+           activeContractId,
+           soId,
+           item.name
+         );
+         setDoc(
+           resourceRef,
+           { type: item.type, name: item.name },
+           { merge: true }
+         ).catch(() => {});
+       });
+     }
     } else if (
       /* ───────────── 2 B. resource dropped INSIDE A MACHINE ───────────── */
       pendingTarget?.kind === "contract-machine" &&
@@ -1183,25 +1261,35 @@ const Calender: React.FC = () => {
         attachToMachine(cellKey, machineName, item);
 
         /* update Firestore */
-        if (uid && activeContractId) {
-          const ref = doc(
-            db,
-            "companies",
-            uid,
-            "contracts",
-            activeContractId,
-            "schedule",
-            cellKey
-          );
-          // we need the whole cell after attachToMachine finished; queue it
-          setTimeout(() => {
-            setDoc(
-              ref,
-              { items: contractData[cellKey] || [] },
-              { merge: true }
-            ).catch(() => {});
-          }, 0);
-        }
+               if (uid && activeContractId) {
+                 // 1. ensure machine doc exists
+                 const machineRef = resourceDoc(
+                   uid,
+                   activeContractId,
+                   soId,
+                   machineName
+                 );
+                 setDoc(
+                   machineRef,
+                   { type: "machine", name: machineName },
+                   { merge: true }
+                 ).catch(() => {});
+
+                 // 2. assign the employee to this machine for this SO/date
+                 const empRef = machineEmployeeDoc(
+                   uid,
+                   activeContractId,
+                   soId,
+                   machineName,
+                   item.name
+                 );
+                 setDoc(
+                   empRef,
+                   { type: item.type, name: item.name },
+                   { merge: true }
+                 ).catch(() => {});
+               }
+
       });
     }
 
@@ -1256,7 +1344,7 @@ const Calender: React.FC = () => {
         onTimeOffItemDragStart={onTimeOffItemDragStart}
         onTimeOffDrop={onTimeOffDrop}
         setSidebarSearch={setSidebarSearch}
-        onAreaDrop={handleAreaDrop}
+        // onAreaDrop={handleAreaDrop}
         isDraggingContract={isDraggingContract}
         activeContractId={activeContractId}
         activeContractTitle={activeContractTitle || undefined}
