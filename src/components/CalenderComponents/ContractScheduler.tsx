@@ -1,5 +1,7 @@
 import React from "react";
-import { ChevronDown, Info } from "lucide-react";
+import { ChevronDown, Info, File } from "lucide-react";
+
+
 
 /* ---------- Types ---------- */
 export type ItemType = "person" | "machine" | "tool";
@@ -82,6 +84,33 @@ const ContractScheduler: React.FC<Props> = ({
   scheduledStartISO,
   scheduledEndISO,
 }) => {
+
+  // notes
+  const [hoveredResource, setHoveredResource] = React.useState<{
+    cellKey: string;
+    name: string;
+    type: ItemType;
+    note?: string;
+  } | null>(null);
+
+  const [showNoteModal, setShowNoteModal] = React.useState(false);
+  const [noteInput, setNoteInput] = React.useState("");
+  const hoverTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Helper to save note (replace this with a prop callback to update parent state if needed)
+  const handleSaveNote = () => {
+    if (hoveredResource) {
+      // You'll likely want to update your `data` here (lift up state/update parent, etc)
+      // For demo, just close modal
+      setShowNoteModal(false);
+      setHoveredResource(null);
+      setNoteInput("");
+      alert("Note saved!");
+    }
+  };
+
+
+
   const [collapsedRows, setCollapsedRows] = React.useState<
     Record<string, boolean>
   >({});
@@ -410,6 +439,88 @@ const weekDays: WeekDay[] = getScheduledDays();
 
                     {/* Render non-machine resources */}
                     {others.map((item, idx) => {
+                      // Only for "person" (employee)
+                      if (item.type === "person") {
+                        const prevCellKey =
+                          dayIdx > 0
+                            ? `${soId}-${weekDates[dayIdx - 1].key}`
+                            : "";
+                        const nextCellKey =
+                          dayIdx < weekDates.length - 1
+                            ? `${soId}-${weekDates[dayIdx + 1].key}`
+                            : "";
+
+                        const joinsLeft = itemExists(
+                          data[prevCellKey],
+                          item.name,
+                          item.type
+                        );
+                        const joinsRight = itemExists(
+                          data[nextCellKey],
+                          item.name,
+                          item.type
+                        );
+
+                        return (
+                          <div
+                            key={`${cellKey}-${item.type}-${item.name}-nonmachine-${idx}-${dayIdx}`}
+                            className={chipCls(
+                              item.type,
+                              joinsLeft,
+                              joinsRight
+                            )}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData("text/plain", item.name);
+                              e.dataTransfer.setData(
+                                "application/x-item-type",
+                                item.type
+                              );
+                              onDragStart(item.name, cellKey, item.type);
+                            }}
+                            title={item.note || ""}
+                            // ---- Hover logic for note modal ----
+                            onMouseEnter={() => {
+                              hoverTimerRef.current = setTimeout(() => {
+                                setHoveredResource({
+                                  cellKey,
+                                  name: item.name,
+                                  type: item.type,
+                                  note: item.note,
+                                });
+                                setNoteInput(item.note || "");
+                                setShowNoteModal(true);
+                              }, 2000); // 2 seconds
+                            }}
+                            onMouseLeave={() => {
+                              if (hoverTimerRef.current) {
+                                clearTimeout(hoverTimerRef.current);
+                                hoverTimerRef.current = null;
+                              }
+                            }}
+                          >
+                            {renderResizeHandles(soId, item.name, item.type)}
+                            <div className="font-medium flex items-center">
+                              {item.name}
+                              {/* Show file icon if note exists */}
+                              {item.note && (
+                                <File
+                                  className="ml-1 inline-block text-blue-500"
+                                  size={16}
+                                  // title="Employee note attached"
+                                />
+                              )}
+                            </div>
+                            {item.note && (
+                              <div className="text-xs opacity-75 mt-1">
+                                {item.note}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      // Render non-person items (machine/tool) as before:
                       const prevCellKey =
                         dayIdx > 0
                           ? `${soId}-${weekDates[dayIdx - 1].key}`
@@ -533,6 +644,66 @@ const weekDays: WeekDay[] = getScheduledDays();
           </div>
         )}
       </div>
+
+      {showNoteModal && hoveredResource && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-gray-50  border border-gray-200 rounded-xl shadow-2xl w-full max-w-sm px-6 py-5 animate-fade-in">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-base font-semibold text-gray-700 flex items-center gap-2">
+                <File className="w-5 h-5 text-blue-500" />
+                Note for{" "}
+                <span className="ml-1 font-bold text-blue-800">
+                  {hoveredResource.name}
+                </span>
+              </div>
+              <button
+                className="rounded-full p-1 hover:bg-gray-100 text-gray-500 hover:text-blue-600 transition"
+                onClick={() => {
+                  setShowNoteModal(false);
+                  setHoveredResource(null);
+                  setNoteInput("");
+                }}
+                aria-label="Close"
+              >
+                <svg width="18" height="18" fill="none" viewBox="0 0 18 18">
+                  <path
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    d="M5 5l8 8M13 5l-8 8"
+                  />
+                </svg>
+              </button>
+            </div>
+            <textarea
+              className="w-full min-h-[80px] max-h-40 resize-none rounded-md border border-gray-200 bg-white p-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 transition placeholder-gray-400"
+              rows={4}
+              placeholder="Write a quick note for this employee..."
+              value={noteInput}
+              onChange={(e) => setNoteInput(e.target.value)}
+              autoFocus
+            />
+            <div className="flex justify-end mt-5 gap-2">
+              <button
+                onClick={() => {
+                  setShowNoteModal(false);
+                  setHoveredResource(null);
+                  setNoteInput("");
+                }}
+                className="px-3 py-1 rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 text-sm font-medium transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveNote}
+                className="px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 text-sm font-semibold shadow-sm transition"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
