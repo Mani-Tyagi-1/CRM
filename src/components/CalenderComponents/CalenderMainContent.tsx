@@ -2,9 +2,10 @@ import React from "react";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   collection,
-  getDocs,
+  // getDocs,
   DocumentData,
   QueryDocumentSnapshot,
+  onSnapshot,
 } from "firebase/firestore";
 import { db, auth } from "../../lib/firebase";
 
@@ -137,28 +138,34 @@ const CalendarMainContent: React.FC<Props> = ({
       setSOList([]);
       return;
     }
-    
-    const fetchSOs = async () => {
-      try {
-        const soCol = collection(
-          db,
-          "companies",
-          uid,
-          "contracts",
-          activeContractId,
-          "so"
-        );
-        const soSnap = await getDocs(soCol);
+
+    const soCol = collection(
+      db,
+      "companies",
+      uid,
+      "contracts",
+      activeContractId,
+      "so"
+    );
+
+    // Subscribe to SO changes in real time!
+    const unsub = onSnapshot(
+      soCol,
+      (soSnap) => {
         const soArr: SOItem[] = [];
         soSnap.forEach((doc: QueryDocumentSnapshot<DocumentData>) => {
           soArr.push({ id: doc.id, soNumber: doc.get("soNumber") || doc.id });
         });
         setSOList(soArr);
-      } catch (e) {
+      },
+      (error) => {
+        console.error("Error fetching SOs:", error);
         setSOList([]);
       }
-    };
-    fetchSOs();
+    );
+
+    // Clean up subscription on unmount/contract change
+    return () => unsub();
   }, [activeContractId, uid]);
 
   // ----- Timeline scroll logic (same as before) -----

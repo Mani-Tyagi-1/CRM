@@ -344,6 +344,7 @@ const Calender: React.FC = () => {
     if (!uid || !activeContractId) return;
     let unsubSOs: (() => void) | null = null;
 
+    // Subscribe to SO collection in real time
     const soColRef = collection(
       db,
       "companies",
@@ -352,10 +353,24 @@ const Calender: React.FC = () => {
       activeContractId,
       "so"
     );
-    getDocs(soColRef).then((soSnap) => {
-      const unsubs: (() => void)[] = [];
+
+    // Keep a reference to all sub-unsubs (for resources under each SO)
+    let soResourceUnsubs: (() => void)[] = [];
+
+    // This will subscribe to SOs and keep up-to-date if any are added/removed
+    const unsubSOListener = onSnapshot(soColRef, (soSnap) => {
+      // Clean up previous resource listeners
+      soResourceUnsubs.forEach((fn) => fn());
+      soResourceUnsubs = [];
+
+      // Gather all SO ids
+      const soIds: string[] = [];
       soSnap.forEach((soDoc) => {
-        const soId = soDoc.id;
+        soIds.push(soDoc.id);
+      });
+
+      // Subscribe to each SO's resource subcollection
+      soIds.forEach((soId) => {
         const resColRef = collection(
           db,
           "companies",
@@ -366,7 +381,7 @@ const Calender: React.FC = () => {
           soId,
           "resources"
         );
-        const u = onSnapshot(resColRef, (resSnap) => {
+        const resUnsub = onSnapshot(resColRef, (resSnap) => {
           setContractData((prev) => {
             const next: ContractData = { ...prev };
             resSnap.forEach((resDoc) => {
@@ -398,10 +413,14 @@ const Calender: React.FC = () => {
             return next;
           });
         });
-        unsubs.push(u);
+        soResourceUnsubs.push(resUnsub);
       });
-      unsubSOs = () => unsubs.forEach((fn) => fn());
     });
+
+    unsubSOs = () => {
+      unsubSOListener();
+      soResourceUnsubs.forEach((fn) => fn());
+    };
 
     return () => {
       unsubSOs?.();
