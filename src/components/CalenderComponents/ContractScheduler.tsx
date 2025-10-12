@@ -480,24 +480,24 @@ const weekDays: WeekDay[] = getScheduledDays();
                             }}
                             title={item.note || ""}
                             // ---- Hover logic for note modal ----
-                            onMouseEnter={() => {
-                              hoverTimerRef.current = setTimeout(() => {
-                                setHoveredResource({
-                                  cellKey,
-                                  name: item.name,
-                                  type: item.type,
-                                  note: item.note,
-                                });
-                                setNoteInput(item.note || "");
-                                setShowNoteModal(true);
-                              }, 2000); // 2 seconds
-                            }}
-                            onMouseLeave={() => {
-                              if (hoverTimerRef.current) {
-                                clearTimeout(hoverTimerRef.current);
-                                hoverTimerRef.current = null;
-                              }
-                            }}
+                            // onMouseEnter={() => {
+                            //   hoverTimerRef.current = setTimeout(() => {
+                            //     setHoveredResource({
+                            //       cellKey,
+                            //       name: item.name,
+                            //       type: item.type,
+                            //       note: item.note,
+                            //     });
+                            //     setNoteInput(item.note || "");
+                            //     setShowNoteModal(true);
+                            //   }, 2000); // 2 seconds
+                            // }}
+                            // onMouseLeave={() => {
+                            //   if (hoverTimerRef.current) {
+                            //     clearTimeout(hoverTimerRef.current);
+                            //     hoverTimerRef.current = null;
+                            //   }
+                            // }}
                           >
                             {renderResizeHandles(soId, item.name, item.type)}
                             <div className="font-medium flex items-center">

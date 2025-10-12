@@ -27,6 +27,7 @@ import {
   updateDoc,
   arrayUnion,
   arrayRemove,
+  deleteDoc,
 } from "firebase/firestore";
 import {
   addResourceToTimeoffCell,
@@ -158,9 +159,21 @@ const removeResourceFromDate = async ({
   dateIso: string;
 }) => {
   const ref = resourceDoc(uid, contractId, soId, resourceName);
+
+  // Remove the date from assignedDates
   await updateDoc(ref, {
     assignedDates: arrayRemove(dateIso),
   });
+
+  // After removing, check if assignedDates is now empty
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    const data = snap.data();
+    if (!data.assignedDates || data.assignedDates.length === 0) {
+      // No more assignments left, remove the document
+      await deleteDoc(ref);
+    }
+  }
 };
 
 const Calender: React.FC = () => {
@@ -642,6 +655,7 @@ const Calender: React.FC = () => {
           resourceName: draggedItem.name,
           dateIso,
         });
+        console.log("removeResourceFromDate done");
       }
       stripEverywhere(draggedItem.name);
     }
@@ -1265,37 +1279,45 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
 
         /* update React state */
         attachToMachine(cellKey, machineName, item);
-
-        /* update Firestore */
-        if (uid && activeContractId) {
-          // 1. ensure machine doc exists
-          const machineRef = resourceDoc(
-            uid,
-            activeContractId,
-            soId,
-            machineName
-          );
-          setDoc(
-            machineRef,
-            { type: "machine", name: machineName },
-            { merge: true }
-          ).catch(() => {});
-
-          // 2. assign the employee to this machine for this SO/date
-          const empRef = machineEmployeeDoc(
-            uid,
-            activeContractId,
-            soId,
-            machineName,
-            item.name
-          );
-          setDoc(
-            empRef,
-            { type: item.type, name: item.name },
-            { merge: true }
-          ).catch(() => {});
-        }
       });
+
+      // Persist to Firestore: assign all dates in the range
+      if (uid && activeContractId) {
+        // 1. ensure machine doc exists
+        const machineRef = resourceDoc(
+          uid,
+          activeContractId,
+          soId,
+          machineName
+        );
+        setDoc(
+          machineRef,
+          { type: "machine", name: machineName },
+          { merge: true }
+        ).catch(() => {});
+
+        // 2. assign the employee to this machine for the date range
+        const assignedDates = getAllDateIsosInRange(startISO, endISO);
+
+        const empRef = machineEmployeeDoc(
+          uid,
+          activeContractId,
+          soId,
+          machineName,
+          item.name
+        );
+        setDoc(
+          empRef,
+          {
+            type: item.type,
+            name: item.name,
+            colour: contractColorFor(item.type),
+            assignedDates, // <-- full range array
+          },
+          { merge: true }
+        ).catch(() => {});
+      }
+
     }
 
     // Clean up modal and pending state
