@@ -1,17 +1,20 @@
-import React from "react";
-import { createPortal } from "react-dom";
-import { DayPicker, type DateRange } from "react-day-picker";
-import { Calendar as CalendarIcon } from "lucide-react";
-import "react-day-picker/dist/style.css";
+import * as React from "react";
+import { CalendarIcon } from "lucide-react";
+// import { addDays, format } from "date-fns";
+import { cn } from "../../lib/utils"; // if you use shadcn's cn utility, else remove
+import { Button } from "../ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "../ui/popover";
+import { Calendar } from "../ui/calendar"; // shadcn Calendar
+import type { DateRange } from "react-day-picker"; // type is the same as shadcn
 
-/** Inline CSS overrides (no external/global stylesheet needed) */
-const DayPickerOverrides = () => (
+// Optional: override shadcn calendar styles for gray color scheme
+const CalendarGrayOverride = () => (
   <style>{`
-    /* neutralize blue and use gray */
-    .rdp {
-      --rdp-accent-color: #6b7280;      /* gray-500 for focus/nav */
-      --rdp-background-color: #e5e7eb;  /* gray-200 for selected bg */
-    }
+    /* Main selected day, start/end of range: gray-200, text gray-900 */
     .rdp-day_selected,
     .rdp-day_selected:hover,
     .rdp-day_selected:focus-visible,
@@ -24,88 +27,23 @@ const DayPickerOverrides = () => (
       background-color: #f3f4f6 !important; /* gray-100 */
       color: #111827 !important;
     }
-    /* subtle "pop" animation */
-    .calendar-pop {
-      transform-origin: top left;
-      animation: cal-in .12s ease-out both;
+    .rdp-day_today:not(.rdp-day_selected) {
+      border: 1px solid #6b7280 !important; /* gray-500 for today */
     }
-    @keyframes cal-in {
-      from { opacity: 0; transform: scale(0.98); }
-      to   { opacity: 1; transform: scale(1); }
+    /* accent for focus/navigation */
+    .rdp {
+      --rdp-accent-color: #6b7280;
+      --rdp-background-color: #e5e7eb;
     }
   `}</style>
 );
-
-/** Small portal wrapper that positions the popup and prevents clipping */
-function CalendarPortal({
-  anchorRef,
-  open,
-  onClose,
-  children,
-}: {
-  anchorRef: React.RefObject<HTMLButtonElement | null>; // <- allow | null
-  open: boolean;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  const [pos, setPos] = React.useState<{ left: number; top: number }>({
-    left: 0,
-    top: 0,
-  });
-  const popRef = React.useRef<HTMLDivElement>(null);
-
-  // Compute and clamp position so the calendar never overflows the right edge
-  const updatePos = React.useCallback(() => {
-    if (!anchorRef.current) return;
-    const rect = anchorRef.current.getBoundingClientRect();
-    const GAP = 8;
-    const approxWidth = popRef.current?.offsetWidth ?? 340;
-    const left = Math.min(
-      Math.max(GAP, rect.left),
-      window.innerWidth - approxWidth - GAP
-    );
-    const top = rect.bottom + GAP;
-    setPos({ left, top });
-  }, [anchorRef]);
-
-  React.useLayoutEffect(() => {
-    if (!open) return;
-    updatePos();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("resize", updatePos);
-    window.addEventListener("scroll", updatePos, true);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("resize", updatePos);
-      window.removeEventListener("scroll", updatePos, true);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open, updatePos, onClose]);
-
-  if (!open) return null;
-
-  return createPortal(
-    <>
-      <div className="fixed inset-0 z-[60]" onClick={onClose} />
-      <div
-        ref={popRef}
-        className="fixed z-[70] rounded-2xl  bg-white p-2 shadow-2xl ring-1 ring-black/5 calendar-pop"
-        style={{ left: pos.left, top: pos.top }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <DayPickerOverrides />
-        {children}
-      </div>
-    </>,
-    document.body
-  );
-}
 
 export default function SearchWithDates() {
   const [open, setOpen] = React.useState(false);
   const [range, setRange] = React.useState<DateRange | undefined>();
   const btnRef = React.useRef<HTMLButtonElement>(null);
 
+  // Compose the label
   const label = React.useMemo(() => {
     const fmt = (d?: Date) => (d ? `${d.getDate()}. ${d.getMonth() + 1}.` : "");
     if (range?.from && range?.to)
@@ -116,41 +54,41 @@ export default function SearchWithDates() {
 
   return (
     <div className="w-full space-y-2">
-      {/* Date selector */}
       <div className="relative">
-        <button
-          ref={btnRef}
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="inline-flex items-center gap-2 rounded-md mt-2 px-3 py-1 text-sm text-gray-800 hover:bg-gray-200"
-        >
-          <CalendarIcon className="h-4 w-4 text-gray-500" />
-          <span>{label}</span>
-        </button>
-
-        <CalendarPortal
-          anchorRef={btnRef}
-          open={open}
-          onClose={() => setOpen(false)}
-        >
-          <DayPicker
-            mode="range"
-            numberOfMonths={1}
-            selected={range}
-            onSelect={(r) => {
-              setRange(r);
-              if (r?.from && r?.to) setOpen(false);
-            }}
-            pagedNavigation
-            // extra insurance: keep middle days slightly lighter gray
-            modifiersStyles={{
-              selected: { backgroundColor: "#e5e7eb", color: "#111827" },
-              range_start: { backgroundColor: "#e5e7eb", color: "#111827" },
-              range_end: { backgroundColor: "#e5e7eb", color: "#111827" },
-              range_middle: { backgroundColor: "#f3f4f6", color: "#111827" },
-            }}
-          />
-        </CalendarPortal>
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              ref={btnRef}
+              variant="ghost"
+              className={cn(
+                "inline-flex items-center gap-2 rounded-md mt-2 px-3 py-1 text-sm text-gray-800 hover:bg-gray-200"
+              )}
+              type="button"
+            >
+              <CalendarIcon className="h-4 w-4 text-gray-500" />
+              <span>{label}</span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            className="w-auto p-2 z-[70] rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 animate-in fade-in"
+            align="start"
+            side="bottom"
+            sideOffset={8}
+            onInteractOutside={() => setOpen(false)}
+          >
+            <CalendarGrayOverride />
+            <Calendar
+              mode="range"
+              selected={range}
+              onSelect={(r: DateRange | undefined) => {
+                setRange(r);
+                if (r?.from && r?.to) setOpen(false);
+              }}
+              numberOfMonths={1}
+              pagedNavigation
+            />
+          </PopoverContent>
+        </Popover>
       </div>
     </div>
   );
