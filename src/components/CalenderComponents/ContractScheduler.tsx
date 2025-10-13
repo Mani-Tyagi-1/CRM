@@ -84,7 +84,7 @@ const ContractScheduler: React.FC<Props> = ({
   scheduledStartISO,
   scheduledEndISO,
 }) => {
-
+  console.log("Data of contract", data);
   // notes
   const [hoveredResource, setHoveredResource] = React.useState<{
     cellKey: string;
@@ -95,9 +95,7 @@ const ContractScheduler: React.FC<Props> = ({
 
   const [showNoteModal, setShowNoteModal] = React.useState(false);
   const [noteInput, setNoteInput] = React.useState("");
-  // const hoverTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  // Helper to save note (replace this with a prop callback to update parent state if needed)
   const handleSaveNote = () => {
     if (hoveredResource) {
       // You'll likely want to update your `data` here (lift up state/update parent, etc)
@@ -120,8 +118,6 @@ const ContractScheduler: React.FC<Props> = ({
 
   const CELL_MIN_WIDTH = 180;
 
-  /* ---------- Dynamic days based on scheduled range ---------- */
-  // Dynamic days based on scheduled range
   const getScheduledDays = (): WeekDay[] => {
     if (!scheduledStartISO || !scheduledEndISO || timelineDays.length === 0) {
       return [];
@@ -165,15 +161,14 @@ const weekDays: WeekDay[] = getScheduledDays();
 
     const onMouseMove = (mv: MouseEvent) => mv.preventDefault();
 
+
     const onMouseUp = (up: MouseEvent) => {
       const diffX = up.clientX - startX;
       const dayDelta =
         edge === "right"
           ? Math.round(diffX / cellWidth)
           : Math.round(-diffX / cellWidth);
-      if (dayDelta > 0) {
-        onResize(soId, itemName, itemType, edge, dayDelta);
-      }
+      onResize(soId, itemName, itemType, edge, dayDelta);
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
     };
@@ -208,15 +203,23 @@ const weekDays: WeekDay[] = getScheduledDays();
   ) => (
     <>
       <div
-        className="absolute left-0 top-0 h-full w-1 cursor-ew-resize opacity-0 group-hover:opacity-100"
-        onMouseDown={(e) => startResize(e, "left", soId, itemName, type)}
+        className="absolute left-0 top-0 h-full w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 z-20 pointer-events-auto"
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          startResize(e, "left", soId, itemName, type);
+        }}
       />
       <div
-        className="absolute right-0 top-0 h-full w-1 cursor-ew-resize opacity-0 group-hover:opacity-100"
-        onMouseDown={(e) => startResize(e, "right", soId, itemName, type)}
+        className="absolute right-0 top-0 h-full w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 z-20 pointer-events-auto"
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          startResize(e, "right", soId, itemName, type);
+        }}
       />
     </>
   );
+
+
 
   /* ---------- Drag-and-drop handlers ---------- */
   const handleDrop = (
@@ -354,6 +357,7 @@ const weekDays: WeekDay[] = getScheduledDays();
                         <div
                           key={`${cellKey}-machine-${m.name}-${midx}-${dayIdx}`}
                           className={machineContainerCls(joinsLeft, joinsRight)}
+                          
                         >
                           {renderResizeHandles(soId, m.name, "machine")}
                           <div

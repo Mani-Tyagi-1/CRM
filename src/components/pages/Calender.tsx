@@ -870,70 +870,328 @@ const Calender: React.FC = () => {
     });
   };
 
-  /* ---------- RESIZE HANDLER (unchanged) ---------- */
   const handleResize = (
-    sourceKey: string,
+    soId: string,
     itemName: string,
     itemType: ContractItemType,
     edge: "left" | "right",
     dayDelta: number
   ) => {
-    if (dayDelta <= 0) return;
+    if (!scheduledStartISO || !scheduledEndISO || !timelineDays.length) return;
+    if (dayDelta === 0) return;
 
-    const baseMatch = sourceKey.match(
-      /^(.*?)(?:-week(\d+))?-(mon|tue|wed|thu|fri|sat|sun)$/
-    );
-    if (!baseMatch) return;
-    const contractRoot = baseMatch[1];
-    const weekIndex = baseMatch[2] ? parseInt(baseMatch[2], 10) - 1 : 0; // 0-based
-    const dayKey = baseMatch[3] as (typeof dayOrder)[number];
+    // Find all days this resource is scheduled for this SO
+    const scheduledDays = timelineDays
+      .map((day, idx) => ({
+        ...day,
+        idx,
+        cellKey: `${soId}-${day.key}`,
+        hasItem: (contractData[`${soId}-${day.key}`] || []).some(
+          (i) => i.name === itemName && i.type === itemType
+        ),
+      }))
+      .filter((d) => d.hasItem);
 
-    const startGlobalIdx = weekIndex * 7 + dayOrder.indexOf(dayKey);
+    if (!scheduledDays.length) return;
 
-    setContractData((prev) => {
-      const next = { ...prev } as ContractData;
-      const getRowKeyForWeek = (w: number) =>
-        w === 0 ? contractRoot : `${contractRoot}-week${w + 1}`;
+    // Resource is scheduled from firstDay to lastDay (inclusive)
+    let startIdx = scheduledDays[0].idx;
+    let endIdx = scheduledDays[scheduledDays.length - 1].idx;
 
-      const sourceItems = prev[sourceKey] || [];
-      const original = sourceItems.find((it) => it.name === itemName);
-
-      const buildItem = (): ContractCalendarItem =>
-        original ?? {
-          name: itemName,
-          type: itemType,
-          color: contractColorFor(itemType),
-        };
-
-       for (let i = 1; i <= dayDelta; i++) {
-        const offset = edge === "right" ? i : -i;
-        const globalIdx = startGlobalIdx + offset;
-        if (globalIdx < 0) continue;
-        const targetWeek = Math.floor(globalIdx / 7);
-        const targetDayIdx = globalIdx % 7;
-        const rowKey = getRowKeyForWeek(targetWeek);
-        const cellKey = `${rowKey}-${dayOrder[targetDayIdx]}`;
-        const cur = next[cellKey] || [];
-        if (!cur.some((it) => it.name === itemName)) {
-          next[cellKey] = [...cur, buildItem()];
-          /* -- FIRESTORE sync for resize (add/remove date) -- */
-          if (uid && activeContractId) {
-            const { soId } = splitCellKey(cellKey);
-            const dateIso = timelineDays[globalIdx].key;
-            assignResourceToDate({
-              uid,
-              contractId: activeContractId,
-              soId,
-              resourceName: itemName,
-              resourceType: itemType,
-              dateIso,
-            }).catch(() => {});
-          }
+    // Which end are we resizing?
+    if (edge === "left") {
+      const newStartIdx = startIdx - dayDelta;
+      // Expanding left
+      if (dayDelta > 0) {
+        for (let i = 1; i <= dayDelta; i++) {
+          const idx = startIdx - i;
+          if (idx < 0) continue;
+          const cellKey = `${soId}-${timelineDays[idx].key}`;
+          setContractData((prev) => {
+            const cur = prev[cellKey] || [];
+            if (
+              !cur.some((it) => it.name === itemName && it.type === itemType)
+            ) {
+              const updated = {
+                ...prev,
+                [cellKey]: [...cur, { name: itemName, type: itemType }],
+              };
+              // Firestore ADD
+              if (uid && activeContractId) {
+                assignResourceToDate({
+                  uid,
+                  contractId: activeContractId,
+                  soId,
+                  resourceName: itemName,
+                  resourceType: itemType,
+                  dateIso: timelineDays[idx].key,
+                }).catch(() => {});
+              }
+              return updated;
+            }
+            return prev;
+          });
         }
       }
-      return next;
-    });
+      // Shrinking left
+      else if (dayDelta < 0) {
+        for (let i = 0; i < Math.abs(dayDelta); i++) {
+          const idx = startIdx + i;
+          if (idx > endIdx) continue;
+          const cellKey = `${soId}-${timelineDays[idx].key}`;
+          setContractData((prev) => {
+            const cur = prev[cellKey] || [];
+            if (
+              cur.some((it) => it.name === itemName && it.type === itemType)
+            ) {
+              const updated = {
+                ...prev,
+                [cellKey]: cur.filter(
+                  (it) => !(it.name === itemName && it.type === itemType)
+                ),
+              };
+              // Firestore REMOVE
+              if (uid && activeContractId) {
+                removeResourceFromDate({
+                  uid,
+                  contractId: activeContractId,
+                  soId,
+                  resourceName: itemName,
+                  dateIso: timelineDays[idx].key,
+                }).catch(() => {});
+              }
+              return updated;
+            }
+            return prev;
+          });
+        }
+      }
+    } else if (edge === "right") {
+      const newEndIdx = endIdx + dayDelta;
+      // Expanding right
+      if (dayDelta > 0) {
+        for (let i = 1; i <= dayDelta; i++) {
+          const idx = endIdx + i;
+          if (idx >= timelineDays.length) continue;
+          const cellKey = `${soId}-${timelineDays[idx].key}`;
+          setContractData((prev) => {
+            const cur = prev[cellKey] || [];
+            if (
+              !cur.some((it) => it.name === itemName && it.type === itemType)
+            ) {
+              const updated = {
+                ...prev,
+                [cellKey]: [...cur, { name: itemName, type: itemType }],
+              };
+              // Firestore ADD
+              if (uid && activeContractId) {
+                assignResourceToDate({
+                  uid,
+                  contractId: activeContractId,
+                  soId,
+                  resourceName: itemName,
+                  resourceType: itemType,
+                  dateIso: timelineDays[idx].key,
+                }).catch(() => {});
+              }
+              return updated;
+            }
+            return prev;
+          });
+        }
+      }
+      // Shrinking right
+      else if (dayDelta < 0) {
+        for (let i = 0; i < Math.abs(dayDelta); i++) {
+          const idx = endIdx - i;
+          if (idx < startIdx) continue;
+          const cellKey = `${soId}-${timelineDays[idx].key}`;
+          setContractData((prev) => {
+            const cur = prev[cellKey] || [];
+            if (
+              cur.some((it) => it.name === itemName && it.type === itemType)
+            ) {
+              const updated = {
+                ...prev,
+                [cellKey]: cur.filter(
+                  (it) => !(it.name === itemName && it.type === itemType)
+                ),
+              };
+              // Firestore REMOVE
+              if (uid && activeContractId) {
+                removeResourceFromDate({
+                  uid,
+                  contractId: activeContractId,
+                  soId,
+                  resourceName: itemName,
+                  dateIso: timelineDays[idx].key,
+                }).catch(() => {});
+              }
+              return updated;
+            }
+            return prev;
+          });
+        }
+      }
+    }
   };
+
+
+  const handleTimeoffResize = (
+    section: "vacation" | "sick" | "service",
+    itemName: string,
+    itemType: TimeOffItemType,
+    edge: "left" | "right",
+    dayDelta: number
+  ) => {
+    if (dayDelta === 0) return;
+
+    // 1. Find all days this resource is scheduled for this section
+    const scheduledDays = timelineDays
+      .map((day, idx) => ({
+        ...day,
+        idx,
+        cellKey: `${section}-${day.key}`,
+        hasItem: (timeOffData[`${section}-${day.key}`] || []).some(
+          (i) => i.name === itemName && i.type === itemType
+        ),
+      }))
+      .filter((d) => d.hasItem);
+
+    if (!scheduledDays.length) return;
+
+    let startIdx = scheduledDays[0].idx;
+    let endIdx = scheduledDays[scheduledDays.length - 1].idx;
+
+    // Which end are we resizing?
+    if (edge === "left") {
+      // Expanding left
+      if (dayDelta > 0) {
+        for (let i = 1; i <= dayDelta; i++) {
+          const idx = startIdx - i;
+          if (idx < 0) continue;
+          const cellKey = `${section}-${timelineDays[idx].key}`;
+          setTimeOffData((prev) => {
+            const cur = prev[cellKey] || [];
+            if (
+              !cur.some((it) => it.name === itemName && it.type === itemType)
+            ) {
+              return {
+                ...prev,
+                [cellKey]: [
+                  ...cur,
+                  {
+                    startDate: new Date(timelineDays[idx].key),
+                    name: itemName,
+                    type: itemType,
+                  },
+                ],
+              };
+            }
+            return prev;
+          });
+          // Save to Firestore
+          if (uid)
+            addResourceToTimeoffCell(db, uid, cellKey, {
+              startDate: new Date(timelineDays[idx].key),
+              name: itemName,
+              type: itemType,
+            });
+        }
+      }
+      // Shrinking left
+      else if (dayDelta < 0) {
+        for (let i = 0; i < Math.abs(dayDelta); i++) {
+          const idx = startIdx + i;
+          if (idx > endIdx) continue;
+          const cellKey = `${section}-${timelineDays[idx].key}`;
+          setTimeOffData((prev) => {
+            const cur = prev[cellKey] || [];
+            if (
+              cur.some((it) => it.name === itemName && it.type === itemType)
+            ) {
+              return {
+                ...prev,
+                [cellKey]: cur.filter(
+                  (it) => !(it.name === itemName && it.type === itemType)
+                ),
+              };
+            }
+            return prev;
+          });
+          if (uid)
+            removeResourceFromTimeoffCell(db, uid, cellKey, {
+              name: itemName,
+              type: itemType,
+            });
+        }
+      }
+    }
+    // ----------- RIGHT EDGE ------------
+    else if (edge === "right") {
+      // Expanding right
+      if (dayDelta > 0) {
+        for (let i = 1; i <= dayDelta; i++) {
+          const idx = endIdx + i;
+          if (idx >= timelineDays.length) continue;
+          const cellKey = `${section}-${timelineDays[idx].key}`;
+          setTimeOffData((prev) => {
+            const cur = prev[cellKey] || [];
+            if (
+              !cur.some((it) => it.name === itemName && it.type === itemType)
+            ) {
+              return {
+                ...prev,
+                [cellKey]: [
+                  ...cur,
+                  {
+                    startDate: new Date(timelineDays[idx].key),
+                    name: itemName,
+                    type: itemType,
+                  },
+                ],
+              };
+            }
+            return prev;
+          });
+          if (uid)
+            addResourceToTimeoffCell(db, uid, cellKey, {
+              startDate: new Date(timelineDays[idx].key),
+              name: itemName,
+              type: itemType,
+            });
+        }
+      }
+      // Shrinking right
+      else if (dayDelta < 0) {
+        for (let i = 0; i < Math.abs(dayDelta); i++) {
+          const idx = endIdx - i;
+          if (idx < startIdx) continue;
+          const cellKey = `${section}-${timelineDays[idx].key}`;
+          setTimeOffData((prev) => {
+            const cur = prev[cellKey] || [];
+            if (
+              cur.some((it) => it.name === itemName && it.type === itemType)
+            ) {
+              return {
+                ...prev,
+                [cellKey]: cur.filter(
+                  (it) => !(it.name === itemName && it.type === itemType)
+                ),
+              };
+            }
+            return prev;
+          });
+          if (uid)
+            removeResourceFromTimeoffCell(db, uid, cellKey, {
+              name: itemName,
+              type: itemType,
+            });
+        }
+      }
+    }
+  };
+
 
   /* ---------- MODAL (unchanged) ---------- */
   const [showUnavailableModal, setShowUnavailableModal] = useState(false);
@@ -1406,6 +1664,7 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
         onDrop={onTimeOffDrop}
         uid={uid}
         onRemoveResource={onRemoveResource}
+        onResize={handleTimeoffResize}
       />
 
       {/* ---------- Floating “Add contract” button ---------- */}

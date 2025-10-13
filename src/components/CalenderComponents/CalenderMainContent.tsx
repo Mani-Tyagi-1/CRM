@@ -2,7 +2,6 @@ import React from "react";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   collection,
-  // getDocs,
   DocumentData,
   QueryDocumentSnapshot,
   onSnapshot,

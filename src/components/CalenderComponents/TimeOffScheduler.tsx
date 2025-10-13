@@ -27,7 +27,22 @@ interface Props {
   onDrop: DropFn;
   uid: string | null; // <-- add this!
   onRemoveResource: (cellKey: string, item: CalendarItem) => void; // <-- add this!
+  onResize: (
+    section: "vacation" | "sick" | "service",
+    itemName: string,
+    itemType: ItemType,
+    edge: "left" | "right",
+    dayDelta: number
+  ) => void;
 }
+
+// helpers
+const itemExists = (
+  arr: CalendarItem[] | undefined,
+  name: string,
+  type: ItemType
+) => !!arr?.some((i) => i.name === name && i.type === type);
+
 
 // ---- Helper: collect all unavailable resource names ----
 export function getAllUnavailableResourceNames(data: CalendarData): string[] {
@@ -52,6 +67,7 @@ const TimeOffScheduler: React.FC<Props> = ({
   onDrop,
   uid,
   onRemoveResource,
+  onResize,
 }) => {
   const [collapsed, setCollapsed] = React.useState({
     vacation: false,
@@ -61,6 +77,64 @@ const TimeOffScheduler: React.FC<Props> = ({
   const [open, setOpen] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
   const OPEN_MAX_PX = 260;
+
+  const CELL_MIN_WIDTH = 160; // or whatever your cell width is
+
+  function startResize(
+    e: React.MouseEvent<HTMLDivElement>,
+    edge: "left" | "right",
+    section: "vacation" | "sick" | "service",
+    itemName: string,
+    itemType: ItemType
+  ) {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const cellEl =
+      (e.currentTarget.parentElement?.parentElement as HTMLElement) || null;
+    const cellWidth = cellEl ? cellEl.offsetWidth : CELL_MIN_WIDTH;
+
+    const onMouseMove = (mv: MouseEvent) => mv.preventDefault();
+
+    const onMouseUp = (up: MouseEvent) => {
+      const diffX = up.clientX - startX;
+      const dayDelta =
+        edge === "right"
+          ? Math.round(diffX / cellWidth)
+          : Math.round(-diffX / cellWidth);
+
+      onResize(section, itemName, itemType, edge, dayDelta);
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }
+
+  function renderResizeHandles(
+    section: "vacation" | "sick" | "service",
+    itemName: string,
+    itemType: ItemType
+  ) {
+    return (
+      <>
+        <div
+          className="absolute left-0 top-0 h-full w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 z-20"
+          onMouseDown={(e) =>
+            startResize(e, "left", section, itemName, itemType)
+          }
+        />
+        <div
+          className="absolute right-0 top-0 h-full w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 z-20"
+          onMouseDown={(e) =>
+            startResize(e, "right", section, itemName, itemType)
+          }
+        />
+      </>
+    );
+  }
+
 
   const unavailableCount = React.useMemo(() => {
     return getAllUnavailableResourceNames(data).length;
@@ -348,45 +422,73 @@ async function handleRemoveTimeOffResource(cellKeyL: any, item: any) {
             >
               {!isCollapsed && (
                 <div className="flex flex-wrap gap-2">
-                  {data[cellKey]?.map((item, idx) => (
-                    <div
-                      key={`${cellKey}-${item.type}-${item.name}-timeoff-${idx}-${weekIdx}`}
-                      draggable
-                      style={
-                        { WebkitUserDrag: "element" } as React.CSSProperties
-                      }
-                      onDragStart={(e) =>
-                        handleItemDragStart(e, item.name, cellKey, item.type)
-                      }
-                      className={[
-                        "relative flex items-center gap-1 px-2 py-2 w-full justify-center rounded-lg text-xs font-medium select-none cursor-grab active:cursor-grabbing",
-                        "shadow-[0_1px_0_rgba(0,0,0,0.03)] ",
-                        item.type === "person"
-                          ? "bg-sky-100 text-sky-700 ring-sky-200"
-                          : item.type === "machine"
-                          ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
-                          : "bg-amber-50 text-amber-800 ring-amber-200",
-                      ].join(" ")}
-                      title={item.note || ""}
-                    >
-                      <span>{item.name}</span>
-                      <button
-                        type="button"
-                        className="absolute right-0 top-0 p-1 rounded-full text-red-500 bg-white/80 hover:bg-red-100 transition"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveTimeOffResource(cellKey, item);
-                        }}
-                        title="Remove"
+                  {data[cellKey]?.map((item, idx) => {
+                    // Compute joinsLeft and joinsRight for this item
+                    const prevCellKey =
+                      weekIdx > 0
+                        ? `${rowKeyPrefix}-${weekDays[weekIdx - 1].key}`
+                        : "";
+                    const nextCellKey =
+                      weekIdx < weekDays.length - 1
+                        ? `${rowKeyPrefix}-${weekDays[weekIdx + 1].key}`
+                        : "";
+
+                    const joinsLeft = itemExists(
+                      data[prevCellKey],
+                      item.name,
+                      item.type
+                    );
+                    const joinsRight = itemExists(
+                      data[nextCellKey],
+                      item.name,
+                      item.type
+                    );
+
+                    return (
+                      <div
+                        key={`${cellKey}-${item.type}-${item.name}-timeoff-${idx}-${weekIdx}`}
+                        draggable
+                        style={
+                          { WebkitUserDrag: "element" } as React.CSSProperties
+                        }
+                        onDragStart={(e) =>
+                          handleItemDragStart(e, item.name, cellKey, item.type)
+                        }
+                        className={[
+                          "relative flex items-center gap-1 px-2 py-2 w-full justify-center rounded-lg text-xs font-medium select-none cursor-grab active:cursor-grabbing group",
+                          "shadow-[0_1px_0_rgba(0,0,0,0.03)] ",
+                          item.type === "person"
+                            ? "bg-sky-100 text-sky-700 ring-sky-200"
+                            : item.type === "machine"
+                            ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
+                            : "bg-amber-50 text-amber-800 ring-amber-200",
+                          joinsLeft ? "-ml-5 border-l-0 rounded-l-none" : "",
+                          joinsRight ? "rounded-r-none" : "",
+                        ].join(" ")}
+                        title={item.note || ""}
                       >
-                        {/* Use your favorite icon or just ✕ */}
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                      {/* {item.type === "person" && (
-                        <FileText className="h-3.5 w-3.5 text-sky-600/80 pointer-events-none" />
-                      )} */}
-                    </div>
-                  ))}
+                        {renderResizeHandles(
+                          rowKeyPrefix,
+                          item.name,
+                          item.type
+                        )}
+                        <span>{item.name}</span>
+                        {!joinsRight && (
+                            <button
+                              type="button"
+                              className="absolute -right-2 -top-1 p-[1px] rounded-full text-red-500 bg-white/80 hover:bg-red-100 transition"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveTimeOffResource(cellKey, item);
+                              }}
+                              title="Remove"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

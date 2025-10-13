@@ -86,6 +86,7 @@ export default function SearchWithDates() {
               }}
               numberOfMonths={1}
               pagedNavigation
+              disabled={{ before: new Date() }} 
             />
           </PopoverContent>
         </Popover>
