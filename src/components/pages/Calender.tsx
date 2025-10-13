@@ -22,7 +22,6 @@ import {
   onSnapshot,
   setDoc,
   getDoc,
-  getDocs,
   collection,
   updateDoc,
   arrayUnion,
@@ -692,7 +691,7 @@ const Calender: React.FC = () => {
         if (uid && activeContractId) {
           const next = { ...contractData };
           // const itemsForCell = next[target.id] || [];
-          const { soId, dateIso } = splitCellKey(target.id);
+          const { soId } = splitCellKey(target.id);
 
           // First update the state
           setContractData(next);

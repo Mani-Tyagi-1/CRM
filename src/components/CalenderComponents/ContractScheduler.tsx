@@ -95,7 +95,7 @@ const ContractScheduler: React.FC<Props> = ({
 
   const [showNoteModal, setShowNoteModal] = React.useState(false);
   const [noteInput, setNoteInput] = React.useState("");
-  const hoverTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  // const hoverTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // Helper to save note (replace this with a prop callback to update parent state if needed)
   const handleSaveNote = () => {

@@ -232,6 +232,7 @@ const TimeOffScheduler: React.FC<Props> = ({
 
     // Extract date from targetKey
     let dropDate = "";
+    console.log(dropDate);
     const m = targetKey.match(/^service-(\d{4}-\d{2}-\d{2})$/);
     if (m) {
       dropDate = m[1];
