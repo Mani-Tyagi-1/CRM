@@ -1,8 +1,6 @@
 import React from "react";
 import { ChevronDown, Info, File } from "lucide-react";
 
-
-
 /* ---------- Types ---------- */
 export type ItemType = "person" | "machine" | "tool";
 
@@ -67,6 +65,109 @@ const itemExists = (
   type: ItemType
 ) => !!arr?.some((i) => i.name === name && i.type === type);
 
+/* ---------- Helpers ---------- */
+const getResourceSOCountByDate = (
+  soList: any[],
+  data: Record<string, CalendarItem[]>
+) => {
+  const countMap: Record<string, Record<string, number>> = {}; // { dateKey: { resourceName: count } }
+
+  soList.forEach(({ id: soId }) => {
+    Object.keys(data).forEach((cellKey) => {
+      // Only check keys that belong to this SO
+      if (cellKey.startsWith(soId + "-")) {
+        const [, dateKey] = cellKey.split(`${soId}-`);
+        const items = data[cellKey] || [];
+        items.forEach((item) => {
+          if (item.type === "person" || item.type === "machine") {
+            countMap[dateKey] = countMap[dateKey] || {};
+            countMap[dateKey][item.name] =
+              (countMap[dateKey][item.name] || 0) + 1;
+          }
+
+        });
+      }
+    });
+  });
+
+  return countMap;
+};
+
+// New: Find spans of each resource across consecutive days
+type ResourceSpan = {
+  item: CalendarItem;
+  type: ItemType;
+  startIdx: number;
+  endIdx: number;
+  cellKeys: string[];
+  dayKeys: string[];
+  machineParent?: string; // for children inside machines
+};
+
+function findSpans(
+  itemsPerDay: CalendarItem[][],
+  weekDates: WeekDay[],
+  soId: string,
+  itemType: ItemType,
+  parentMachineName?: string
+) {
+  const spans: ResourceSpan[] = [];
+  const visited: Record<string, boolean> = {};
+
+  for (let d = 0; d < weekDates.length; d++) {
+    const items = itemsPerDay[d] || [];
+    items.forEach((item) => {
+      if (item.type !== itemType) return;
+      // If inside a machine, only count those with the same parent machine
+      if (parentMachineName && item["__parent"] !== parentMachineName) return;
+
+      const spanKey = `${itemType}|${item.name}|${
+        parentMachineName || ""
+      }|${d}`;
+      if (visited[spanKey]) return;
+
+      // Start new span
+      let end = d;
+      const cellKeys = [`${soId}-${weekDates[d].key}`];
+      const dayKeys = [weekDates[d].key];
+
+      // Check consecutive
+      for (let j = d + 1; j < weekDates.length; j++) {
+        const nextItems = itemsPerDay[j] || [];
+        const found = nextItems.find(
+          (next) =>
+            next.type === itemType &&
+            next.name === item.name &&
+            (!parentMachineName || next["__parent"] === parentMachineName)
+        );
+        if (!found) break;
+        end = j;
+        cellKeys.push(`${soId}-${weekDates[j].key}`);
+        dayKeys.push(weekDates[j].key);
+        visited[`${itemType}|${item.name}|${parentMachineName || ""}|${j}`] =
+          true;
+      }
+
+      spans.push({
+        item,
+        type: itemType,
+        startIdx: d,
+        endIdx: end,
+        cellKeys,
+        dayKeys,
+        machineParent: parentMachineName,
+      });
+
+      // Mark as visited
+      for (let k = d; k <= end; k++) {
+        visited[`${itemType}|${item.name}|${parentMachineName || ""}|${k}`] =
+          true;
+      }
+    });
+  }
+  return spans;
+}
+
 /* ---------- Component ---------- */
 const ContractScheduler: React.FC<Props> = ({
   contractId,
@@ -84,7 +185,12 @@ const ContractScheduler: React.FC<Props> = ({
   scheduledStartISO,
   scheduledEndISO,
 }) => {
-  console.log("Data of contract", data);
+  // console.log("Data of contract", data);
+
+  const resourceSOCountByDate = React.useMemo(() => {
+    return getResourceSOCountByDate(soList, data);
+  }, [soList, data]);
+
   // notes
   const [hoveredResource, setHoveredResource] = React.useState<{
     cellKey: string;
@@ -106,8 +212,6 @@ const ContractScheduler: React.FC<Props> = ({
       alert("Note saved!");
     }
   };
-
-
 
   const [collapsedRows, setCollapsedRows] = React.useState<
     Record<string, boolean>
@@ -142,7 +246,7 @@ const ContractScheduler: React.FC<Props> = ({
     return scheduledDays;
   };
 
-const weekDays: WeekDay[] = getScheduledDays();
+  const weekDays: WeekDay[] = getScheduledDays();
 
   /* ---------- Resize logic (unchanged) ---------- */
   const startResize = (
@@ -160,7 +264,6 @@ const weekDays: WeekDay[] = getScheduledDays();
     const cellWidth = cellEl ? cellEl.offsetWidth : CELL_MIN_WIDTH;
 
     const onMouseMove = (mv: MouseEvent) => mv.preventDefault();
-
 
     const onMouseUp = (up: MouseEvent) => {
       const diffX = up.clientX - startX;
@@ -187,6 +290,7 @@ const weekDays: WeekDay[] = getScheduledDays();
         : "bg-green-100 text-green-800 border-green-300/50",
       joinsLeft ? "-ml-7 border-l-0 rounded-l-none" : "",
       joinsRight ? "rounded-r-none" : "",
+      "flex items-center",
     ].join(" ");
 
   const machineContainerCls = (joinsLeft = false, joinsRight = false) =>
@@ -219,8 +323,6 @@ const weekDays: WeekDay[] = getScheduledDays();
     </>
   );
 
-
-
   /* ---------- Drag-and-drop handlers ---------- */
   const handleDrop = (
     e: React.DragEvent<HTMLDivElement>,
@@ -228,7 +330,6 @@ const weekDays: WeekDay[] = getScheduledDays();
   ) => {
     e.preventDefault();
     let draggedName = "";
-    // console.log("handleDrop", targetKey);
     try {
       draggedName = e.dataTransfer.getData("text/plain");
     } catch {}
@@ -249,7 +350,7 @@ const weekDays: WeekDay[] = getScheduledDays();
     machineName: string
   ) => {
     e.preventDefault();
-    e.stopPropagation(); // 👈 prevents the parent cell's onDrop from firing
+    e.stopPropagation();
     let draggedName = "";
     try {
       draggedName = e.dataTransfer.getData("text/plain");
@@ -267,15 +368,275 @@ const weekDays: WeekDay[] = getScheduledDays();
 
   /* ---------- Row renderer: Per SO ---------- */
   const renderSORow = (soId: string, soNumber: string) => {
-    const weekDates = weekDays; // always Mon-Sun
+    const weekDates = weekDays;
     const isCollapsed = !!collapsedRows[soId];
 
     // Find the indices of the scheduled start and end dates in the timelineDays array
     const startIdx = timelineDays.findIndex((d) => d.key === scheduledStartISO);
     const endIdx = timelineDays.findIndex((d) => d.key === scheduledEndISO);
 
-    // console.log("renderSORow", soId, soNumber, startIdx, endIdx);
+    // Gather items for each cell/day in this SO
+    const itemsPerDay: CalendarItem[][] = weekDates.map((day) => {
+      const cellKey = `${soId}-${day.key}`;
+      return data[cellKey] || [];
+    });
 
+    // For machine children: attach __parent property so we can span children chips too
+    const machineChildrenPerDay: { [machineName: string]: CalendarItem[][] } =
+      {};
+    weekDates.forEach((day, dayIdx) => {
+      const cellKey = `${soId}-${day.key}`;
+      const cellItems = data[cellKey] || [];
+      const machines = cellItems.filter((i) => i.type === "machine");
+      machines.forEach((m) => {
+        if (!machineChildrenPerDay[m.name])
+          machineChildrenPerDay[m.name] = weekDates.map(() => []);
+        const childrenWithParent = (m.children || []).map((c) => ({
+          ...c,
+          __parent: m.name,
+        }));
+        machineChildrenPerDay[m.name][dayIdx] = childrenWithParent;
+      });
+    });
+
+    // Find all resource spans (person/tool/machine)
+    const personSpans = findSpans(itemsPerDay, weekDates, soId, "person");
+    const toolSpans = findSpans(itemsPerDay, weekDates, soId, "tool");
+    const machineSpans = findSpans(itemsPerDay, weekDates, soId, "machine");
+
+    // For machine children, find their spans within machine context
+    const machineChildrenSpans: { [machine: string]: ResourceSpan[] } = {};
+    Object.entries(machineChildrenPerDay).forEach(
+      ([machineName, childrenItemsPerDay]) => {
+        machineChildrenSpans[machineName] = findSpans(
+          childrenItemsPerDay,
+          weekDates,
+          soId,
+          "person",
+          machineName
+        );
+      }
+    );
+
+    // For grid overlays: collect all spanning chips with their type, start/end, etc.
+    type ChipToRender = ResourceSpan & {
+      isMachineChild?: boolean;
+      machineName?: string;
+    };
+    const chipsToRender: ChipToRender[] = [
+      ...machineSpans,
+      ...personSpans,
+      ...toolSpans,
+      ...Object.entries(machineChildrenSpans).flatMap(([machineName, arr]) =>
+        arr.map((s) => ({ ...s, isMachineChild: true, machineName }))
+      ),
+    ];
+
+    // Helper for rendering chips (either normal or inside machines)
+    function renderChip(
+      span: ChipToRender,
+      idx: number,
+      cellKeyFirst: string,
+      parentStartIdx?: number // pass this when rendering inside a machine chip
+    ) {
+      // Machine child (employee inside a machine)
+      if (span.isMachineChild) {
+        const c = span.item;
+        // Calculate grid columns relative to parent machine's span
+        const gridStart =
+          parentStartIdx !== undefined
+            ? span.startIdx - parentStartIdx + 1
+            : span.startIdx + 1;
+        const gridEnd =
+          parentStartIdx !== undefined
+            ? span.endIdx - parentStartIdx + 2
+            : span.endIdx + 2;
+
+        return (
+          <div
+            key={`machinechild-chip-${span.machineName}-${c.type}-${c.name}-${idx}`}
+            className={chipCls(c.type)}
+            style={{
+              gridColumnStart: gridStart,
+              gridColumnEnd: gridEnd,
+              position: "relative",
+              zIndex: 2,
+              marginTop: 2,
+              marginBottom: 2,
+            }}
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData("text/plain", c.name);
+              e.dataTransfer.setData("application/x-item-type", c.type);
+              onDragStart(c.name, cellKeyFirst, c.type, {
+                childOf: span.machineName,
+              });
+            }}
+            title={c.note || ""}
+          >
+            {c.name}
+            {c.note && (
+              <File className="ml-1 inline-block text-blue-500" size={16} />
+            )}
+            {c.note && <div className="text-xs opacity-75 mt-1">{c.note}</div>}
+          </div>
+        );
+      }
+
+      // Person, tool, or machine chip
+      const resource = span.item;
+      const isPerson = resource.type === "person";
+      const isMachine = resource.type === "machine";
+
+      // Machine chip: renders children grid inside itself
+      if (isMachine) {
+        const machineCount =
+          resourceSOCountByDate[weekDates[span.startIdx].key]?.[resource.name];
+        return (
+          <div
+            key={`span-chip-machine-${resource.name}-${idx}`}
+            className={machineContainerCls()}
+            style={{
+              gridColumnStart: span.startIdx + 1,
+              gridColumnEnd: span.endIdx + 2,
+              position: "relative",
+              zIndex: 2,
+              marginTop: 2,
+              marginBottom: 2,
+            }}
+          >
+            {renderResizeHandles(soId, resource.name, "machine")}
+            <div
+              className="px-2 py-1.5 pr-7 text-xs font-medium text-green-900 cursor-move select-none flex items-center"
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData("text/plain", resource.name);
+                e.dataTransfer.setData("application/x-item-type", "machine");
+                onDragStart(resource.name, cellKeyFirst, "machine", {
+                  childrenSnapshot: resource.children
+                    ? [...resource.children]
+                    : [],
+                });
+              }}
+              title={resource.note || ""}
+            >
+              {machineCount > 1 && (
+                <span className="text-[10px] bg-blue-200 text-blue-900 font-semibold px-1.5 py-0.5 rounded-full mr-2">
+                  {machineCount}
+                </span>
+              )}
+              {resource.name}
+            </div>
+            <button
+              type="button"
+              aria-label="Machine info"
+              draggable={false}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onMachineInfo?.(cellKeyFirst, resource.name);
+              }}
+              className="absolute top-1.5 right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-green-700"
+              title="Machine details"
+            >
+              <Info className="h-3.5 w-3.5" />
+            </button>
+            {/* Children grid: pass parentStartIdx for local positioning */}
+            <div
+              className="px-2 pb-2 pt-1 min-h-[40px] border-dashed border-2 border-transparent hover:border-green-300 transition-colors duration-200 grid relative"
+              style={{
+                gridTemplateColumns: `repeat(${
+                  span.endIdx - span.startIdx + 1
+                }, minmax(${CELL_MIN_WIDTH}px, 1fr))`,
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = "move";
+              }}
+              onDrop={(e) =>
+                handleDropToMachine(e, cellKeyFirst, resource.name)
+              }
+            >
+              {chipsToRender
+                .filter(
+                  (childSpan) =>
+                    childSpan.isMachineChild &&
+                    childSpan.machineName === resource.name &&
+                    childSpan.startIdx >= span.startIdx &&
+                    childSpan.endIdx <= span.endIdx
+                )
+                .map((childSpan, cidx) =>
+                  renderChip(
+                    childSpan,
+                    cidx,
+                    `${soId}-${weekDates[childSpan.startIdx].key}`,
+                    span.startIdx // Pass parent machine's startIdx!
+                  )
+                )}
+              {(resource.children || []).length === 0 && (
+                <div className="text-[11px] text-green-700/70 py-1 text-center italic">
+                  Drop employees here
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      // Regular chip (person or tool)
+      return (
+        <div
+          key={`span-chip-${resource.type}-${resource.name}-${idx}`}
+          className={chipCls(resource.type)}
+          style={{
+            gridColumnStart: span.startIdx + 1,
+            gridColumnEnd: span.endIdx + 2,
+            position: "relative",
+            zIndex: 2,
+            marginTop: 2,
+            marginBottom: 2,
+          }}
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData("text/plain", resource.name);
+            e.dataTransfer.setData("application/x-item-type", resource.type);
+            onDragStart(resource.name, cellKeyFirst, resource.type);
+          }}
+          title={resource.note || ""}
+        >
+          {/* Resize handles only on the main chip (not machine children) */}
+          {renderResizeHandles(soId, resource.name, resource.type)}
+          <div className="font-medium flex justify-center items-center gap-2 w-full">
+            {/* Count badge only for person, now on the left */}
+            {isPerson &&
+              resourceSOCountByDate[weekDates[span.startIdx].key]?.[
+                resource.name
+              ] > 1 && (
+                <span className="text-[10px] bg-blue-200 text-blue-900 font-semibold px-1.5 py-0.5 rounded-full">
+                  {
+                    resourceSOCountByDate[weekDates[span.startIdx].key][
+                      resource.name
+                    ]
+                  }
+                </span>
+              )}
+
+            {/* Name centered */}
+            <span className="mx-auto">{resource.name}</span>
+
+            {/* Note icon (kept right, optional) */}
+            {resource.note && (
+              <File className="ml-1 inline-block text-blue-500" size={16} />
+            )}
+          </div>
+        </div>
+      );
+    }
+
+
+    // To overlay chips on grid, use CSS grid and render chips as direct children with gridColumnStart/End
     return (
       <div>
         {/* Row header: collapsible */}
@@ -302,27 +663,27 @@ const weekDays: WeekDay[] = getScheduledDays();
         {!isCollapsed && weekDates.length > 0 && (
           <div
             id={`${soId}-grid`}
-            className="grid"
+            className="grid relative"
             style={{
               gridTemplateColumns: `repeat(${weekDates.length}, minmax(${CELL_MIN_WIDTH}px, 1fr))`,
+              minHeight: 80,
             }}
           >
+            {/* Day drop cells (these serve as drop targets & backgrounds) */}
             {weekDates.map((day, dayIdx) => {
-              const cellKey = `${soId}-${day.key}`; // SO-specific!
-              // console.log("cellKey", cellKey);
-              const items = data[cellKey] || [];
-              const machines = items.filter((i) => i.type === "machine");
-              const others = items.filter((i) => i.type !== "machine");
-
+              const cellKey = `${soId}-${day.key}`;
               // Determine if the current day is within the scheduled range
               const inRange = dayIdx >= startIdx && dayIdx <= endIdx;
+              // Find any machine in this cell (to render machine+children "inside" cell)
+              const items = data[cellKey] || [];
+              const machines = items.filter((i) => i.type === "machine");
 
               return (
                 <div
                   key={cellKey}
                   className={[
-                    "p-3 hover:bg-gray-25 transition-colors border border-transparent hover:border-gray-200 hover:border-dashed min-h-[80px]",
-                    inRange ? "bg-blue-50/40" : "", // Highlight if in range
+                    "p-3 hover:bg-gray-25 transition-colors border border-transparent hover:border-gray-200 hover:border-dashed min-h-[80px] relative",
+                    inRange ? "bg-blue-50/40" : "",
                   ].join(" ")}
                   onDragOver={(e) => {
                     e.preventDefault();
@@ -330,255 +691,25 @@ const weekDays: WeekDay[] = getScheduledDays();
                   }}
                   onDrop={(e) => handleDrop(e, cellKey)}
                 >
-                  <div className="space-y-2">
-                    {/* Render machines */}
-                    {machines.map((m, midx) => {
-                      const prevCellKey =
-                        dayIdx > 0
-                          ? `${soId}-${weekDates[dayIdx - 1].key}`
-                          : "";
-                      const nextCellKey =
-                        dayIdx < weekDates.length - 1
-                          ? `${soId}-${weekDates[dayIdx + 1].key}`
-                          : "";
-
-                      const joinsLeft = itemExists(
-                        data[prevCellKey],
-                        m.name,
-                        "machine"
-                      );
-                      const joinsRight = itemExists(
-                        data[nextCellKey],
-                        m.name,
-                        "machine"
-                      );
-
-                      return (
-                        <div
-                          key={`${cellKey}-machine-${m.name}-${midx}-${dayIdx}`}
-                          className={machineContainerCls(joinsLeft, joinsRight)}
-                          
-                        >
-                          {renderResizeHandles(soId, m.name, "machine")}
-                          <div
-                            className="px-2 py-1.5 pr-7 text-xs font-medium text-green-900 cursor-move select-none"
-                            draggable
-                            onDragStart={(e) => {
-                              e.dataTransfer.setData("text/plain", m.name);
-                              e.dataTransfer.setData(
-                                "application/x-item-type",
-                                "machine"
-                              );
-                              onDragStart(m.name, cellKey, "machine", {
-                                childrenSnapshot: m.children
-                                  ? [...m.children]
-                                  : [],
-                              });
-                            }}
-                            title={m.note || ""}
-                          >
-                            {m.name}
-                          </div>
-                          <button
-                            type="button"
-                            aria-label="Machine info"
-                            draggable={false}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              onMachineInfo?.(cellKey, m.name);
-                            }}
-                            className="absolute top-1.5 right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-green-700"
-                            title="Machine details"
-                          >
-                            <Info className="h-3.5 w-3.5" />
-                          </button>
-                          {/* Machine children */}
-                          <div
-                            className="px-2 pb-2 pt-1 min-h-[40px] border-dashed border-2 border-transparent hover:border-green-300 transition-colors duration-200"
-                            onDragOver={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              e.dataTransfer.dropEffect = "move";
-                            }}
-                            onDrop={(e) =>
-                              handleDropToMachine(e, cellKey, m.name)
-                            }
-                          >
-                            <div className="grid grid-cols-1 gap-2">
-                              {(m.children || []).map((c, cidx) => (
-                                <div
-                                  key={`${cellKey}-${m.name}-child-${c.type}-${c.name}-${cidx}-${dayIdx}`}
-                                  className={chipCls(c.type)}
-                                  draggable
-                                  onDragStart={(e) => {
-                                    e.dataTransfer.setData(
-                                      "text/plain",
-                                      m.name
-                                    );
-                                    e.dataTransfer.setData(
-                                      "application/x-item-type",
-                                      "machine"
-                                    );
-                                    onDragStart(c.name, cellKey, c.type, {
-                                      childOf: m.name,
-                                    });
-                                  }}
-                                  title={c.note || ""}
-                                >
-                                  {c.name}
-                                </div>
-                              ))}
-                              {(m.children || []).length === 0 && (
-                                <div className="text-[11px] text-green-700/70 py-1 text-center italic">
-                                  Drop employees here
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {/* Render non-machine resources */}
-                    {others.map((item, idx) => {
-                      // Only for "person" (employee)
-                      if (item.type === "person") {
-                        const prevCellKey =
-                          dayIdx > 0
-                            ? `${soId}-${weekDates[dayIdx - 1].key}`
-                            : "";
-                        const nextCellKey =
-                          dayIdx < weekDates.length - 1
-                            ? `${soId}-${weekDates[dayIdx + 1].key}`
-                            : "";
-
-                        const joinsLeft = itemExists(
-                          data[prevCellKey],
-                          item.name,
-                          item.type
-                        );
-                        const joinsRight = itemExists(
-                          data[nextCellKey],
-                          item.name,
-                          item.type
-                        );
-
-                        return (
-                          <div
-                            key={`${cellKey}-${item.type}-${item.name}-nonmachine-${idx}-${dayIdx}`}
-                            className={chipCls(
-                              item.type,
-                              joinsLeft,
-                              joinsRight
-                            )}
-                            draggable
-                            onDragStart={(e) => {
-                              e.dataTransfer.setData("text/plain", item.name);
-                              e.dataTransfer.setData(
-                                "application/x-item-type",
-                                item.type
-                              );
-                              onDragStart(item.name, cellKey, item.type);
-                            }}
-                            title={item.note || ""}
-                            // ---- Hover logic for note modal ----
-                            // onMouseEnter={() => {
-                            //   hoverTimerRef.current = setTimeout(() => {
-                            //     setHoveredResource({
-                            //       cellKey,
-                            //       name: item.name,
-                            //       type: item.type,
-                            //       note: item.note,
-                            //     });
-                            //     setNoteInput(item.note || "");
-                            //     setShowNoteModal(true);
-                            //   }, 2000); // 2 seconds
-                            // }}
-                            // onMouseLeave={() => {
-                            //   if (hoverTimerRef.current) {
-                            //     clearTimeout(hoverTimerRef.current);
-                            //     hoverTimerRef.current = null;
-                            //   }
-                            // }}
-                          >
-                            {renderResizeHandles(soId, item.name, item.type)}
-                            <div className="font-medium flex items-center">
-                              {item.name}
-                              {/* Show file icon if note exists */}
-                              {item.note && (
-                                <File
-                                  className="ml-1 inline-block text-blue-500"
-                                  size={16}
-                                  // title="Employee note attached"
-                                />
-                              )}
-                            </div>
-                            {item.note && (
-                              <div className="text-xs opacity-75 mt-1">
-                                {item.note}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      }
-
-                      // Render non-person items (machine/tool) as before:
-                      const prevCellKey =
-                        dayIdx > 0
-                          ? `${soId}-${weekDates[dayIdx - 1].key}`
-                          : "";
-                      const nextCellKey =
-                        dayIdx < weekDates.length - 1
-                          ? `${soId}-${weekDates[dayIdx + 1].key}`
-                          : "";
-
-                      const joinsLeft = itemExists(
-                        data[prevCellKey],
-                        item.name,
-                        item.type
-                      );
-                      const joinsRight = itemExists(
-                        data[nextCellKey],
-                        item.name,
-                        item.type
-                      );
-
-                      return (
-                        <div
-                          key={`${cellKey}-${item.type}-${item.name}-nonmachine-${idx}-${dayIdx}`}
-                          className={chipCls(item.type, joinsLeft, joinsRight)}
-                          draggable
-                          onDragStart={(e) => {
-                            e.dataTransfer.setData("text/plain", item.name);
-                            e.dataTransfer.setData(
-                              "application/x-item-type",
-                              item.type
-                            );
-                            onDragStart(item.name, cellKey, item.type);
-                          }}
-                          title={item.note || ""}
-                        >
-                          {renderResizeHandles(soId, item.name, item.type)}
-                          <div className="font-medium">{item.name}</div>
-                          {item.note && (
-                            <div className="text-xs opacity-75 mt-1">
-                              {item.note}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    {/* Show placeholder if cell is empty */}
-                    {machines.length === 0 && others.length === 0 && (
-                      <div className="text-xs text-gray-400 italic py-4 text-center"></div>
-                    )}
-                  </div>
+                  {/* If there is a machine for this cell, render the machine container */}
+                  {/* No machine chip rendering here. Just the drop cell contents. */}
                 </div>
               );
             })}
+            {/* Overlay resource chips for persons/tools, spanning columns */}
+            {chipsToRender
+              .filter((span) => !span.isMachineChild)
+              .map((span, idx) => {
+                // Only render the chip on the first day of its span
+                if (span.startIdx >= 0 && weekDates[span.startIdx]) {
+                  return renderChip(
+                    span,
+                    idx,
+                    `${soId}-${weekDates[span.startIdx].key}`
+                  );
+                }
+                return null;
+              })}
           </div>
         )}
       </div>
@@ -608,14 +739,13 @@ const weekDays: WeekDay[] = getScheduledDays();
         ];
 
   const containerWidthPx = weekDays.length * CELL_MIN_WIDTH;
-    
 
   return (
     <div
       className=" mx-auto bg-white border border-gray-200 rounded-lg shadow-sm min-h-[200px]"
       style={{
         width: containerWidthPx,
-        minWidth: 360, // tweak as you like
+        minWidth: 360,
       }}
     >
       {/* Show contract name at top from prop */}
@@ -711,6 +841,5 @@ const weekDays: WeekDay[] = getScheduledDays();
     </div>
   );
 };
-
 
 export default ContractScheduler;
