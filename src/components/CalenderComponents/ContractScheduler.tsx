@@ -5,11 +5,14 @@ import { ChevronDown, Info, File } from "lucide-react";
 export type ItemType = "person" | "machine" | "tool";
 
 export type CalendarItem = {
+  endDate: any;
+  startDate: any;
   name: string;
   type: ItemType;
   color?: string;
   note?: string;
   children?: CalendarItem[];
+  __parent?: string;
 };
 
 export type CalendarData = Record<string, CalendarItem[]>;
@@ -59,11 +62,11 @@ interface Props {
 }
 
 /* ---------- Helpers ---------- */
-const itemExists = (
-  arr: CalendarItem[] | undefined,
-  name: string,
-  type: ItemType
-) => !!arr?.some((i) => i.name === name && i.type === type);
+// const itemExists = (
+//   arr: CalendarItem[] | undefined,
+//   name: string,
+//   type: ItemType
+// ) => !!arr?.some((i) => i.name === name && i.type === type);
 
 /* ---------- Helpers ---------- */
 const getResourceSOCountByDate = (
@@ -84,7 +87,6 @@ const getResourceSOCountByDate = (
             countMap[dateKey][item.name] =
               (countMap[dateKey][item.name] || 0) + 1;
           }
-
         });
       }
     });
@@ -391,10 +393,21 @@ const ContractScheduler: React.FC<Props> = ({
       machines.forEach((m) => {
         if (!machineChildrenPerDay[m.name])
           machineChildrenPerDay[m.name] = weekDates.map(() => []);
-        const childrenWithParent = (m.children || []).map((c) => ({
-          ...c,
-          __parent: m.name,
-        }));
+        // Only include children whose span covers this day
+        const childrenWithParent = (m.children || [])
+          .filter((c) => {
+            // each child needs to have a start and end date or indices
+            if (c.startDate && c.endDate) {
+              // day.key = current date (YYYY-MM-DD)
+              return c.startDate <= day.key && c.endDate >= day.key;
+            }
+            // fallback, include all if no range
+            return true;
+          })
+          .map((c) => ({
+            ...c,
+            __parent: m.name,
+          }));
         machineChildrenPerDay[m.name][dayIdx] = childrenWithParent;
       });
     });
@@ -440,48 +453,74 @@ const ContractScheduler: React.FC<Props> = ({
       parentStartIdx?: number // pass this when rendering inside a machine chip
     ) {
       // Machine child (employee inside a machine)
-      if (span.isMachineChild) {
-        const c = span.item;
-        // Calculate grid columns relative to parent machine's span
-        const gridStart =
-          parentStartIdx !== undefined
-            ? span.startIdx - parentStartIdx + 1
-            : span.startIdx + 1;
-        const gridEnd =
-          parentStartIdx !== undefined
-            ? span.endIdx - parentStartIdx + 2
-            : span.endIdx + 2;
+     if (span.isMachineChild) {
+       const c = span.item;
 
-        return (
-          <div
-            key={`machinechild-chip-${span.machineName}-${c.type}-${c.name}-${idx}`}
-            className={chipCls(c.type)}
-            style={{
-              gridColumnStart: gridStart,
-              gridColumnEnd: gridEnd,
-              position: "relative",
-              zIndex: 2,
-              marginTop: 2,
-              marginBottom: 2,
-            }}
-            draggable
-            onDragStart={(e) => {
-              e.dataTransfer.setData("text/plain", c.name);
-              e.dataTransfer.setData("application/x-item-type", c.type);
-              onDragStart(c.name, cellKeyFirst, c.type, {
-                childOf: span.machineName,
-              });
-            }}
-            title={c.note || ""}
-          >
-            {c.name}
-            {c.note && (
-              <File className="ml-1 inline-block text-blue-500" size={16} />
-            )}
-            {c.note && <div className="text-xs opacity-75 mt-1">{c.note}</div>}
-          </div>
-        );
-      }
+       // Calculate grid columns relative to parent machine's span
+       const gridStart =
+         parentStartIdx !== undefined
+           ? span.startIdx - parentStartIdx + 1
+           : span.startIdx + 1;
+       const gridEnd =
+         parentStartIdx !== undefined
+           ? span.endIdx - parentStartIdx + 2
+           : span.endIdx + 2;
+
+       // 1. Find the count for this employee in this machine on the first date of the span
+       // Use machineChildrenPerDay
+       const currentDayIdx = parentStartIdx !== undefined ? span.startIdx : 0;
+       const machineName = span.machineName;
+       let count = 0;
+       if (
+         machineName &&
+         machineChildrenPerDay[machineName] &&
+         machineChildrenPerDay[machineName][span.startIdx]
+       ) {
+         count = machineChildrenPerDay[machineName][span.startIdx].filter(
+           (emp) => emp.name === c.name
+         ).length;
+       }
+
+       return (
+         <div
+           key={`machinechild-chip-${span.machineName}-${c.type}-${c.name}-${idx}`}
+           className={chipCls(c.type)}
+           style={{
+             gridColumnStart: gridStart,
+             gridColumnEnd: gridEnd,
+             position: "relative",
+             zIndex: 2,
+             marginTop: 2,
+             marginBottom: 2,
+             maxWidth: "95%", // Adjust width as needed
+           }}
+           draggable
+           onDragStart={(e) => {
+             e.dataTransfer.setData("text/plain", c.name);
+             e.dataTransfer.setData("application/x-item-type", c.type);
+             onDragStart(c.name, cellKeyFirst, c.type, {
+               childOf: span.machineName,
+             });
+           }}
+           title={c.note || ""}
+         >
+           <div className="font-medium flex justify-center items-center gap-2 w-full">
+             {/* Employee count badge, only if more than 1 (optional: always show if you like) */}
+             {count > 1 && (
+               <span className="text-[10px] bg-blue-200 text-blue-900 font-semibold px-1.5 py-0.5 rounded-full">
+                 {count}
+               </span>
+             )}
+             <span className="mx-auto">{c.name}</span>
+             {c.note && (
+               <File className="ml-1 inline-block text-blue-500" size={16} />
+             )}
+           </div>
+           {c.note && <div className="text-xs opacity-75 mt-1">{c.note}</div>}
+         </div>
+       );
+     }
+
 
       // Person, tool, or machine chip
       const resource = span.item;
@@ -577,7 +616,7 @@ const ContractScheduler: React.FC<Props> = ({
                 )}
               {(resource.children || []).length === 0 && (
                 <div className="text-[11px] text-green-700/70 py-1 text-center italic">
-                  Drop employees here
+                  {/* Drop employees here */}
                 </div>
               )}
             </div>
@@ -635,7 +674,6 @@ const ContractScheduler: React.FC<Props> = ({
       );
     }
 
-
     // To overlay chips on grid, use CSS grid and render chips as direct children with gridColumnStart/End
     return (
       <div>
@@ -675,8 +713,8 @@ const ContractScheduler: React.FC<Props> = ({
               // Determine if the current day is within the scheduled range
               const inRange = dayIdx >= startIdx && dayIdx <= endIdx;
               // Find any machine in this cell (to render machine+children "inside" cell)
-              const items = data[cellKey] || [];
-              const machines = items.filter((i) => i.type === "machine");
+              // const items = data[cellKey] || [];
+              // const machines = items.filter((i) => i.type === "machine");
 
               return (
                 <div
