@@ -27,6 +27,7 @@ import {
   arrayUnion,
   arrayRemove,
   deleteDoc,
+  getDocs,
 } from "firebase/firestore";
 import {
   addResourceToTimeoffCell,
@@ -383,32 +384,79 @@ const Calender: React.FC = () => {
         const resUnsub = onSnapshot(resColRef, (resSnap) => {
           setContractData((prev) => {
             const next: ContractData = { ...prev };
+            const promises: Promise<any>[] = [];
+
             resSnap.forEach((resDoc) => {
               const rd = resDoc.data();
-              const dates: string[] = rd.assignedDates
-                ? rd.assignedDates
-                : rd.date
-                ? [rd.date]
-                : [];
-              dates.forEach((dateIso) => {
-                const cellKey = `${soId}-${dateIso}`;
-                if (!next[cellKey]) next[cellKey] = [];
-                if (
-                  !next[cellKey].some(
-                    (i) => i.name === rd.name && i.type === rd.type
+              if (rd.type === "machine") {
+                // For each machine, load children
+                const p = getDocs(
+                  collection(
+                    db,
+                    "companies",
+                    uid,
+                    "contracts",
+                    activeContractId,
+                    "so",
+                    soId,
+                    "resources",
+                    rd.name,
+                    "resources"
                   )
-                ) {
-                  next[cellKey] = [
-                    ...next[cellKey],
-                    {
-                      name: rd.name,
-                      type: rd.type,
-                      color: contractColorFor(rd.type),
-                    },
-                  ];
-                }
+                ).then((machineResSnap: { data: () => any; }[]) => {
+                  const machineChildren: ContractCalendarItem[] = [];
+                  machineResSnap.forEach((empDoc: { data: () => any; }) => {
+                    const emp = empDoc.data();
+                    (emp.assignedDates || []).forEach((dateIso: string) => {
+                      machineChildren.push({
+                        name: emp.name,
+                        type: emp.type,
+                        color: contractColorFor(emp.type),
+                        assignedDates: emp.assignedDates,
+                        endDate: undefined,
+                        startDate: undefined
+                      });
+                    });
+                  });
+                  return { rd, machineChildren };
+                });
+                promises.push(p);
+              } else {
+                // flat resources
+                promises.push(Promise.resolve({ rd }));
+              }
+            });
+
+            Promise.all(promises).then((results) => {
+              setContractData((prev) => {
+                const next: ContractData = { ...prev };
+                results.forEach(({ rd, machineChildren }) => {
+                  const dates: string[] =
+                    rd.assignedDates || (rd.date ? [rd.date] : []);
+                  dates.forEach((dateIso) => {
+                    const cellKey = `${soId}-${dateIso}`;
+                    if (!next[cellKey]) next[cellKey] = [];
+                    if (
+                      !next[cellKey].some(
+                        (i) => i.name === rd.name && i.type === rd.type
+                      )
+                    ) {
+                      next[cellKey] = [
+                        ...next[cellKey],
+                        {
+                          name: rd.name,
+                          type: rd.type,
+                          color: contractColorFor(rd.type),
+                          ...(machineChildren && { children: machineChildren }),
+                        },
+                      ];
+                    }
+                  });
+                });
+                return next;
               });
             });
+
             return next;
           });
         });

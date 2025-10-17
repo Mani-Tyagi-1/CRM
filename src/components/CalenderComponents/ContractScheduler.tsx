@@ -12,6 +12,7 @@ export type CalendarItem = {
   color?: string;
   note?: string;
   children?: CalendarItem[];
+  assignedDates?: string[];
   __parent?: string;
 };
 
@@ -188,6 +189,16 @@ const ContractScheduler: React.FC<Props> = ({
   scheduledEndISO,
 }) => {
   // console.log("Data of contract", data);
+
+  console.log("ContractScheduler props:", {
+    contractId,
+    contractName,
+    soList,
+    data,
+    scheduledStartISO,
+    scheduledEndISO,
+    timelineDays,
+  });
 
   const resourceSOCountByDate = React.useMemo(() => {
     return getResourceSOCountByDate(soList, data);
@@ -396,12 +407,11 @@ const ContractScheduler: React.FC<Props> = ({
         // Only include children whose span covers this day
         const childrenWithParent = (m.children || [])
           .filter((c) => {
-            // each child needs to have a start and end date or indices
-            if (c.startDate && c.endDate) {
-              // day.key = current date (YYYY-MM-DD)
-              return c.startDate <= day.key && c.endDate >= day.key;
+            // If assignedDates exists, only show if current day is in assignedDates
+            if (Array.isArray(c.assignedDates)) {
+              return c.assignedDates.includes(day.key);
             }
-            // fallback, include all if no range
+            // fallback, include all if no assignedDates
             return true;
           })
           .map((c) => ({
