@@ -22,6 +22,7 @@ type WeekDay = { day: string; key: string };
 
 interface Props {
   weekDays: WeekDay[];
+  scrollRef: React.RefObject<HTMLDivElement>;
   data: CalendarData;
   onDragStart: DragStartFn;
   onDrop: DropFn;
@@ -62,6 +63,7 @@ export function getAllUnavailableResourceNames(data: CalendarData): string[] {
 
 const TimeOffScheduler: React.FC<Props> = ({
   weekDays,
+  scrollRef,
   data,
   onDragStart,
   onDrop,
@@ -77,6 +79,17 @@ const TimeOffScheduler: React.FC<Props> = ({
   const [open, setOpen] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
   const OPEN_MAX_PX = 260;
+  const localScrollRef = React.useRef<HTMLDivElement>(null);
+  
+    React.useEffect(() => {
+      const gridEl = scrollRef.current;
+      const footerEl = localScrollRef.current;
+      if (!gridEl || !footerEl) return;
+
+      const sync = () => (footerEl.scrollLeft = gridEl.scrollLeft);
+      gridEl.addEventListener("scroll", sync);
+      return () => gridEl.removeEventListener("scroll", sync);
+    }, [scrollRef]);
 
   const CELL_MIN_WIDTH = 160; // or whatever your cell width is
 
@@ -502,69 +515,83 @@ async function handleRemoveTimeOffResource(cellKeyL: any, item: any) {
   return (
     <>
       <div className={open ? "h-36" : "h-14"} />
+
+      {/* ═════ Fixed footer bar ═════ */}
       <div className="fixed left-64 right-0 bottom-0 z-40">
         <div className="border-t border-rose-200 bg-rose-50/90">
+          {/* Toggle button */}
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
             className="w-full text-center py-2 text-[13px] font-medium text-rose-600 hover:text-rose-700 inline-flex items-center justify-center gap-1"
           >
-            {unavailableCount} unavailable resources
+            {getAllUnavailableResourceNames(data).length} unavailable resources
             {open ? (
               <ChevronUp className="h-4 w-4" />
             ) : (
               <ChevronDown className="h-4 w-4" />
             )}
           </button>
+
+          {/* Collapsible body (vertical) */}
           <div
             className="transition-[max-height] duration-300 ease-in-out overflow-y-auto"
             style={{ maxHeight: open ? OPEN_MAX_PX : 0 }}
           >
-            <div className="px-3 pb-3">
-              <div className="rounded-xl bg-rose-50 ring-1 ring-rose-200/60 px-3 py-2">
-                <Row
-                  label="Vacation"
-                  rowKeyPrefix="vacation"
-                  isCollapsed={collapsed.vacation}
-                  onToggle={() =>
-                    setCollapsed((s) => ({ ...s, vacation: !s.vacation }))
-                  }
-                  customDropHandler={handleDropVacation} // <--- added
-                />
-                <div className="h-2" />
-                <Row
-                  label="Sick"
-                  rowKeyPrefix="sick"
-                  isCollapsed={collapsed.sick}
-                  onToggle={() =>
-                    setCollapsed((s) => ({ ...s, sick: !s.sick }))
-                  }
-                  customDropHandler={handleDropSick} // <--- added
-                />
-                <div className="h-2" />
-                <Row
-                  label="Service"
-                  rowKeyPrefix="service"
-                  isCollapsed={collapsed.service}
-                  onToggle={() =>
-                    setCollapsed((s) => ({ ...s, service: !s.service }))
-                  }
-                  customDropHandler={handleDropService}
-                />
-              </div>
-              {/* Error message for service */}
-              {errorMsg && (
-                <div className="fixed left-1/2 -translate-x-1/2 bottom-16 z-50">
-                  <div className="px-4 py-2 bg-red-600 text-white rounded-xl shadow-lg text-sm font-semibold">
-                    {errorMsg}
-                  </div>
+            {/* Horizontal scroll container (sync’ed) */}
+            <div
+              ref={localScrollRef}
+              className="overflow-x-auto scrollbar-hide"
+            >
+              <div className="px-3 pb-3 min-w-max">
+                <div className="rounded-xl bg-rose-50 ring-1 ring-rose-200/60 px-3 py-2">
+                  {/* ───────── Rows ───────── */}
+                  <Row
+                    label="Vacation"
+                    rowKeyPrefix="vacation"
+                    isCollapsed={collapsed.vacation}
+                    onToggle={() =>
+                      setCollapsed((s) => ({ ...s, vacation: !s.vacation }))
+                    }
+                    customDropHandler={handleDropVacation}
+                  />
+                  <div className="h-2" />
+                  <Row
+                    label="Sick"
+                    rowKeyPrefix="sick"
+                    isCollapsed={collapsed.sick}
+                    onToggle={() =>
+                      setCollapsed((s) => ({ ...s, sick: !s.sick }))
+                    }
+                    customDropHandler={handleDropSick}
+                  />
+                  <div className="h-2" />
+                  <Row
+                    label="Service"
+                    rowKeyPrefix="service"
+                    isCollapsed={collapsed.service}
+                    onToggle={() =>
+                      setCollapsed((s) => ({ ...s, service: !s.service }))
+                    }
+                    customDropHandler={handleDropService}
+                  />
                 </div>
-              )}
+
+                {/* Error bubble */}
+                {errorMsg && (
+                  <div className="fixed left-1/2 -translate-x-1/2 bottom-16 z-50">
+                    <div className="px-4 py-2 bg-red-600 text-white rounded-xl shadow-lg text-sm font-semibold">
+                      {errorMsg}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Enable native drag image for Chromium */}
       <style>{`[draggable="true"]{ -webkit-user-drag: element !important; }`}</style>
     </>
   );

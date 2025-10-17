@@ -1,5 +1,5 @@
 // ===================== Calender.tsx =====================
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { Plus } from "lucide-react";
 import Sidebar from "../CalenderComponents/SideBar";
 import CalendarMainContent from "../CalenderComponents/CalenderMainContent";
@@ -180,6 +180,8 @@ const Calender: React.FC = () => {
   const DAYS_WINDOW = 2000; // large window to simulate infinite past/future
   const location = useLocation();
   const navigate = useNavigate();
+
+   const scrollRef = useRef<HTMLDivElement>(null);
 
   /* ---------- date helpers ---------- */
   const startOfDay = (d: Date) => {
@@ -1681,6 +1683,7 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
 
       <CalendarMainContent
         timelineDays={timelineDays}
+        scrollRef={scrollRef}
         headerLabel={headerLabel}
         setHeaderLabel={setHeaderLabel}
         setStartOffsetDays={setStartOffsetDays}
@@ -1708,6 +1711,7 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
       <TimeOffScheduler
         weekDays={timelineDays}
         data={timeOffData}
+        scrollRef={scrollRef}
         onDragStart={onTimeOffItemDragStart}
         onDrop={onTimeOffDrop}
         uid={uid}

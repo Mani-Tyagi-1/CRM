@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef } from "react";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   collection,
@@ -28,6 +28,7 @@ type Props = {
   setHeaderLabel: React.Dispatch<React.SetStateAction<string>>;
   setStartOffsetDays: React.Dispatch<React.SetStateAction<number>>;
   setSidebarSearch: React.Dispatch<React.SetStateAction<string>>;
+  scrollRef: React.RefObject<HTMLDivElement>;
 
   // Contract scheduling props
   contractData: ContractData;
@@ -71,6 +72,7 @@ type Props = {
 const CalendarMainContent: React.FC<Props> = ({
   timelineDays,
   headerLabel,
+  scrollRef,
   // onAreaDrop,
   isDraggingContract,
   setHeaderLabel,
@@ -88,13 +90,11 @@ const CalendarMainContent: React.FC<Props> = ({
   scheduledStartISO,
   scheduledEndISO,
 }) => {
-
   const CELL_MIN_WIDTH = 180;
 
-
   const rulerRef = React.useRef<HTMLDivElement>(null);
-  const mainScrollRef = React.useRef<HTMLDivElement>(null);
-  const dayRefs = React.useRef<(HTMLDivElement | null)[]>([]);
+  // const mainScrollRef = React.useRef<HTMLDivElement>(null);
+   const dayRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // ====== SO LIST STATE ======
   const [soList, setSOList] = React.useState<SOItem[]>([]);
@@ -102,7 +102,6 @@ const CalendarMainContent: React.FC<Props> = ({
 
   // console.log("Scheduled Start ISO", scheduledStartISO);
   // console.log("Scheduled End ISO", scheduledEndISO);
-
 
   // Get uid (if using Firebase Auth)
   React.useEffect(() => {
@@ -113,7 +112,7 @@ const CalendarMainContent: React.FC<Props> = ({
   }, []);
 
   React.useEffect(() => {
-    if (!scheduledStartISO || !mainScrollRef.current || !timelineDays.length)
+    if (!scheduledStartISO || !scrollRef.current || !timelineDays.length)
       return;
 
     // Find the day element corresponding to the scheduled start date
@@ -121,15 +120,14 @@ const CalendarMainContent: React.FC<Props> = ({
     if (startIdx > -1 && dayRefs.current[startIdx]) {
       // Adjust the scroll position to center the start date
       const dayElement = dayRefs.current[startIdx];
-      if (mainScrollRef.current) {
-        mainScrollRef.current.scrollLeft =
+      if (scrollRef.current) {
+        scrollRef.current.scrollLeft =
           dayElement.offsetLeft -
-          mainScrollRef.current.clientWidth / 2 +
+          scrollRef.current.clientWidth / 2 +
           dayElement.clientWidth / 2;
       }
     }
   }, [scheduledStartISO, timelineDays]);
-
 
   // Fetch SOs when contract changes (needs uid)
   React.useEffect(() => {
@@ -169,7 +167,7 @@ const CalendarMainContent: React.FC<Props> = ({
 
   // ----- Timeline scroll logic (same as before) -----
   React.useEffect(() => {
-    const container = mainScrollRef.current;
+    const container = scrollRef.current;
     if (!container) return;
 
     const handleScroll = () => {
@@ -199,13 +197,13 @@ const CalendarMainContent: React.FC<Props> = ({
     const todayIndex = timelineDays.findIndex((d) => d.isToday);
     if (todayIndex > -1 && dayRefs.current[todayIndex]) {
       const el = dayRefs.current[todayIndex] as HTMLDivElement;
-      container.scrollLeft = el.offsetLeft - container.clientWidth / 2 + el.clientWidth / 2;
+      container.scrollLeft =
+        el.offsetLeft - container.clientWidth / 2 + el.clientWidth / 2;
     }
     handleScroll();
 
     return () => container.removeEventListener("scroll", handleScroll);
   }, [timelineDays, setHeaderLabel]);
-
 
   // ----- Drag-and-drop area for contracts and resources -----
   const handleAreaDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -228,14 +226,13 @@ const CalendarMainContent: React.FC<Props> = ({
   //   // console.log("handleAreaDrop", anchorIso);
   // };
 
-
   // ---------- UI -----------
   return (
     <div
-      ref={mainScrollRef}
+      ref={scrollRef}
       className={`flex-1 overflow-x-auto pb-48 transition-colors duration-200 ${
         isDraggingContract ? "bg-blue-50" : "bg-gray-100"
-        }`}
+      }`}
       onDragOver={handleAreaDragOver}
       // onDrop={handleAreaDrop}
     >
@@ -326,24 +323,22 @@ const CalendarMainContent: React.FC<Props> = ({
           </div>
         </div>
 
-        
-          {/* ---------- CONTRACT SCHEDULER GRID ---------- */}
-          <ContractScheduler
-            data={contractData}
-            soList={soList}
-            contractId={activeContractId || undefined}
-            contractName={activeContractTitle || undefined}
-            onDragStart={onContractItemDragStart}
-            onDrop={onContractDrop}
-            onDropToMachine={onContractDropToMachine}
-            unavailableResourceNames={allUnavailableResourceNames}
-            onResize={handleResize}
-            rangeWithinWeek={rangeWithinWeek}
-            timelineDays={timelineDays}
-            scheduledStartISO={scheduledStartISO}
-            scheduledEndISO={scheduledEndISO}
-          />
-        
+        {/* ---------- CONTRACT SCHEDULER GRID ---------- */}
+        <ContractScheduler
+          data={contractData}
+          soList={soList}
+          contractId={activeContractId || undefined}
+          contractName={activeContractTitle || undefined}
+          onDragStart={onContractItemDragStart}
+          onDrop={onContractDrop}
+          onDropToMachine={onContractDropToMachine}
+          unavailableResourceNames={allUnavailableResourceNames}
+          onResize={handleResize}
+          rangeWithinWeek={rangeWithinWeek}
+          timelineDays={timelineDays}
+          scheduledStartISO={scheduledStartISO}
+          scheduledEndISO={scheduledEndISO}
+        />
       </div>
     </div>
   );
