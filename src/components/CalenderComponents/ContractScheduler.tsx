@@ -190,15 +190,15 @@ const ContractScheduler: React.FC<Props> = ({
 }) => {
   // console.log("Data of contract", data);
 
-  console.log("ContractScheduler props:", {
-    contractId,
-    contractName,
-    soList,
-    data,
-    scheduledStartISO,
-    scheduledEndISO,
-    timelineDays,
-  });
+  // console.log("ContractScheduler props:", {
+  //   contractId,
+  //   contractName,
+  //   soList,
+  //   data,
+  //   scheduledStartISO,
+  //   scheduledEndISO,
+  //   timelineDays,
+  // });
 
   const resourceSOCountByDate = React.useMemo(() => {
     return getResourceSOCountByDate(soList, data);
@@ -456,233 +456,212 @@ const ContractScheduler: React.FC<Props> = ({
     ];
 
     // Helper for rendering chips (either normal or inside machines)
-    function renderChip(
-      span: ChipToRender,
-      idx: number,
-      cellKeyFirst: string,
-      parentStartIdx?: number // pass this when rendering inside a machine chip
-    ) {
-      // Machine child (employee inside a machine)
-     if (span.isMachineChild) {
-       const c = span.item;
+ function renderChip(
+   span: ChipToRender,
+   idx: number,
+   cellKeyFirst: string,
+   parentStartIdx?: number // pass this when rendering inside a machine chip
+ ) {
+   // Machine child (employee inside a machine)
+   if (span.isMachineChild) {
+     const c = span.item;
 
-       // Calculate grid columns relative to parent machine's span
-       const gridStart =
-         parentStartIdx !== undefined
-           ? span.startIdx - parentStartIdx + 1
-           : span.startIdx + 1;
-       const gridEnd =
-         parentStartIdx !== undefined
-           ? span.endIdx - parentStartIdx + 2
-           : span.endIdx + 2;
+     // Calculate grid columns relative to parent machine's span
+     const gridStart =
+       parentStartIdx !== undefined
+         ? span.startIdx - parentStartIdx + 1
+         : span.startIdx + 1;
+     const gridEnd =
+       parentStartIdx !== undefined
+         ? span.endIdx - parentStartIdx + 2
+         : span.endIdx + 2;
 
-       // 1. Find the count for this employee in this machine on the first date of the span
-       // Use machineChildrenPerDay
-       const currentDayIdx = parentStartIdx !== undefined ? span.startIdx : 0;
-       const machineName = span.machineName;
-       let count = 0;
-       if (
-         machineName &&
-         machineChildrenPerDay[machineName] &&
-         machineChildrenPerDay[machineName][span.startIdx]
-       ) {
-         count = machineChildrenPerDay[machineName][span.startIdx].filter(
-           (emp) => emp.name === c.name
-         ).length;
-       }
+     // Always use global count for this resource on the date
+     const dateKey = weekDays[span.startIdx].key;
+     const globalCount = resourceSOCountByDate[dateKey]?.[c.name];
+     const showCount = globalCount > 1 ? globalCount : null;
 
-       return (
+     return (
+       <div
+         key={`machinechild-chip-${span.machineName}-${c.type}-${c.name}-${idx}`}
+         className={chipCls(c.type)}
+         style={{
+           gridColumnStart: gridStart,
+           gridColumnEnd: gridEnd,
+           position: "relative",
+           zIndex: 2,
+           marginTop: 2,
+           marginBottom: 2,
+           maxWidth: "95%",
+         }}
+         draggable
+         onDragStart={(e) => {
+           e.dataTransfer.setData("text/plain", c.name);
+           e.dataTransfer.setData("application/x-item-type", c.type);
+           onDragStart(c.name, cellKeyFirst, c.type, {
+             childOf: span.machineName,
+           });
+         }}
+         title={c.note || ""}
+       >
+         <div className="font-medium flex justify-center items-center gap-2 w-full">
+           {showCount && (
+             <span className="text-[10px] bg-blue-200 text-blue-900 font-semibold px-1.5 py-0.5 rounded-full">
+               {showCount}
+             </span>
+           )}
+           <span className="mx-auto">{c.name}</span>
+           {c.note && (
+             <File className="ml-1 inline-block text-blue-500" size={16} />
+           )}
+         </div>
+         {c.note && <div className="text-xs opacity-75 mt-1">{c.note}</div>}
+       </div>
+     );
+   }
+
+   // Person, tool, or machine chip
+   const resource = span.item;
+   const isPerson = resource.type === "person";
+   const isMachine = resource.type === "machine";
+
+   // Machine chip: renders children grid inside itself
+   if (isMachine) {
+     const machineCount =
+       resourceSOCountByDate[weekDays[span.startIdx].key]?.[resource.name];
+     return (
+       <div
+         key={`span-chip-machine-${resource.name}-${idx}`}
+         className={machineContainerCls()}
+         style={{
+           gridColumnStart: span.startIdx + 1,
+           gridColumnEnd: span.endIdx + 2,
+           position: "relative",
+           zIndex: 2,
+           marginTop: 2,
+           marginBottom: 2,
+         }}
+       >
+         {renderResizeHandles(soId, resource.name, "machine")}
          <div
-           key={`machinechild-chip-${span.machineName}-${c.type}-${c.name}-${idx}`}
-           className={chipCls(c.type)}
-           style={{
-             gridColumnStart: gridStart,
-             gridColumnEnd: gridEnd,
-             position: "relative",
-             zIndex: 2,
-             marginTop: 2,
-             marginBottom: 2,
-             maxWidth: "95%", // Adjust width as needed
-           }}
+           className="px-2 py-1.5 pr-7 text-xs font-medium text-green-900 cursor-move select-none flex items-center"
            draggable
            onDragStart={(e) => {
-             e.dataTransfer.setData("text/plain", c.name);
-             e.dataTransfer.setData("application/x-item-type", c.type);
-             onDragStart(c.name, cellKeyFirst, c.type, {
-               childOf: span.machineName,
+             e.dataTransfer.setData("text/plain", resource.name);
+             e.dataTransfer.setData("application/x-item-type", "machine");
+             onDragStart(resource.name, cellKeyFirst, "machine", {
+               childrenSnapshot: resource.children
+                 ? [...resource.children]
+                 : [],
              });
            }}
-           title={c.note || ""}
+           title={resource.note || ""}
          >
-           <div className="font-medium flex justify-center items-center gap-2 w-full">
-             {/* Employee count badge, only if more than 1 (optional: always show if you like) */}
-             {count > 1 && (
-               <span className="text-[10px] bg-blue-200 text-blue-900 font-semibold px-1.5 py-0.5 rounded-full">
-                 {count}
-               </span>
-             )}
-             <span className="mx-auto">{c.name}</span>
-             {c.note && (
-               <File className="ml-1 inline-block text-blue-500" size={16} />
-             )}
-           </div>
-           {c.note && <div className="text-xs opacity-75 mt-1">{c.note}</div>}
+           {machineCount > 1 && (
+             <span className="text-[10px] bg-green-200 text-green-900 font-semibold px-1.5 py-0.5 rounded-full mr-2">
+               {machineCount}
+             </span>
+           )}
+           {resource.name}
          </div>
-       );
-     }
+         <button
+           type="button"
+           aria-label="Machine info"
+           draggable={false}
+           onMouseDown={(e) => e.stopPropagation()}
+           onClick={(e) => {
+             e.preventDefault();
+             e.stopPropagation();
+             onMachineInfo?.(cellKeyFirst, resource.name);
+           }}
+           className="absolute top-1.5 right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-green-700"
+           title="Machine details"
+         >
+           <Info className="h-3.5 w-3.5" />
+         </button>
+         {/* Children grid: pass parentStartIdx for local positioning */}
+         <div
+           className="px-2 pb-2 pt-1 min-h-[40px] border-dashed border-2 border-transparent hover:border-green-300 transition-colors duration-200 grid relative"
+           style={{
+             gridTemplateColumns: `repeat(${
+               span.endIdx - span.startIdx + 1
+             }, minmax(${CELL_MIN_WIDTH}px, 1fr))`,
+           }}
+           onDragOver={(e) => {
+             e.preventDefault();
+             e.stopPropagation();
+             e.dataTransfer.dropEffect = "move";
+           }}
+           onDrop={(e) => handleDropToMachine(e, cellKeyFirst, resource.name)}
+         >
+           {chipsToRender
+             .filter(
+               (childSpan) =>
+                 childSpan.isMachineChild &&
+                 childSpan.machineName === resource.name &&
+                 childSpan.startIdx >= span.startIdx &&
+                 childSpan.endIdx <= span.endIdx
+             )
+             .map((childSpan, cidx) =>
+               renderChip(
+                 childSpan,
+                 cidx,
+                 `${soId}-${weekDays[childSpan.startIdx].key}`,
+                 span.startIdx
+               )
+             )}
+           {(resource.children || []).length === 0 && (
+             <div className="text-[11px] text-green-700/70 py-1 text-center italic">
+               {/* Drop employees here */}
+             </div>
+           )}
+         </div>
+       </div>
+     );
+   }
 
+   // Regular chip (person or tool)
+   const name = resource.name;
+   const dateKey = weekDays[span.startIdx].key;
+   const globalCount = resourceSOCountByDate[dateKey]?.[name];
+   const showCount = globalCount > 1 ? globalCount : null;
 
-      // Person, tool, or machine chip
-      const resource = span.item;
-      const isPerson = resource.type === "person";
-      const isMachine = resource.type === "machine";
+   return (
+     <div
+       key={`span-chip-${resource.type}-${resource.name}-${idx}`}
+       className={chipCls(resource.type)}
+       style={{
+         gridColumnStart: span.startIdx + 1,
+         gridColumnEnd: span.endIdx + 2,
+         position: "relative",
+         zIndex: 2,
+         marginTop: 2,
+         marginBottom: 2,
+       }}
+       draggable
+       onDragStart={(e) => {
+         e.dataTransfer.setData("text/plain", resource.name);
+         e.dataTransfer.setData("application/x-item-type", resource.type);
+         onDragStart(resource.name, cellKeyFirst, resource.type);
+       }}
+       title={resource.note || ""}
+     >
+       {renderResizeHandles(soId, resource.name, resource.type)}
+       <div className="font-medium flex justify-center items-center gap-2 w-full">
+         {showCount && (
+           <span className="text-[10px] bg-blue-200 text-blue-900 font-semibold px-1.5 py-0.5 rounded-full">
+             {showCount}
+           </span>
+         )}
+         <span className="mx-auto">{resource.name}</span>
+         {resource.note && (
+           <File className="ml-1 inline-block text-blue-500" size={16} />
+         )}
+       </div>
+     </div>
+   );
+ }
 
-      // Machine chip: renders children grid inside itself
-      if (isMachine) {
-        const machineCount =
-          resourceSOCountByDate[weekDates[span.startIdx].key]?.[resource.name];
-        return (
-          <div
-            key={`span-chip-machine-${resource.name}-${idx}`}
-            className={machineContainerCls()}
-            style={{
-              gridColumnStart: span.startIdx + 1,
-              gridColumnEnd: span.endIdx + 2,
-              position: "relative",
-              zIndex: 2,
-              marginTop: 2,
-              marginBottom: 2,
-            }}
-          >
-            {renderResizeHandles(soId, resource.name, "machine")}
-            <div
-              className="px-2 py-1.5 pr-7 text-xs font-medium text-green-900 cursor-move select-none flex items-center"
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData("text/plain", resource.name);
-                e.dataTransfer.setData("application/x-item-type", "machine");
-                onDragStart(resource.name, cellKeyFirst, "machine", {
-                  childrenSnapshot: resource.children
-                    ? [...resource.children]
-                    : [],
-                });
-              }}
-              title={resource.note || ""}
-            >
-              {machineCount > 1 && (
-                <span className="text-[10px] bg-blue-200 text-blue-900 font-semibold px-1.5 py-0.5 rounded-full mr-2">
-                  {machineCount}
-                </span>
-              )}
-              {resource.name}
-            </div>
-            <button
-              type="button"
-              aria-label="Machine info"
-              draggable={false}
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onMachineInfo?.(cellKeyFirst, resource.name);
-              }}
-              className="absolute top-1.5 right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-green-700"
-              title="Machine details"
-            >
-              <Info className="h-3.5 w-3.5" />
-            </button>
-            {/* Children grid: pass parentStartIdx for local positioning */}
-            <div
-              className="px-2 pb-2 pt-1 min-h-[40px] border-dashed border-2 border-transparent hover:border-green-300 transition-colors duration-200 grid relative"
-              style={{
-                gridTemplateColumns: `repeat(${
-                  span.endIdx - span.startIdx + 1
-                }, minmax(${CELL_MIN_WIDTH}px, 1fr))`,
-              }}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                e.dataTransfer.dropEffect = "move";
-              }}
-              onDrop={(e) =>
-                handleDropToMachine(e, cellKeyFirst, resource.name)
-              }
-            >
-              {chipsToRender
-                .filter(
-                  (childSpan) =>
-                    childSpan.isMachineChild &&
-                    childSpan.machineName === resource.name &&
-                    childSpan.startIdx >= span.startIdx &&
-                    childSpan.endIdx <= span.endIdx
-                )
-                .map((childSpan, cidx) =>
-                  renderChip(
-                    childSpan,
-                    cidx,
-                    `${soId}-${weekDates[childSpan.startIdx].key}`,
-                    span.startIdx // Pass parent machine's startIdx!
-                  )
-                )}
-              {(resource.children || []).length === 0 && (
-                <div className="text-[11px] text-green-700/70 py-1 text-center italic">
-                  {/* Drop employees here */}
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      }
-
-      // Regular chip (person or tool)
-      return (
-        <div
-          key={`span-chip-${resource.type}-${resource.name}-${idx}`}
-          className={chipCls(resource.type)}
-          style={{
-            gridColumnStart: span.startIdx + 1,
-            gridColumnEnd: span.endIdx + 2,
-            position: "relative",
-            zIndex: 2,
-            marginTop: 2,
-            marginBottom: 2,
-          }}
-          draggable
-          onDragStart={(e) => {
-            e.dataTransfer.setData("text/plain", resource.name);
-            e.dataTransfer.setData("application/x-item-type", resource.type);
-            onDragStart(resource.name, cellKeyFirst, resource.type);
-          }}
-          title={resource.note || ""}
-        >
-          {/* Resize handles only on the main chip (not machine children) */}
-          {renderResizeHandles(soId, resource.name, resource.type)}
-          <div className="font-medium flex justify-center items-center gap-2 w-full">
-            {/* Count badge only for person, now on the left */}
-            {isPerson &&
-              resourceSOCountByDate[weekDates[span.startIdx].key]?.[
-                resource.name
-              ] > 1 && (
-                <span className="text-[10px] bg-blue-200 text-blue-900 font-semibold px-1.5 py-0.5 rounded-full">
-                  {
-                    resourceSOCountByDate[weekDates[span.startIdx].key][
-                      resource.name
-                    ]
-                  }
-                </span>
-              )}
-
-            {/* Name centered */}
-            <span className="mx-auto">{resource.name}</span>
-
-            {/* Note icon (kept right, optional) */}
-            {resource.note && (
-              <File className="ml-1 inline-block text-blue-500" size={16} />
-            )}
-          </div>
-        </div>
-      );
-    }
 
     // To overlay chips on grid, use CSS grid and render chips as direct children with gridColumnStart/End
     return (

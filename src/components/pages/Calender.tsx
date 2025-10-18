@@ -595,20 +595,24 @@ const Calender: React.FC = () => {
       let anchorIso = timelineDays[0].key; // fallback to first visible day
 
       // If dropped on the background, use the first day
-      if (target.id === "area") {
-        anchorIso = timelineDays[0].key;
-      } else {
-        // Parse the cell key to get the ISO date
-        const m = target.id.match(
-          /^(?:.+?)(?:-week(\d+))?-(mon|tue|wed|thu|fri|sat|sun)$/
-        );
-        if (m) {
-          const weekIdx = m[1] ? parseInt(m[1], 10) : 0; // week2 => 2
-          const dayIdx = dayOrder.indexOf(m[2] as (typeof dayOrder)[number]);
-          const globalIdx = weekIdx * 7 + dayIdx;
-          if (timelineDays[globalIdx]) anchorIso = timelineDays[globalIdx].key;
-        }
-      }
+     if (target.id === "area") {
+       anchorIso = timelineDays[0].key;
+     } else if (/^\d{4}-\d{2}-\d{2}$/.test(target.id)) {
+       // target.id is already an ISO date string
+       anchorIso = target.id;
+     } else {
+       // Parse the cell key to get the ISO date
+       const m = target.id.match(
+         /^(?:.+?)(?:-week(\d+))?-(mon|tue|wed|thu|fri|sat|sun)$/
+       );
+       if (m) {
+         const weekIdx = m[1] ? parseInt(m[1], 10) : 0;
+         const dayIdx = dayOrder.indexOf(m[2] as (typeof dayOrder)[number]);
+         const globalIdx = weekIdx * 7 + dayIdx;
+         if (timelineDays[globalIdx]) anchorIso = timelineDays[globalIdx].key;
+       }
+     }
+
 
       // Avoid duplicate contract if already added
       setScheduledContracts((prev) =>
@@ -887,18 +891,21 @@ const Calender: React.FC = () => {
     setDragged(null);
   };
 
-  // const handleAreaDrop = React.useCallback(
-  //   (anchorIso: string) => {
-  //     if (dragged && "contractId" in dragged) {
-  //       setPendingTarget({ kind: "contract-area", anchorIso });
-  //       setPendingDragged(dragged);
-  //       setShowRangeModal(true);
-  //       return;
-  //     }
-  //     moveTo({ zone: "contract", id: anchorIso });
-  //   },
-  //   [moveTo, dragged]
-  // );
+const handleAreaDrop = React.useCallback(
+  (anchorIso: string) => {
+    /* 1️⃣ contract rows → show range modal */
+    if (dragged && "contractId" in dragged) {
+      setPendingTarget({ kind: "contract-area", anchorIso });
+      setPendingDragged(dragged);
+      setShowRangeModal(true);
+      return;
+    }
+    /* 2️⃣ everything else → immediate move */
+    moveTo({ zone: "contract", id: anchorIso });
+  },
+  [dragged] // <- deps
+);
+
 
   const isDraggingContract = !!(dragged && "contractId" in dragged);
 
@@ -1439,19 +1446,22 @@ const Calender: React.FC = () => {
         while (currentDate <= end) {
           const isoDate = fmt(currentDate);
           const cellKey = `${so.id}-${isoDate}`;
-          if (!next[cellKey]) next[cellKey] = [];
-          // Also persist to Firestore
-          if (uid) {
-            const scheduleRef = doc(
-              db,
-              "companies",
-              uid,
-              "contracts",
-              contractId,
-              "schedule",
-              cellKey
-            );
-            setDoc(scheduleRef, { items: [] }).catch(() => {});
+          // Only add a new cell if it doesn't already exist (don't overwrite)
+          if (!(cellKey in next)) {
+            next[cellKey] = [];
+            // Also persist to Firestore only if creating a new cell
+            if (uid) {
+              const scheduleRef = doc(
+                db,
+                "companies",
+                uid,
+                "contracts",
+                contractId,
+                "schedule",
+                cellKey
+              );
+              setDoc(scheduleRef, { items: [] }).catch(() => {});
+            }
           }
           currentDate.setDate(currentDate.getDate() + 1);
         }
@@ -1459,6 +1469,7 @@ const Calender: React.FC = () => {
       return next;
     });
   };
+
 
 function getAllDateIsosInRange(startISO: string, endISO: string) {
   const arr = [];
@@ -1704,7 +1715,7 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
         onTimeOffItemDragStart={onTimeOffItemDragStart}
         onTimeOffDrop={onTimeOffDrop}
         setSidebarSearch={setSidebarSearch}
-        // onAreaDrop={handleAreaDrop}
+        onAreaDrop={handleAreaDrop}
         isDraggingContract={isDraggingContract}
         activeContractId={activeContractId}
         activeContractTitle={activeContractTitle || undefined}

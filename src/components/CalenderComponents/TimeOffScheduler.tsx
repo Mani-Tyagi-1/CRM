@@ -183,7 +183,7 @@ const TimeOffScheduler: React.FC<Props> = ({
     itemName: string,
     itemType: ItemType
   ) {
-    console.log("renderResizeHandles", section, itemName, itemType);
+    // console.log("renderResizeHandles", section, itemName, itemType);
     return (
       <>
         <div
@@ -227,7 +227,7 @@ const TimeOffScheduler: React.FC<Props> = ({
     e.preventDefault();
     onDrop(targetKey); // local state update
 
-    console.log("In the handleDropHere function")
+    // console.log("In the handleDropHere function")
 
     // Get the resource details (you may need to adapt this depending on how your drag works)
     const draggedName = e.dataTransfer.getData("text/plain");
@@ -373,7 +373,7 @@ const TimeOffScheduler: React.FC<Props> = ({
 
     // Extract date from targetKey
     let dropDate = "";
-    console.log(dropDate);
+    // console.log(dropDate);
     const m = targetKey.match(/^service-(\d{4}-\d{2}-\d{2})$/);
     if (m) {
       dropDate = m[1];

@@ -58,7 +58,7 @@ type Props = {
     type: TimeOffItemType
   ) => void;
   onTimeOffDrop: (targetKey: string) => void;
-  // onAreaDrop: (anchorIso: string) => void;
+  onAreaDrop: (anchorIso: string) => void;
   isDraggingContract: boolean;
 
   // *** NEW: the contract currently being scheduled ***
@@ -73,7 +73,7 @@ const CalendarMainContent: React.FC<Props> = ({
   timelineDays,
   headerLabel,
   scrollRef,
-  // onAreaDrop,
+  onAreaDrop,
   isDraggingContract,
   setHeaderLabel,
   setStartOffsetDays,
@@ -212,19 +212,21 @@ const CalendarMainContent: React.FC<Props> = ({
     e.dataTransfer.dropEffect = "move";
   };
 
-  // const handleAreaDrop = (e: React.DragEvent<HTMLDivElement>) => {
-  //   e.preventDefault();
-  //   const x = e.clientX;
-  //   let anchorIso = timelineDays[0].key;
-  //   dayRefs.current.forEach((el, idx) => {
-  //     if (!el) return;
-  //     const r = el.getBoundingClientRect();
-  //     if (x >= r.left && x <= r.right) anchorIso = timelineDays[idx+1].key;
-  //   });
-  //   onAreaDrop(anchorIso);
+  const handleAreaDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
 
-  //   // console.log("handleAreaDrop", anchorIso);
-  // };
+    /* figure out which column (day) we landed on */
+    let anchorIso = timelineDays[0].key;
+    const x = e.clientX;
+    dayRefs.current.forEach((el, idx) => {
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      if (x >= r.left && x <= r.right) anchorIso = timelineDays[idx].key;
+    });
+
+    /* bubble up to Calendar */
+    onAreaDrop?.(anchorIso);
+  };
 
   // ---------- UI -----------
   return (
@@ -234,7 +236,7 @@ const CalendarMainContent: React.FC<Props> = ({
         isDraggingContract ? "bg-blue-50" : "bg-gray-100"
       }`}
       onDragOver={handleAreaDragOver}
-      // onDrop={handleAreaDrop}
+      onDrop={handleAreaDrop}
     >
       <div className="min-w-max">
         {/* ---------- HEADER BAR ---------- */}
