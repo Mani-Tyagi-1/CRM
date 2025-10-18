@@ -22,7 +22,7 @@ type WeekDay = { day: string; key: string };
 
 interface Props {
   weekDays: WeekDay[];
-  scrollRef: React.RefObject<HTMLDivElement>;
+  scrollRef: React.RefObject<HTMLDivElement> ;
   data: CalendarData;
   onDragStart: DragStartFn;
   onDrop: DropFn;
@@ -61,6 +61,46 @@ export function getAllUnavailableResourceNames(data: CalendarData): string[] {
   return Array.from(names);
 }
 
+/**
+ * Collapse consecutive cells that contain the *same* resource into
+ * one “span” object we can render as a single chip.
+ */
+type ResourceSpan = {
+  item: CalendarItem;
+  startIdx: number;
+  endIdx: number;
+};
+
+function findSpans(
+  itemsPerDay: CalendarItem[][],
+  weekDays: WeekDay[]
+): ResourceSpan[] {
+  const spans: ResourceSpan[] = [];
+  const visited: Record<string, boolean> = {};
+
+  for (let dayIdx = 0; dayIdx < weekDays.length; dayIdx++) {
+    (itemsPerDay[dayIdx] ?? []).forEach((it) => {
+      const key = `${it.type}|${it.name}|${dayIdx}`;
+      if (visited[key]) return;
+
+      let end = dayIdx;
+      for (let j = dayIdx + 1; j < weekDays.length; j++) {
+        const next = itemsPerDay[j]?.find(
+          (n) => n.name === it.name && n.type === it.type
+        );
+        if (!next) break;
+        visited[`${it.type}|${it.name}|${j}`] = true;
+        end = j;
+      }
+
+      spans.push({ item: it, startIdx: dayIdx, endIdx: end });
+    });
+  }
+
+  return spans;
+}
+
+
 const TimeOffScheduler: React.FC<Props> = ({
   weekDays,
   scrollRef,
@@ -93,6 +133,13 @@ const TimeOffScheduler: React.FC<Props> = ({
 
   const CELL_MIN_WIDTH = 160; // or whatever your cell width is
 
+  function colsOfChip(chip: HTMLElement) {
+    const start = Number(chip.style.gridColumnStart || 0);
+    const end = Number(chip.style.gridColumnEnd || 0);
+    return end > start ? end - start : 1;
+  }
+
+
   function startResize(
     e: React.MouseEvent<HTMLDivElement>,
     edge: "left" | "right",
@@ -102,10 +149,17 @@ const TimeOffScheduler: React.FC<Props> = ({
   ) {
     e.preventDefault();
     e.stopPropagation();
+
+    /* 👉 the chip itself */
+    const chipEl = e.currentTarget.parentElement as HTMLElement | null;
+    if (!chipEl) return;
+
+    /* 👉 actual width of *one* column = chip width / columns spanned */
+    const colCount = colsOfChip(chipEl);
+    const cellWidth =
+      chipEl.getBoundingClientRect().width / colCount || CELL_MIN_WIDTH;
+
     const startX = e.clientX;
-    const cellEl =
-      (e.currentTarget.parentElement?.parentElement as HTMLElement) || null;
-    const cellWidth = cellEl ? cellEl.offsetWidth : CELL_MIN_WIDTH;
 
     const onMouseMove = (mv: MouseEvent) => mv.preventDefault();
 
@@ -124,22 +178,22 @@ const TimeOffScheduler: React.FC<Props> = ({
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
   }
-
   function renderResizeHandles(
     section: "vacation" | "sick" | "service",
     itemName: string,
     itemType: ItemType
   ) {
+    console.log("renderResizeHandles", section, itemName, itemType);
     return (
       <>
         <div
-          className="absolute left-0 top-0 h-full w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 z-20"
+          className="absolute left-0 top-0 h-full w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 z-20 pointer-events-auto"
           onMouseDown={(e) =>
             startResize(e, "left", section, itemName, itemType)
           }
         />
         <div
-          className="absolute right-0 top-0 h-full w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 z-20"
+          className="absolute right-0 top-0 h-full w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 z-20 pointer-events-auto"
           onMouseDown={(e) =>
             startResize(e, "right", section, itemName, itemType)
           }
@@ -396,118 +450,83 @@ async function handleRemoveTimeOffResource(cellKeyL: any, item: any) {
     ) => void;
   }) => (
     <div className="w-full">
+      <div className="py-1.5 pr-2">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="text-[13px] font-medium text-gray-800 inline-flex items-center gap-1"
+          aria-label={`Toggle ${label}`}
+        >
+          {label}
+          {isCollapsed ? (
+            <ChevronUp className="h-4 w-4 text-gray-500" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-gray-500" />
+          )}
+        </button>
+      </div>
+
       <div
-        className="flex flex-col items-start gap-x-2"
+        className="relative grid"
         style={{
-          gridTemplateColumns: `120px repeat(${weekDays.length}, minmax(120px, 1fr))`,
+          gridTemplateColumns: `repeat(${weekDays.length},
+          minmax(${CELL_MIN_WIDTH}px,1fr))`,
+          minHeight: 90, // space for chips
         }}
       >
-        <div className="py-1.5 pr-2">
-          <button
-            type="button"
-            onClick={onToggle}
-            className="text-[13px] font-medium text-gray-800 inline-flex items-center gap-1"
-            aria-label={`Toggle ${label}`}
-          >
-            {label}
-            {isCollapsed ? (
-              <ChevronUp className="h-4 w-4 text-gray-500" />
-            ) : (
-              <ChevronDown className="h-4 w-4 text-gray-500" />
-            )}
-          </button>
-        </div>
-
-        <div className="flex gap-1">
-
-        {weekDays.map(({ key }, weekIdx) => {
+        {weekDays.map(({ key }, idx) => {
           const cellKey = `${rowKeyPrefix}-${key}`;
           return (
             <div
               key={cellKey}
-              className="px-2 py-2 w-40 min-h-24"
+              className="border border-transparent hover:border-dashed
+                       hover:border-gray-300 hover:bg-gray-25 p-2"
               onDragOver={handleDragOver}
-              onDrop={
-                customDropHandler
-                  ? (e) => customDropHandler(e, cellKey)
-                  : (e) => handleDropHere(e, cellKey)
-              }
-            >
-              {!isCollapsed && (
-                <div className="flex flex-wrap gap-2">
-                  {data[cellKey]?.map((item, idx) => {
-                    // Compute joinsLeft and joinsRight for this item
-                    const prevCellKey =
-                      weekIdx > 0
-                        ? `${rowKeyPrefix}-${weekDays[weekIdx - 1].key}`
-                        : "";
-                    const nextCellKey =
-                      weekIdx < weekDays.length - 1
-                        ? `${rowKeyPrefix}-${weekDays[weekIdx + 1].key}`
-                        : "";
-
-                    const joinsLeft = itemExists(
-                      data[prevCellKey],
-                      item.name,
-                      item.type
-                    );
-                    const joinsRight = itemExists(
-                      data[nextCellKey],
-                      item.name,
-                      item.type
-                    );
-
-                    return (
-                      <div
-                        key={`${cellKey}-${item.type}-${item.name}-timeoff-${idx}-${weekIdx}`}
-                        draggable
-                        style={
-                          { WebkitUserDrag: "element" } as React.CSSProperties
-                        }
-                        onDragStart={(e) =>
-                          handleItemDragStart(e, item.name, cellKey, item.type)
-                        }
-                        className={[
-                          "relative flex items-center gap-1 px-2 py-2 w-full justify-center rounded-lg text-xs font-medium select-none cursor-grab active:cursor-grabbing group",
-                          "shadow-[0_1px_0_rgba(0,0,0,0.03)] ",
-                          item.type === "person"
-                            ? "bg-sky-100 text-sky-700 ring-sky-200"
-                            : item.type === "machine"
-                            ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
-                            : "bg-amber-50 text-amber-800 ring-amber-200",
-                          joinsLeft ? "-ml-5 border-l-0 rounded-l-none" : "",
-                          joinsRight ? "rounded-r-none" : "",
-                        ].join(" ")}
-                        title={item.note || ""}
-                      >
-                        {renderResizeHandles(
-                          rowKeyPrefix,
-                          item.name,
-                          item.type
-                        )}
-                        <span>{item.name}</span>
-                        {!joinsRight && (
-                            <button
-                              type="button"
-                              className="absolute -right-2 -top-1 p-[1px] rounded-full text-red-500 bg-white/80 hover:bg-red-100 transition"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemoveTimeOffResource(cellKey, item);
-                              }}
-                              title="Remove"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+              onDrop={(e) => (customDropHandler ?? handleDropHere)(e, cellKey)}
+            />
           );
         })}
-        </div>
+
+        {/* ── 2. Overlay chips that span ── */}
+        {(() => {
+          /* gather one array per day, then find spans */
+          const perDay = weekDays.map(
+            ({ key }) => data[`${rowKeyPrefix}-${key}`] ?? []
+          );
+          return findSpans(perDay, weekDays).map((span, i) => {
+            const { item, startIdx, endIdx } = span;
+            const cellKeyFirst = `${rowKeyPrefix}-${weekDays[startIdx].key}`;
+
+            return (
+              <div
+                key={`${rowKeyPrefix}-${item.type}-${item.name}-${i}`}
+                className={[
+                  "group relative cursor-grab active:cursor-grabbing text-xs",
+                  item.type === "person"
+                    ? "bg-sky-100 text-sky-700"
+                    : item.type === "machine"
+                    ? "bg-emerald-50 text-emerald-800"
+                    : "bg-amber-50 text-amber-800",
+                  "rounded-md px-2 py-2 flex items-center justify-center",
+                ].join(" ")}
+                style={{
+                  gridColumnStart: startIdx + 1,
+                  gridColumnEnd: endIdx + 2,
+                  zIndex: 2,
+                  margin: 2,
+                }}
+                draggable
+                onDragStart={(e) =>
+                  handleItemDragStart(e, item.name, cellKeyFirst, item.type)
+                }
+              >
+                {/* resize handles */}
+                {renderResizeHandles(rowKeyPrefix, item.name, item.type)}
+                <span className="font-medium">{item.name}</span>
+              </div>
+            );
+          });
+        })()}
       </div>
     </div>
   );

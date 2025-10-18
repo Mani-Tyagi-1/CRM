@@ -708,6 +708,8 @@ const Calender: React.FC = () => {
       name: draggedItem.name,
       type: draggedItem.type,
       color: contractColorFor(draggedItem.type),
+      startDate: undefined,
+      endDate: undefined
     };
 
     
@@ -950,7 +952,7 @@ const Calender: React.FC = () => {
 
     // Which end are we resizing?
     if (edge === "left") {
-      const newStartIdx = startIdx - dayDelta;
+      // const newStartIdx = startIdx - dayDelta;
       // Expanding left
       if (dayDelta > 0) {
         for (let i = 1; i <= dayDelta; i++) {
@@ -1017,7 +1019,7 @@ const Calender: React.FC = () => {
         }
       }
     } else if (edge === "right") {
-      const newEndIdx = endIdx + dayDelta;
+      // const newEndIdx = endIdx + dayDelta;
       // Expanding right
       if (dayDelta > 0) {
         for (let i = 1; i <= dayDelta; i++) {
@@ -1544,6 +1546,8 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
         name: pendingDragged.name,
         type: pendingDragged.type,
         color: contractColorFor(pendingDragged.type),
+        endDate: undefined,
+        startDate: undefined
       };
 
       setContractData((prev) => {
@@ -1597,6 +1601,8 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
         name: pendingDragged.name,
         type: pendingDragged.type,
         color: contractColorFor(pendingDragged.type),
+        endDate: undefined,
+        startDate: undefined
       };
 
       timelineDays.forEach(({ key }) => {
