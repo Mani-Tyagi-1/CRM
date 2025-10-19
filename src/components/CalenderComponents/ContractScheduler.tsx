@@ -252,8 +252,8 @@ const ContractScheduler: React.FC<Props> = ({
 
   const weekDays: WeekDay[] = getScheduledDays();
 
-  console.log("these are the week days ", weekDays);
-  console.log("this is the timeline", timelineDays);
+  // console.log("these are the week days ", weekDays);
+  // console.log("this is the timeline", timelineDays);
 
 
   /* ---------- Resize logic (unchanged) ---------- */

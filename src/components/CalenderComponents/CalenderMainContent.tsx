@@ -140,10 +140,7 @@ const shiftedTimelineDays = timelineDays.map((d) => ({
 
   // ====== SO LIST STATE ======
   const [soList, setSOList] = React.useState<SOItem[]>([]);
-  const [uid, setUid] = React.useState<string | null>(null);
-
-  // console.log("Scheduled Start ISO", scheduledStartISO);
-  // console.log("Scheduled End ISO", scheduledEndISO);
+  const [uid, setUid] = React.useState<string | null>(null);;
 
   // Get uid (if using Firebase Auth)
   React.useEffect(() => {
@@ -270,7 +267,6 @@ const shiftedTimelineDays = timelineDays.map((d) => ({
     onAreaDrop?.(anchorIso);
   };
 
-  console.log("Contract sata", contractData);
 
   // ---------- UI -----------
   return (

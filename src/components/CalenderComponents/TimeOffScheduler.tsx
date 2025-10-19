@@ -2,7 +2,7 @@ import React from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import {
   addResourceToTimeoffCell,
-  removeResourceFromTimeoffCell,
+  // removeResourceFromTimeoffCell,
 } from "../../services/timeoffschedular";
 import { db } from "../../lib/firebase";
 
@@ -108,7 +108,7 @@ const TimeOffScheduler: React.FC<Props> = ({
   onDragStart,
   onDrop,
   uid,
-  onRemoveResource,
+  // onRemoveResource,
   onResize,
 }) => {
   const [collapsed, setCollapsed] = React.useState({
@@ -203,9 +203,9 @@ const TimeOffScheduler: React.FC<Props> = ({
   }
 
 
-  const unavailableCount = React.useMemo(() => {
-    return getAllUnavailableResourceNames(data).length;
-  }, [data]);
+  // const unavailableCount = React.useMemo(() => {
+  //   return getAllUnavailableResourceNames(data).length;
+  // }, [data]);
 
   // Show error message for 2 seconds
   React.useEffect(() => {
@@ -419,17 +419,17 @@ const TimeOffScheduler: React.FC<Props> = ({
     onDragStart(itemName, sourceKey, itemType);
   };
 
-async function handleRemoveTimeOffResource(cellKeyL: any, item: any) {
-  onRemoveResource(cellKeyL, item);
+// async function handleRemoveTimeOffResource(cellKeyL: any, item: any) {
+//   onRemoveResource(cellKeyL, item);
 
-  if (!uid) return;
-  try {
-    console.log("Removing from Firebase:", cellKeyL, item);
-    await removeResourceFromTimeoffCell(db, uid, cellKeyL, item);
-  } catch (err) {
-    console.error("Failed to remove resource from Firebase:", err);
-  }
-}
+//   if (!uid) return;
+//   try {
+//     console.log("Removing from Firebase:", cellKeyL, item);
+//     await removeResourceFromTimeoffCell(db, uid, cellKeyL, item);
+//   } catch (err) {
+//     console.error("Failed to remove resource from Firebase:", err);
+//   }
+// }
 
 
   // ---- Row: accepts an optional customDropHandler for Service ----
@@ -474,7 +474,7 @@ async function handleRemoveTimeOffResource(cellKeyL: any, item: any) {
           minHeight: 90, // space for chips
         }}
       >
-        {weekDays.map(({ key }, idx) => {
+        {weekDays.map(({ key }) => {
           const cellKey = `${rowKeyPrefix}-${key}`;
           return (
             <div

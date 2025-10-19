@@ -1696,8 +1696,6 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
     setRangeEnd("");
   };
 
-  console.log("Contract sata in calendet file", contractData);
-
 
   /* ---------- MAIN JSX ---------- */
   return (
