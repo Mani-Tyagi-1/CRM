@@ -450,83 +450,88 @@ const TimeOffScheduler: React.FC<Props> = ({
     ) => void;
   }) => (
     <div className="w-full">
-      <div className="py-1.5 pr-2">
-        <button
-          type="button"
-          onClick={onToggle}
-          className="text-[13px] font-medium text-gray-800 inline-flex items-center gap-1"
-          aria-label={`Toggle ${label}`}
-        >
-          {label}
-          {isCollapsed ? (
-            <ChevronUp className="h-4 w-4 text-gray-500" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-gray-500" />
-          )}
-        </button>
-      </div>
+      <div className="flex ">
+        <div className="w-32 shrink-0 h-8 sticky left-4 z-50 bg-rose-50 flex items-start py-2">
+          <button
+            type="button"
+            onClick={onToggle}
+            className="text-[13px] font-medium text-gray-800 inline-flex items-center gap-1"
+          >
+            {label}
+            {isCollapsed ? (
+              <ChevronUp className="h-4 w-4 text-gray-500 cursor-pointer" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-gray-500 cursor-pointer" />
+            )}
+          </button>
+        </div>
 
-      <div
-        className="relative grid"
-        style={{
-          gridTemplateColumns: `repeat(${weekDays.length},
+        <div
+          className={`relative grid flex-1 transition-all duration-300 ${
+            isCollapsed ? "hidden" : ""
+          }`}
+          style={{
+            gridTemplateColumns: `repeat(${weekDays.length},
           minmax(${CELL_MIN_WIDTH}px,1fr))`,
-          minHeight: 90, // space for chips
-        }}
-      >
-        {weekDays.map(({ key }) => {
-          const cellKey = `${rowKeyPrefix}-${key}`;
-          return (
-            <div
-              key={cellKey}
-              className="border border-transparent hover:border-dashed
-                       hover:border-gray-300 hover:bg-gray-25 p-2"
-              onDragOver={handleDragOver}
-              onDrop={(e) => (customDropHandler ?? handleDropHere)(e, cellKey)}
-            />
-          );
-        })}
-
-        {/* ── 2. Overlay chips that span ── */}
-        {(() => {
-          /* gather one array per day, then find spans */
-          const perDay = weekDays.map(
-            ({ key }) => data[`${rowKeyPrefix}-${key}`] ?? []
-          );
-          return findSpans(perDay, weekDays).map((span, i) => {
-            const { item, startIdx, endIdx } = span;
-            const cellKeyFirst = `${rowKeyPrefix}-${weekDays[startIdx].key}`;
-
+            minHeight: 90, // space for chips
+          }}
+        >
+          {weekDays.map(({ key }) => {
+            const cellKey = `${rowKeyPrefix}-${key}`;
             return (
               <div
-                key={`${rowKeyPrefix}-${item.type}-${item.name}-${i}`}
-                className={[
-                  "group relative cursor-grab active:cursor-grabbing text-xs",
-                  item.type === "person"
-                    ? "bg-sky-100 text-sky-700"
-                    : item.type === "machine"
-                    ? "bg-emerald-50 text-emerald-800"
-                    : "bg-amber-50 text-amber-800",
-                  "rounded-md px-2 py-2 flex items-center justify-center",
-                ].join(" ")}
-                style={{
-                  gridColumnStart: startIdx + 1,
-                  gridColumnEnd: endIdx + 2,
-                  zIndex: 2,
-                  margin: 2,
-                }}
-                draggable
-                onDragStart={(e) =>
-                  handleItemDragStart(e, item.name, cellKeyFirst, item.type)
+                key={cellKey}
+                className="border border-transparent hover:border-dashed
+                       hover:border-gray-300 hover:bg-gray-25 p-2"
+                onDragOver={handleDragOver}
+                onDrop={(e) =>
+                  (customDropHandler ?? handleDropHere)(e, cellKey)
                 }
-              >
-                {/* resize handles */}
-                {renderResizeHandles(rowKeyPrefix, item.name, item.type)}
-                <span className="font-medium">{item.name}</span>
-              </div>
+              />
             );
-          });
-        })()}
+          })}
+
+          {/* ── 2. Overlay chips that span ── */}
+          {(() => {
+            /* gather one array per day, then find spans */
+            const perDay = weekDays.map(
+              ({ key }) => data[`${rowKeyPrefix}-${key}`] ?? []
+            );
+            return findSpans(perDay, weekDays).map((span, i) => {
+              const { item, startIdx, endIdx } = span;
+              const cellKeyFirst = `${rowKeyPrefix}-${weekDays[startIdx].key}`;
+
+              return (
+                <div
+                  key={`${rowKeyPrefix}-${item.type}-${item.name}-${i}`}
+                  className={[
+                    "group relative cursor-grab active:cursor-grabbing text-xs",
+                    item.type === "person"
+                      ? "bg-sky-100 text-sky-700"
+                      : item.type === "machine"
+                      ? "bg-emerald-50 text-emerald-800"
+                      : "bg-amber-50 text-amber-800",
+                    "rounded-md px-2 py-2 flex items-center justify-center",
+                  ].join(" ")}
+                  style={{
+                    gridColumnStart: startIdx + 1,
+                    gridColumnEnd: endIdx + 2,
+                    zIndex: 2,
+                    margin: 2,
+                  }}
+                  draggable
+                  onDragStart={(e) =>
+                    handleItemDragStart(e, item.name, cellKeyFirst, item.type)
+                  }
+                >
+                  {/* resize handles */}
+                  {renderResizeHandles(rowKeyPrefix, item.name, item.type)}
+                  <span className="font-medium">{item.name}</span>
+                </div>
+              );
+            });
+          })()}
+        </div>
       </div>
     </div>
   );
@@ -562,7 +567,7 @@ const TimeOffScheduler: React.FC<Props> = ({
               ref={localScrollRef}
               className="overflow-x-auto scrollbar-hide"
             >
-              <div className="px-3 pb-3 min-w-max">
+              <div className="px-3 pb-0 min-w-max">
                 <div className="rounded-xl bg-rose-50 ring-1 ring-rose-200/60 px-3 py-2">
                   {/* ───────── Rows ───────── */}
                   <Row
