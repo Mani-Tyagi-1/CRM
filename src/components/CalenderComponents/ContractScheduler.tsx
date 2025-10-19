@@ -188,17 +188,8 @@ const ContractScheduler: React.FC<Props> = ({
   scheduledStartISO,
   scheduledEndISO,
 }) => {
-  // console.log("Data of contract", data);
 
-  // console.log("ContractScheduler props:", {
-  //   contractId,
-  //   contractName,
-  //   soList,
-  //   data,
-  //   scheduledStartISO,
-  //   scheduledEndISO,
-  //   timelineDays,
-  // });
+
 
   const resourceSOCountByDate = React.useMemo(() => {
     return getResourceSOCountByDate(soList, data);
@@ -260,6 +251,10 @@ const ContractScheduler: React.FC<Props> = ({
   };
 
   const weekDays: WeekDay[] = getScheduledDays();
+
+  console.log("these are the week days ", weekDays);
+  console.log("this is the timeline", timelineDays);
+
 
   /* ---------- Resize logic (unchanged) ---------- */
   const startResize = (
@@ -385,8 +380,8 @@ const ContractScheduler: React.FC<Props> = ({
     const isCollapsed = !!collapsedRows[soId];
 
     // Find the indices of the scheduled start and end dates in the timelineDays array
-    const startIdx = timelineDays.findIndex((d) => d.key === scheduledStartISO);
-    const endIdx = timelineDays.findIndex((d) => d.key === scheduledEndISO);
+   const startIdx = weekDates.findIndex((d) => d.key === scheduledStartISO);
+   const endIdx = weekDates.findIndex((d) => d.key === scheduledEndISO);
 
     // Gather items for each cell/day in this SO
     const itemsPerDay: CalendarItem[][] = weekDates.map((day) => {
@@ -765,6 +760,8 @@ const ContractScheduler: React.FC<Props> = ({
           },
         ];
 
+   
+  
   const containerWidthPx = weekDays.length * CELL_MIN_WIDTH;
 
   return (
@@ -772,7 +769,7 @@ const ContractScheduler: React.FC<Props> = ({
       className=" mx-auto bg-white border border-gray-200 rounded-lg shadow-sm min-h-[200px]"
       style={{
         width: containerWidthPx,
-        minWidth: 360,
+        minWidth: 0,
       }}
     >
       {/* Show contract name at top from prop */}

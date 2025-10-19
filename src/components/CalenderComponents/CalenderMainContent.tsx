@@ -69,6 +69,8 @@ type Props = {
   scheduledEndISO?: string | null;
 };
 
+
+
 const CalendarMainContent: React.FC<Props> = ({
   timelineDays,
   headerLabel,
@@ -92,9 +94,49 @@ const CalendarMainContent: React.FC<Props> = ({
 }) => {
   const CELL_MIN_WIDTH = 180;
 
+  // Create a shifted version of timelineDays (move each day -2 days back)
+const shiftedTimelineDays = timelineDays.map((d) => ({
+  ...d,
+  key: (() => {
+    // Add 2 days to the date and generate new key
+    const newDate = new Date(d.date);
+    newDate.setDate(newDate.getDate() + 2);
+    return newDate.toISOString().slice(0, 10); // "YYYY-MM-DD"
+  })(),
+  day: (() => {
+    // Adjust the 'day' label if you want, or leave as is
+    const newDate = new Date(d.date);
+    newDate.setDate(newDate.getDate() + 2);
+    // Example: "Mon 21.10."
+    return newDate
+      .toLocaleDateString(undefined, {
+        weekday: "short",
+        day: "numeric",
+        month: "numeric",
+      })
+      .replace("/", ".");
+  })(),
+  date: (() => {
+    const newDate = new Date(d.date);
+    newDate.setDate(newDate.getDate() + 2);
+    return newDate;
+  })(),
+  isToday: (() => {
+    const newDate = new Date(d.date);
+    newDate.setDate(newDate.getDate() + 2);
+    const today = new Date();
+    return (
+      newDate.getFullYear() === today.getFullYear() &&
+      newDate.getMonth() === today.getMonth() &&
+      newDate.getDate() === today.getDate()
+    );
+  })(),
+  
+}));
+
   const rulerRef = React.useRef<HTMLDivElement>(null);
   // const mainScrollRef = React.useRef<HTMLDivElement>(null);
-   const dayRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const dayRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // ====== SO LIST STATE ======
   const [soList, setSOList] = React.useState<SOItem[]>([]);
@@ -228,6 +270,8 @@ const CalendarMainContent: React.FC<Props> = ({
     onAreaDrop?.(anchorIso);
   };
 
+  console.log("Contract sata", contractData);
+
   // ---------- UI -----------
   return (
     <div
@@ -302,7 +346,7 @@ const CalendarMainContent: React.FC<Props> = ({
                 gridTemplateColumns: `repeat(${timelineDays.length}, minmax(${CELL_MIN_WIDTH}px, 1fr))`,
               }}
             >
-              {timelineDays.map((d, i) => (
+              {shiftedTimelineDays.map((d, i) => (
                 <div
                   key={d.key}
                   ref={(el) => {

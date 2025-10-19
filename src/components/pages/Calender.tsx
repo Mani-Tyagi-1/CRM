@@ -212,23 +212,31 @@ const Calender: React.FC = () => {
     return monday;
   }, [startOffsetDays]);
 
-  const timelineDays = React.useMemo(() => {
-    const today = startOfDay(new Date());
-    const half = Math.floor(DAYS_WINDOW / 2);
-    const first = addDays(today, startOffsetDays - half);
-    return Array.from({ length: DAYS_WINDOW }, (_, i) => {
-      const date = addDays(first, i);
-      const weekday = date.toLocaleDateString(undefined, { weekday: "short" });
-      const d = date.getDate();
-      const m = date.getMonth() + 1;
-      return {
-        key: date.toISOString().slice(0, 10), // ISO date string
-        day: `${weekday} ${d}.${m}.`,
-        date,
-        isToday: date.getTime() === today.getTime(),
-      };
-    });
-  }, [startOffsetDays]);
+const toDateKey = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const timelineDays = React.useMemo(() => {
+  const today = startOfDay(new Date());
+  const half = Math.floor(DAYS_WINDOW / 2);
+  const first = addDays(today, startOffsetDays - half);
+  return Array.from({ length: DAYS_WINDOW }, (_, i) => {
+    const date = addDays(first, i);
+    const weekday = date.toLocaleDateString(undefined, { weekday: "short" });
+    const d = date.getDate();
+    const m = date.getMonth() + 1;
+    return {
+      key: toDateKey(date), // <--- FIXED! Always local
+      day: `${weekday} ${d}.${m}.`,
+      date,
+      isToday: date.getTime() === today.getTime(),
+    };
+  });
+}, [startOffsetDays]);
+
 
   const formatRangeHeader = (start: Date) =>
     `${start.toLocaleString(undefined, {
@@ -665,7 +673,7 @@ const Calender: React.FC = () => {
           const currentDate = new Date(startDate);
 
           while (currentDate <= endDate) {
-            const isoDate = currentDate.toISOString().slice(0, 10);
+            const isoDate = toDateKey(currentDate);;
             const cellKey = `${so.id}-${isoDate}`;
             if (!next[cellKey]) next[cellKey] = [];
             currentDate.setDate(currentDate.getDate() + 1);
@@ -1380,7 +1388,7 @@ const handleAreaDrop = React.useCallback(
 
   // ---------- RANGE MODAL HANDLER ---------- //
   // Format a date to YYYY-MM-DD
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const fmt = (d: Date) => toDateKey(d);
 
   // Persist contract and calendar info to Firestore
   const persistContractRange = async (
@@ -1444,7 +1452,7 @@ const handleAreaDrop = React.useCallback(
       sosToProcess.forEach((so) => {
         let currentDate = new Date(start);
         while (currentDate <= end) {
-          const isoDate = fmt(currentDate);
+          const isoDate = toDateKey(currentDate);
           const cellKey = `${so.id}-${isoDate}`;
           // Only add a new cell if it doesn't already exist (don't overwrite)
           if (!(cellKey in next)) {
@@ -1477,12 +1485,14 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
   const end = new Date(endISO);
 
   while (current <= end) {
-    arr.push(current.toISOString().slice(0, 10));
+    arr.push(toDateKey(current));
     current.setDate(current.getDate() + 1);
   }
   return arr;
 }
 
+  
+  
 
   const handleRangeApply = async () => {
     if (!rangeStart || !rangeEnd) return;
@@ -1495,12 +1505,11 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
     const startISO = fmt(start);
     const endISO = fmt(end);
 
-    // console.log("handleRangeApply", startISO, endISO);
-    // console.log("RangeDisplay Text", rangeDisplayText );
-
     setRangeDisplayText(`${startISO} → ${endISO}`);
 
-    // console.log("RangeDisplay after setting  Text", rangeDisplayText);
+    const weekDays = timelineDays.filter(
+      (d) => d.key >= startISO && d.key <= endISO
+    );
 
     // Whole contract row drop with range
     if (
@@ -1563,7 +1572,7 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
 
       setContractData((prev) => {
         const next: ContractData = { ...prev };
-        timelineDays.forEach(({ key }) => {
+        weekDays.forEach(({ key }) => {
           if (key < startISO || key > endISO) return;
           const cellKey = `${soId}-${key}`;
           const current = next[cellKey] || [];
@@ -1670,6 +1679,9 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
     setRangeStart("");
     setRangeEnd("");
   };
+
+  console.log("Contract sata in calendet file", contractData);
+
 
   /* ---------- MAIN JSX ---------- */
   return (

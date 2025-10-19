@@ -131,7 +131,7 @@ const TimeOffScheduler: React.FC<Props> = ({
       return () => gridEl.removeEventListener("scroll", sync);
     }, [scrollRef]);
 
-  const CELL_MIN_WIDTH = 160; // or whatever your cell width is
+  const CELL_MIN_WIDTH = 180; // or whatever your cell width is
 
   function colsOfChip(chip: HTMLElement) {
     const start = Number(chip.style.gridColumnStart || 0);
