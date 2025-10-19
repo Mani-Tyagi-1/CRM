@@ -371,22 +371,6 @@ const TimeOffScheduler: React.FC<Props> = ({
       }
     }
 
-    // Extract date from targetKey
-    let dropDate = "";
-    // console.log(dropDate);
-    const m = targetKey.match(/^service-(\d{4}-\d{2}-\d{2})$/);
-    if (m) {
-      dropDate = m[1];
-    }
-
-    // Print info
-    // console.log(`Dropped resource:`, {
-    //   name: draggedName,
-    //   type: itemType,
-    //   dateFromTargetKey: dropDate,
-    //   resourceStartDate: droppedItem?.startDate,
-    //   fullResource: droppedItem,
-    // });
 
     if (
       itemType !== "machine" &&
@@ -511,7 +495,7 @@ const TimeOffScheduler: React.FC<Props> = ({
                       : item.type === "machine"
                       ? "bg-emerald-50 text-emerald-800"
                       : "bg-amber-50 text-amber-800",
-                    "rounded-md px-2 py-2 flex items-center justify-center",
+                    "rounded-md px-2 py-0 flex items-center justify-center",
                   ].join(" ")}
                   style={{
                     gridColumnStart: startIdx + 1,
@@ -539,7 +523,6 @@ const TimeOffScheduler: React.FC<Props> = ({
   return (
     <>
       <div className={open ? "h-36" : "h-14"} />
-
       {/* ═════ Fixed footer bar ═════ */}
       <div className="fixed left-64 right-0 bottom-0 z-40">
         <div className="border-t border-rose-200 bg-rose-50/90">
