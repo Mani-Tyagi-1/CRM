@@ -100,30 +100,29 @@ const shiftedTimelineDays = timelineDays.map((d) => ({
   key: (() => {
     // Add 2 days to the date and generate new key
     const newDate = new Date(d.date);
-    newDate.setDate(newDate.getDate() + 2);
+    newDate.setDate(newDate.getDate() + 3);
     return newDate.toISOString().slice(0, 10); // "YYYY-MM-DD"
   })(),
   day: (() => {
-    // Adjust the 'day' label if you want, or leave as is
     const newDate = new Date(d.date);
-    newDate.setDate(newDate.getDate() + 2);
-    // Example: "Mon 21.10."
-    return newDate
-      .toLocaleDateString(undefined, {
-        weekday: "short",
-        day: "numeric",
-        month: "numeric",
-      })
-      .replace("/", ".");
+    newDate.setDate(newDate.getDate() + 3);
+
+    const weekday = newDate.toLocaleDateString(undefined, {
+      weekday: "short",
+    });
+    const date = newDate.getDate(); // 1 - 31
+    const month = newDate.getMonth() + 1; // 0-index to 1-index
+
+    return `${weekday} ${date}.${month}.`;
   })(),
   date: (() => {
     const newDate = new Date(d.date);
-    newDate.setDate(newDate.getDate() + 2);
+    newDate.setDate(newDate.getDate() + 3);
     return newDate;
   })(),
   isToday: (() => {
     const newDate = new Date(d.date);
-    newDate.setDate(newDate.getDate() + 2);
+    newDate.setDate(newDate.getDate() + 3);
     const today = new Date();
     return (
       newDate.getFullYear() === today.getFullYear() &&
@@ -131,7 +130,6 @@ const shiftedTimelineDays = timelineDays.map((d) => ({
       newDate.getDate() === today.getDate()
     );
   })(),
-  
 }));
 
   const rulerRef = React.useRef<HTMLDivElement>(null);
