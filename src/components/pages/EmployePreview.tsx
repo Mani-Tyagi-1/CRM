@@ -9,6 +9,7 @@ import {
   getDocs,
   query,
   where,
+  setDoc, // <-- make sure this is imported!
 } from "firebase/firestore";
 import EmployeCalendar from "../ResourceCalender"; // or whatever your calendar component is
 
@@ -68,14 +69,21 @@ const EmployeePreview: React.FC = () => {
   const [employeeInfo, setEmployeeInfo] = useState<EmployeeType | null>(null);
   const [occurrences, setOccurrences] = useState<OccurrenceType[]>([]);
   const [loading, setLoading] = useState(true);
-    const [err, setErr] = useState<string | null>(null);
-    const [subTab, setSubTab] = useState<"occurrence" | "insights">(
-      "occurrence"
-    );
-
+  const [err, setErr] = useState<string | null>(null);
+  const [subTab, setSubTab] = useState<"occurrence" | "insights">("occurrence");
   const [activeTab, setActiveTab] = useState<
     "rightNow" | "info" | "history" | "issues"
   >("info");
+
+  // ----- EDIT STATE -----
+  const [editMode, setEditMode] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editInfo, setEditInfo] = useState<EmployeeType | null>(null);
+
+  // On load, set editInfo as a copy of employeeInfo
+  useEffect(() => {
+    setEditInfo(employeeInfo);
+  }, [employeeInfo]);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
@@ -108,9 +116,7 @@ const EmployeePreview: React.FC = () => {
         );
         const employeeDocSnap = await getDoc(employeeDocRef);
 
-          const data = employeeDocSnap.data();
-          
-          console.log("Data: ", data);
+        const data = employeeDocSnap.data();
 
         if (employeeDocSnap.exists()) {
           const info: EmployeeType = {
@@ -125,17 +131,17 @@ const EmployeePreview: React.FC = () => {
             status: data?.status ?? "",
             alias: data?.alias ?? "",
             birthDate: data?.birthDate ?? "",
-            employeeType: data?.typeOfStay ?? "",
-            hourlyRate: data?.payment?.toString() ?? "0",
+            employeeType: data?.employeeType ?? "",
+            hourlyRate: data?.hourlyRate?.toString() ?? "0",
             currency: data?.currency ?? "Czk",
-            workRelation: data?.workingRelation ?? "",
+            workRelation: data?.workRelation ?? "",
             typeOfStay: data?.typeOfStay ?? "",
-            stayExpiration: data?.stayingTill ?? "",
+            stayExpiration: data?.stayExpiration ?? "",
           };
           setEmployeeInfo(info);
         } else {
           setEmployeeInfo(null);
-          setOccurrences([data?.stayingTill ?? ""]);
+          setOccurrences([]);
           setErr(null);
           setLoading(false);
           return;
@@ -176,13 +182,57 @@ const EmployeePreview: React.FC = () => {
     return () => unsubscribe();
   }, [id, category]);
 
+  // FORMAT FOR CONTRACT DATES
   function formatDate(date: any): string {
+    // Accepts either a string or Firestore Timestamp or Date
     if (!date) return "";
-    if (typeof date === "string") return date;
-    if (date.toDate) return date.toDate().toLocaleDateString();
-    if (date.seconds) return new Date(date.seconds * 1000).toLocaleDateString();
+    if (typeof date === "string")
+      return date.length === 10 ? date : new Date(date).toLocaleDateString();
+    if (date.toDate) {
+      const d = date.toDate();
+      return d.toISOString().slice(0, 10);
+    }
+    if (date.seconds) {
+      return new Date(date.seconds * 1000).toISOString().slice(0, 10);
+    }
     return "";
   }
+
+  // ----- HANDLE SAVE -----
+  const handleSave = async () => {
+    if (!editInfo || !id || !category) return;
+    setSaving(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("No user");
+
+      const employeeDocRef = doc(
+        db,
+        "companies",
+        user.uid,
+        "resources",
+        "employees",
+        category,
+        id
+      );
+
+      // Ensure dates are in YYYY-MM-DD (for "birthDate" and "stayExpiration")
+      const toUpdate: any = {
+        ...editInfo,
+        birthDate: editInfo.birthDate?.slice(0, 10) || "",
+        stayExpiration: editInfo.stayExpiration?.slice(0, 10) || "",
+      };
+
+      await setDoc(employeeDocRef, toUpdate, { merge: true });
+
+      setEmployeeInfo(editInfo); // update local display
+      setEditMode(false);
+    } catch (e: any) {
+      alert("Failed to save. " + (e?.message || ""));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) return <Loader />;
   if (err) return <ErrorMsg msg={err} />;
@@ -198,8 +248,13 @@ const EmployeePreview: React.FC = () => {
             <label className="block text-sm text-black mb-1">Name</label>
             <input
               className="border rounded-lg w-full px-2 py-1 text-sm font-medium"
-              value={employeeInfo!.name as string}
-              readOnly
+              value={editInfo?.name as string}
+              readOnly={!editMode}
+              onChange={(e) =>
+                setEditInfo((prev) =>
+                  prev ? { ...prev, name: e.target.value } : prev
+                )
+              }
             />
           </div>
           {/* Surname */}
@@ -207,8 +262,13 @@ const EmployeePreview: React.FC = () => {
             <label className="block text-sm text-black mb-1">Surname</label>
             <input
               className="border rounded-lg w-full px-2 py-1 text-sm font-medium"
-              value={employeeInfo!.surname as string}
-              readOnly
+              value={editInfo?.surname || ""}
+              readOnly={!editMode}
+              onChange={(e) =>
+                setEditInfo((prev) =>
+                  prev ? { ...prev, surname: e.target.value } : prev
+                )
+              }
             />
           </div>
           {/* Alias */}
@@ -216,8 +276,13 @@ const EmployeePreview: React.FC = () => {
             <label className="block text-sm text-black mb-1">Alias</label>
             <input
               className="border rounded-lg w-full px-2 py-1 text-sm font-medium"
-              value={employeeInfo!.alias as string}
-              readOnly
+              value={editInfo?.alias || ""}
+              readOnly={!editMode}
+              onChange={(e) =>
+                setEditInfo((prev) =>
+                  prev ? { ...prev, alias: e.target.value } : prev
+                )
+              }
             />
           </div>
           {/* Birth date */}
@@ -225,9 +290,17 @@ const EmployeePreview: React.FC = () => {
             <label className="block text-sm text-black mb-1">Birth date</label>
             <div className="flex items-center">
               <input
+                type="date"
                 className="border rounded-lg w-full px-2 py-1 text-sm font-medium"
-                value={employeeInfo!.birthDate as string}
-                readOnly
+                value={
+                  editInfo?.birthDate ? formatDate(editInfo.birthDate) : ""
+                }
+                readOnly={!editMode}
+                onChange={(e) =>
+                  setEditInfo((prev) =>
+                    prev ? { ...prev, birthDate: e.target.value } : prev
+                  )
+                }
               />
               <span className="ml-2">
                 <svg width={20} height={20} fill="none" stroke="black">
@@ -251,8 +324,13 @@ const EmployeePreview: React.FC = () => {
             </label>
             <input
               className="border rounded-lg w-full px-2 py-1 text-sm font-medium bg-white"
-              value={employeeInfo!.employeeType as string}
-              readOnly
+              value={editInfo?.employeeType || ""}
+              readOnly={!editMode}
+              onChange={(e) =>
+                setEditInfo((prev) =>
+                  prev ? { ...prev, employeeType: e.target.value } : prev
+                )
+              }
             />
           </div>
           {/* Hourly rate + Currency */}
@@ -262,17 +340,28 @@ const EmployeePreview: React.FC = () => {
                 Hourly rate
               </label>
               <input
+                type="number"
                 className="border rounded-lg w-full px-2 py-1 text-sm font-medium"
-                value={employeeInfo!.hourlyRate as string}
-                readOnly
+                value={editInfo?.hourlyRate || ""}
+                readOnly={!editMode}
+                onChange={(e) =>
+                  setEditInfo((prev) =>
+                    prev ? { ...prev, hourlyRate: e.target.value } : prev
+                  )
+                }
               />
             </div>
             <div className="w-[80px]">
               <label className="block text-sm text-black mb-1">&nbsp;</label>
               <input
                 className="border rounded-lg w-full px-2 py-1 text-sm font-medium bg-white"
-                value={employeeInfo!.currency as string}
-                readOnly
+                value={editInfo?.currency || ""}
+                readOnly={!editMode}
+                onChange={(e) =>
+                  setEditInfo((prev) =>
+                    prev ? { ...prev, currency: e.target.value } : prev
+                  )
+                }
               />
             </div>
           </div>
@@ -283,8 +372,13 @@ const EmployeePreview: React.FC = () => {
             </label>
             <input
               className="border rounded-lg w-full px-2 py-1 text-sm font-medium bg-white"
-              value={employeeInfo!.workRelation as string}
-              readOnly
+              value={editInfo?.workRelation || ""}
+              readOnly={!editMode}
+              onChange={(e) =>
+                setEditInfo((prev) =>
+                  prev ? { ...prev, workRelation: e.target.value } : prev
+                )
+              }
             />
           </div>
           {/* Type of stay */}
@@ -294,8 +388,13 @@ const EmployeePreview: React.FC = () => {
             </label>
             <input
               className="border rounded-lg w-full px-2 py-1 text-sm font-medium bg-white"
-              value={employeeInfo!.typeOfStay as string}
-              readOnly
+              value={editInfo?.typeOfStay || ""}
+              readOnly={!editMode}
+              onChange={(e) =>
+                setEditInfo((prev) =>
+                  prev ? { ...prev, typeOfStay: e.target.value } : prev
+                )
+              }
             />
           </div>
           {/* Stay expiration */}
@@ -305,9 +404,19 @@ const EmployeePreview: React.FC = () => {
             </label>
             <div className="flex items-center">
               <input
+                type="date"
                 className="border rounded-lg w-full px-2 py-1 text-sm font-bold"
-                value={employeeInfo!.stayExpiration as string}
-                readOnly
+                value={
+                  editInfo?.stayExpiration
+                    ? formatDate(editInfo.stayExpiration)
+                    : ""
+                }
+                readOnly={!editMode}
+                onChange={(e) =>
+                  setEditInfo((prev) =>
+                    prev ? { ...prev, stayExpiration: e.target.value } : prev
+                  )
+                }
               />
               <span className="ml-2">
                 <svg width={20} height={20} fill="none" stroke="black">
@@ -323,6 +432,71 @@ const EmployeePreview: React.FC = () => {
                 </svg>
               </span>
             </div>
+          </div>
+          {/* Email */}
+          <div>
+            <label className="block text-sm text-black mb-1">Email</label>
+            <input
+              type="email"
+              className="border rounded-lg w-full px-2 py-1 text-sm font-medium"
+              value={editInfo?.email || ""}
+              readOnly={!editMode}
+              onChange={(e) =>
+                setEditInfo((prev) =>
+                  prev ? { ...prev, email: e.target.value } : prev
+                )
+              }
+            />
+          </div>
+          {/* Phone */}
+          <div>
+            <label className="block text-sm text-black mb-1">Phone</label>
+            <input
+              type="tel"
+              className="border rounded-lg w-full px-2 py-1 text-sm font-medium"
+              value={editInfo?.phone || ""}
+              readOnly={!editMode}
+              onChange={(e) =>
+                setEditInfo((prev) =>
+                  prev ? { ...prev, phone: e.target.value } : prev
+                )
+              }
+            />
+          </div>
+          {/* Status */}
+          <div>
+            <label className="block text-sm text-black mb-1">Status</label>
+            <input
+              className="border rounded-lg w-full px-2 py-1 text-sm font-medium"
+              value={editInfo?.status || ""}
+              readOnly={!editMode}
+              onChange={(e) =>
+                setEditInfo((prev) =>
+                  prev ? { ...prev, status: e.target.value } : prev
+                )
+              }
+            />
+          </div>
+          {/* Unavailable Until */}
+          <div>
+            <label className="block text-sm text-black mb-1">
+              Unavailable Until
+            </label>
+            <input
+              type="date"
+              className="border rounded-lg w-full px-2 py-1 text-sm font-medium"
+              value={
+                editInfo?.unavailableUntil
+                  ? formatDate(editInfo.unavailableUntil)
+                  : ""
+              }
+              readOnly={!editMode}
+              onChange={(e) =>
+                setEditInfo((prev) =>
+                  prev ? { ...prev, unavailableUntil: e.target.value } : prev
+                )
+              }
+            />
           </div>
         </div>
       );
@@ -381,6 +555,36 @@ const EmployeePreview: React.FC = () => {
             <span className="bg-red-100 text-red-700 text-xs px-3 py-1 rounded-full">
               {employeeInfo.status || "Unavailable"}
             </span>
+            {/* Edit/Save/Cancel Buttons */}
+            {activeTab === "info" && !editMode && (
+              <button
+                className="ml-4 px-3 py-1 bg-blue-600 text-white rounded-lg text-xs font-semibold"
+                onClick={() => setEditMode(true)}
+              >
+                Edit
+              </button>
+            )}
+            {activeTab === "info" && editMode && (
+              <>
+                <button
+                  className="ml-4 px-3 py-1 bg-green-600 text-white rounded-lg text-xs font-semibold"
+                  onClick={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? "Saving..." : "Save"}
+                </button>
+                <button
+                  className="ml-2 px-3 py-1 bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold"
+                  onClick={() => {
+                    setEditMode(false);
+                    setEditInfo(employeeInfo);
+                  }}
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -418,13 +622,13 @@ const EmployeePreview: React.FC = () => {
                   <div className="flex bg-[#F7FAFC] rounded-xl p-1 gap-1 w-fit">
                     <button
                       className={`
-            px-5 py-2 text-base font-medium rounded-lg transition-all
-            ${
-              subTab === "occurrence"
-                ? "bg-white text-[#29364B] shadow"
-                : "bg-transparent text-[#42516D]"
-            }
-          `}
+                        px-5 py-2 text-base font-medium rounded-lg transition-all
+                        ${
+                          subTab === "occurrence"
+                            ? "bg-white text-[#29364B] shadow"
+                            : "bg-transparent text-[#42516D]"
+                        }
+                      `}
                       onClick={() => setSubTab("occurrence")}
                       type="button"
                     >
@@ -432,13 +636,13 @@ const EmployeePreview: React.FC = () => {
                     </button>
                     <button
                       className={`
-            px-5 py-2 text-base font-medium rounded-lg transition-all
-            ${
-              subTab === "insights"
-                ? "bg-white text-[#29364B] shadow"
-                : "bg-transparent text-[#42516D]"
-            }
-          `}
+                        px-5 py-2 text-base font-medium rounded-lg transition-all
+                        ${
+                          subTab === "insights"
+                            ? "bg-white text-[#29364B] shadow"
+                            : "bg-transparent text-[#42516D]"
+                        }
+                      `}
                       onClick={() => setSubTab("insights")}
                       type="button"
                     >

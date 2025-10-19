@@ -1,4 +1,4 @@
-import React, { ReactNode, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ChevronLeft, ExternalLink } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 import { auth, db } from "../../lib/firebase";
@@ -9,6 +9,7 @@ import {
   getDocs,
   query,
   where,
+  setDoc,
 } from "firebase/firestore";
 import MachineCalendar from "../ResourceCalender";
 
@@ -39,7 +40,7 @@ const NotFound = () => (
 );
 
 type MachineType = {
-  name: ReactNode;
+  name: string;
   id: string;
   mechanizationType: string;
   gasConsumption: number | string;
@@ -48,13 +49,11 @@ type MachineType = {
   unavailableUntil?: string;
   status?: string;
   ownershipType?: string;
-  // Any other machine-specific fields
 };
 
 type OccurrenceType = {
   date: string;
   contractName: string;
-  // Any other contract/booking fields
 };
 
 const MachinePreview: React.FC = () => {
@@ -68,6 +67,16 @@ const MachinePreview: React.FC = () => {
     "rightNow" | "info" | "history" | "issues"
   >("info");
   const [subTab, setSubTab] = useState<"occurrence" | "insights">("occurrence");
+
+  // Edit state
+  const [editMode, setEditMode] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editInfo, setEditInfo] = useState<MachineType | null>(null);
+
+  // On load or when machineInfo changes, set editInfo
+  useEffect(() => {
+    setEditInfo(machineInfo);
+  }, [machineInfo]);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
@@ -157,12 +166,62 @@ const MachinePreview: React.FC = () => {
   // Helper to format Firestore Timestamp or string date
   function formatDate(date: any): string {
     if (!date) return "";
-    if (typeof date === "string") return date;
-    // If Timestamp object (from Firestore)
-    if (date.toDate) return date.toDate().toLocaleDateString();
-    if (date.seconds) return new Date(date.seconds * 1000).toLocaleDateString();
+    if (typeof date === "string") {
+      // Convert "YYYY-MM-DD" or ISO string to just "YYYY-MM-DD"
+      return date.length >= 10 ? date.slice(0, 10) : date;
+    }
+    if (date.toDate) return date.toDate().toISOString().slice(0, 10);
+    if (date.seconds)
+      return new Date(date.seconds * 1000).toISOString().slice(0, 10);
     return "";
   }
+
+  // Save handler
+  const handleSave = async () => {
+    if (!editInfo || !id || !category) return;
+    setSaving(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("No user");
+      const machineDocRef = doc(
+        db,
+        "companies",
+        user.uid,
+        "resources",
+        "machines",
+        category,
+        id
+      );
+
+      // Map editInfo fields to Firestore fields
+      const updateData = {
+        name: editInfo.name,
+        category: editInfo.mechanizationType, // map local to Firestore
+        averageConsumption:
+          editInfo.gasConsumption !== "" ? Number(editInfo.gasConsumption) : "",
+        licencePlate: editInfo.licencePlate,
+        mechanizationCategory: editInfo.mechanizationCategory,
+        unavailableUntil: editInfo.unavailableUntil
+          ? formatDate(editInfo.unavailableUntil)
+          : "",
+        status: editInfo.status,
+        ownershipType: editInfo.ownershipType,
+      };
+
+      await setDoc(machineDocRef, updateData, { merge: true });
+
+      setMachineInfo({
+        ...editInfo,
+        gasConsumption: editInfo.gasConsumption,
+      });
+      setEditMode(false);
+    } catch (e: any) {
+      alert("Failed to save. " + (e?.message || ""));
+    } finally {
+      setSaving(false);
+    }
+  };
+
 
   if (loading) return <Loader />;
   if (err) return <ErrorMsg msg={err} />;
@@ -176,23 +235,42 @@ const MachinePreview: React.FC = () => {
           {/* Left Section: Machine info + Occurrence/Insights tabs */}
           <div className="w-1/2 p-8 flex flex-col items-center ">
             {/* Machine Info */}
-            <div className="flex flex-col gap-2 mb-6">
+            <div className="flex flex-col gap-2 mb-6 w-full">
               <div className="flex gap-10">
                 <div>
                   <span className="block text-sm text-gray-500">
                     Mechanization type
                   </span>
-                  <span className="font-medium">
-                    {machineInfo?.mechanizationType || "—"}
-                  </span>
+                  <input
+                    className="font-medium border rounded px-2 py-1 w-40"
+                    value={editInfo?.mechanizationType || ""}
+                    readOnly={!editMode}
+                    onChange={(e) =>
+                      setEditInfo((prev) =>
+                        prev
+                          ? { ...prev, mechanizationType: e.target.value }
+                          : prev
+                      )
+                    }
+                  />
                 </div>
                 <div>
                   <span className="block text-sm text-gray-500">
                     Gas consumption
                   </span>
-                  <span className="font-medium">
-                    {machineInfo?.gasConsumption || "—"}
-                  </span>
+                  <input
+                    className="font-medium border rounded px-2 py-1 w-24"
+                    value={editInfo?.gasConsumption || ""}
+                    readOnly={!editMode}
+                    type="number"
+                    onChange={(e) =>
+                      setEditInfo((prev) =>
+                        prev
+                          ? { ...prev, gasConsumption: e.target.value }
+                          : prev
+                      )
+                    }
+                  />
                 </div>
               </div>
               <div className="flex gap-10">
@@ -200,17 +278,33 @@ const MachinePreview: React.FC = () => {
                   <span className="block text-sm text-gray-500">
                     Licence plate
                   </span>
-                  <span className="font-medium">
-                    {machineInfo?.licencePlate || "—"}
-                  </span>
+                  <input
+                    className="font-medium border rounded px-2 py-1 w-40"
+                    value={editInfo?.licencePlate || ""}
+                    readOnly={!editMode}
+                    onChange={(e) =>
+                      setEditInfo((prev) =>
+                        prev ? { ...prev, licencePlate: e.target.value } : prev
+                      )
+                    }
+                  />
                 </div>
                 <div>
                   <span className="block text-sm text-gray-500">
                     Mechanization category
                   </span>
-                  <span className="font-medium">
-                    {machineInfo?.mechanizationCategory || "—"}
-                  </span>
+                  <input
+                    className="font-medium border rounded px-2 py-1 w-40"
+                    value={editInfo?.mechanizationCategory || ""}
+                    readOnly={!editMode}
+                    onChange={(e) =>
+                      setEditInfo((prev) =>
+                        prev
+                          ? { ...prev, mechanizationCategory: e.target.value }
+                          : prev
+                      )
+                    }
+                  />
                 </div>
               </div>
               <div className="flex gap-10">
@@ -218,9 +312,53 @@ const MachinePreview: React.FC = () => {
                   <span className="block text-sm text-gray-500">
                     Ownership type
                   </span>
-                  <span className="font-medium capitalize">
-                    {machineInfo?.ownershipType || "—"}
+                  <input
+                    className="font-medium border rounded px-2 py-1 w-40"
+                    value={editInfo?.ownershipType || ""}
+                    readOnly={!editMode}
+                    onChange={(e) =>
+                      setEditInfo((prev) =>
+                        prev ? { ...prev, ownershipType: e.target.value } : prev
+                      )
+                    }
+                  />
+                </div>
+                <div>
+                  <span className="block text-sm text-gray-500">Status</span>
+                  <input
+                    className="font-medium border rounded px-2 py-1 w-40"
+                    value={editInfo?.status || ""}
+                    readOnly={!editMode}
+                    onChange={(e) =>
+                      setEditInfo((prev) =>
+                        prev ? { ...prev, status: e.target.value } : prev
+                      )
+                    }
+                  />
+                </div>
+              </div>
+              <div className="flex gap-10">
+                <div>
+                  <span className="block text-sm text-gray-500">
+                    Unavailable Until
                   </span>
+                  <input
+                    type="date"
+                    className="font-medium border rounded px-2 py-1 w-40"
+                    value={
+                      editInfo?.unavailableUntil
+                        ? formatDate(editInfo.unavailableUntil)
+                        : ""
+                    }
+                    readOnly={!editMode}
+                    onChange={(e) =>
+                      setEditInfo((prev) =>
+                        prev
+                          ? { ...prev, unavailableUntil: e.target.value }
+                          : prev
+                      )
+                    }
+                  />
                 </div>
               </div>
             </div>
@@ -343,13 +481,46 @@ const MachinePreview: React.FC = () => {
                 : "Machine"}
             </div>
           </div>
-          <div className="absolute right-6 top-6 flex items-center gap-2">
+
+          <div className=" flex items-center gap-2">
             <span className="text-xs text-gray-500">
               Until {machineInfo.unavailableUntil || "—"}
             </span>
             <span className="bg-red-100 text-red-700 text-xs px-3 py-1 rounded-full">
               {machineInfo.status || "Unavailable"}
             </span>
+            {/* Edit/Save/Cancel Buttons */}
+            <div className="flex justify-end w-full">
+              {!editMode && (
+                <button
+                  className="px-4 py-1 bg-blue-600 text-white rounded-lg text-xs font-semibold"
+                  onClick={() => setEditMode(true)}
+                >
+                  Edit
+                </button>
+              )}
+              {editMode && (
+                <>
+                  <button
+                    className="px-4 py-1 bg-green-600 text-white rounded-lg text-xs font-semibold"
+                    onClick={handleSave}
+                    disabled={saving}
+                  >
+                    {saving ? "Saving..." : "Save"}
+                  </button>
+                  <button
+                    className="ml-2 px-4 py-1 bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold"
+                    onClick={() => {
+                      setEditMode(false);
+                      setEditInfo(machineInfo);
+                    }}
+                    disabled={saving}
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
 

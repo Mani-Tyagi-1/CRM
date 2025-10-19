@@ -1,5 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { ChevronLeft, ExternalLink, Loader2 } from "lucide-react";
+import {
+  ChevronLeft,
+  ExternalLink,
+  Loader2,
+  Pencil,
+  Save,
+  X,
+} from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 import { db, auth } from "../../lib/firebase";
 import {
@@ -9,6 +16,7 @@ import {
   getDocs,
   DocumentData,
   QueryDocumentSnapshot,
+  updateDoc,
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 
@@ -36,6 +44,11 @@ const ContractPreview: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
+  // NEW: Local edit state
+  const [editMode, setEditMode] = useState(false);
+  const [edit, setEdit] = useState<Partial<ContractDoc> | null>(null);
+  const [saving, setSaving] = useState(false);
+
   // Listen for auth state to get UID
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
@@ -54,7 +67,9 @@ const ContractPreview: React.FC = () => {
         const contractRef = doc(db, "companies", uid, "contracts", contractId);
         const contractSnap = await getDoc(contractRef);
         if (!contractSnap.exists()) throw new Error("Contract not found");
-        setContract(contractSnap.data() as ContractDoc);
+        const c = contractSnap.data() as ContractDoc;
+        setContract(c);
+        setEdit(c);
 
         const soCol = collection(
           db,
@@ -80,6 +95,44 @@ const ContractPreview: React.FC = () => {
 
     fetchContract();
   }, [uid, contractId]);
+
+  // Handle input change
+  const handleChange = (field: keyof ContractDoc, value: any) => {
+    setEdit((prev) => ({ ...(prev ?? {}), [field]: value }));
+  };
+
+  // Save changes
+  const handleSave = async () => {
+    if (!uid || !contractId || !edit) return;
+    setSaving(true);
+    try {
+      const contractRef = doc(db, "companies", uid, "contracts", contractId);
+      // Handle Firestore Timestamp for start/end dates (convert back to Date if needed)
+      let toUpdate: any = { ...edit };
+      // Convert startDate/endDate to Date if they are strings
+      // Ensure startDate and endDate are 'YYYY-MM-DD' strings
+      if (typeof toUpdate.startDate === "string") {
+        toUpdate.startDate = toUpdate.startDate.slice(0, 10);
+      }
+      if (typeof toUpdate.endDate === "string") {
+        toUpdate.endDate = toUpdate.endDate.slice(0, 10);
+      }
+      await updateDoc(contractRef, toUpdate);
+
+      setContract(edit as ContractDoc);
+      setEditMode(false);
+      setErr(null);
+    } catch (e: any) {
+      setErr(e.message || "Failed to save contract");
+    }
+    setSaving(false);
+  };
+
+  // Cancel edit
+  const handleCancel = () => {
+    setEdit(contract); // reset changes
+    setEditMode(false);
+  };
 
   if (!uid) {
     return (
@@ -125,10 +178,48 @@ const ContractPreview: React.FC = () => {
         </div>
         {/* Center: Heading */}
         <div className="flex-1 text-center">
-          <h1 className="text-xl font-medium">{contract.name}</h1>
+          {!editMode ? (
+            <h1 className="text-xl font-medium">{contract.name}</h1>
+          ) : (
+            <input
+              className="text-xl font-medium border-b border-gray-300 focus:outline-none"
+              value={edit?.name ?? ""}
+              onChange={(e) => handleChange("name", e.target.value)}
+              disabled={saving}
+            />
+          )}
         </div>
-        {/* Right: Ghost div for centering */}
-        <div className="min-w-[160px]" />
+        {/* Right: Edit/Save */}
+        <div className="min-w-[160px] flex justify-end gap-2">
+          {!editMode ? (
+            <button
+              className="flex items-center gap-1 text-blue-600 hover:underline"
+              onClick={() => setEditMode(true)}
+            >
+              <Pencil className="w-4 h-4" />
+              Edit
+            </button>
+          ) : (
+            <>
+              <button
+                className="flex items-center gap-1 text-green-700 hover:underline"
+                onClick={handleSave}
+                disabled={saving}
+              >
+                <Save className="w-4 h-4" />
+                {saving ? "Saving..." : "Save"}
+              </button>
+              <button
+                className="flex items-center gap-1 text-red-600 hover:underline"
+                onClick={handleCancel}
+                disabled={saving}
+              >
+                <X className="w-4 h-4" />
+                Cancel
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="rounded-lg w-full max-w-3xl">
@@ -137,37 +228,88 @@ const ContractPreview: React.FC = () => {
           <div className="flex gap-24 mb-8">
             <div>
               <div className="text-sm text-gray-500 mb-1">Offer number</div>
-              <div className="font-medium">{contract.agreementId || "—"}</div>
+              {!editMode ? (
+                <div className="font-medium">{contract.agreementId || "—"}</div>
+              ) : (
+                <input
+                  className="border rounded px-2 py-1"
+                  value={edit?.agreementId ?? ""}
+                  onChange={(e) => handleChange("agreementId", e.target.value)}
+                  disabled={saving}
+                />
+              )}
             </div>
             <div>
               <div className="text-sm text-gray-500 mb-1">Type of work</div>
-              <div className="font-medium">{contract.workType}</div>
+              {!editMode ? (
+                <div className="font-medium">{contract.workType}</div>
+              ) : (
+                <input
+                  className="border rounded px-2 py-1"
+                  value={edit?.workType ?? ""}
+                  onChange={(e) => handleChange("workType", e.target.value)}
+                  disabled={saving}
+                />
+              )}
             </div>
           </div>
           <div className="flex gap-24 mb-8">
             <div>
               <div className="text-sm text-gray-500 mb-1">Contract number</div>
-              <div className="font-medium">{contract.contractId || "—"}</div>
+              {!editMode ? (
+                <div className="font-medium">{contract.contractId || "—"}</div>
+              ) : (
+                <input
+                  className="border rounded px-2 py-1"
+                  value={edit?.contractId ?? ""}
+                  onChange={(e) => handleChange("contractId", e.target.value)}
+                  disabled={saving}
+                />
+              )}
             </div>
             <div>
               <div className="text-sm text-gray-500 mb-1">Start date</div>
-              <div className="font-medium">
-                {contract.startDate
-                  ? new Date(
-                      contract.startDate.seconds * 1000
-                    ).toLocaleDateString()
-                  : "—"}
-              </div>
+              {!editMode ? (
+                <div className="font-medium">
+                  {contract.startDate
+                    ? new Date(
+                        contract.startDate.seconds
+                          ? contract.startDate.seconds * 1000
+                          : contract.startDate
+                      ).toLocaleDateString()
+                    : "—"}
+                </div>
+              ) : (
+                <input
+                  type="date"
+                  className="border rounded px-2 py-1"
+                  value={edit?.startDate || ""}
+                  onChange={(e) => handleChange("startDate", e.target.value)}
+                  disabled={saving}
+                />
+              )}
             </div>
             <div>
               <div className="text-sm text-gray-500 mb-1">End date</div>
-              <div className="font-medium">
-                {contract.endDate
-                  ? new Date(
-                      contract.endDate.seconds * 1000
-                    ).toLocaleDateString()
-                  : "—"}
-              </div>
+              {!editMode ? (
+                <div className="font-medium">
+                  {contract.endDate
+                    ? new Date(
+                        contract.endDate.seconds
+                          ? contract.endDate.seconds * 1000
+                          : contract.endDate
+                      ).toLocaleDateString()
+                    : "—"}
+                </div>
+              ) : (
+                <input
+                  type="date"
+                  className="border rounded px-2 py-1"
+                  value={edit?.endDate || ""}
+                  onChange={(e) => handleChange("endDate", e.target.value)}
+                  disabled={saving}
+                />
+              )}
             </div>
           </div>
 
@@ -200,7 +342,6 @@ const ContractPreview: React.FC = () => {
                         hover:bg-gray-50 cursor-pointer`}
                     >
                       <div>{so.soNumber}</div>
-                      {/* Placeholder ExternalLink icon */}
                       <ExternalLink className="w-4 h-4 text-gray-400 ml-3" />
                     </div>
                   ))

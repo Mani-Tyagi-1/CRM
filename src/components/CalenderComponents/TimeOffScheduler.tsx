@@ -38,11 +38,11 @@ interface Props {
 }
 
 // helpers
-const itemExists = (
-  arr: CalendarItem[] | undefined,
-  name: string,
-  type: ItemType
-) => !!arr?.some((i) => i.name === name && i.type === type);
+// const itemExists = (
+//   arr: CalendarItem[] | undefined,
+//   name: string,
+//   type: ItemType
+// ) => !!arr?.some((i) => i.name === name && i.type === type);
 
 
 // ---- Helper: collect all unavailable resource names ----

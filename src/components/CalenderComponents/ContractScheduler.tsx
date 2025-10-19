@@ -517,7 +517,7 @@ const ContractScheduler: React.FC<Props> = ({
 
    // Person, tool, or machine chip
    const resource = span.item;
-   const isPerson = resource.type === "person";
+  //  const isPerson = resource.type === "person";
    const isMachine = resource.type === "machine";
 
    // Machine chip: renders children grid inside itself
