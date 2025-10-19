@@ -28,7 +28,7 @@ type Props = {
   setHeaderLabel: React.Dispatch<React.SetStateAction<string>>;
   setStartOffsetDays: React.Dispatch<React.SetStateAction<number>>;
   setSidebarSearch: React.Dispatch<React.SetStateAction<string>>;
-  scrollRef: React.RefObject<HTMLDivElement>;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
 
   // Contract scheduling props
   contractData: ContractData;

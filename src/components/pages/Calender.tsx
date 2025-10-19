@@ -413,9 +413,9 @@ const timelineDays = React.useMemo(() => {
                     rd.name,
                     "resources"
                   )
-                ).then((machineResSnap: { data: () => any; }[]) => {
+                ).then((machineResSnap) => {
                   const machineChildren: ContractCalendarItem[] = [];
-                  machineResSnap.forEach((empDoc: { data: () => any; }) => {
+                  machineResSnap.forEach((empDoc) => {
                     const emp = empDoc.data();
                     (emp.assignedDates || []).forEach((dateIso: string) => {
                       machineChildren.push({
@@ -423,8 +423,8 @@ const timelineDays = React.useMemo(() => {
                         type: emp.type,
                         color: contractColorFor(emp.type),
                         assignedDates: emp.assignedDates,
-                        endDate: undefined,
-                        startDate: undefined
+                        endDate: dateIso, // not use 
+                        startDate: dateIso, // no use
                       });
                     });
                   });
@@ -975,28 +975,37 @@ const handleAreaDrop = React.useCallback(
           if (idx < 0) continue;
           const cellKey = `${soId}-${timelineDays[idx].key}`;
           setContractData((prev) => {
-            const cur = prev[cellKey] || [];
-            if (
-              !cur.some((it) => it.name === itemName && it.type === itemType)
-            ) {
-              const updated = {
-                ...prev,
-                [cellKey]: [...cur, { name: itemName, type: itemType }],
-              };
-              // Firestore ADD
-              if (uid && activeContractId) {
-                assignResourceToDate({
-                  uid,
-                  contractId: activeContractId,
-                  soId,
-                  resourceName: itemName,
-                  resourceType: itemType,
-                  dateIso: timelineDays[idx].key,
-                }).catch(() => {});
-              }
-              return updated;
-            }
-            return prev;
+                      const cur = prev[cellKey] || [];
+                      if (
+                        !cur.some((it) => it.name === itemName && it.type === itemType)
+                      ) {
+                        const updated = {
+                          ...prev,
+                          [cellKey]: [
+                            ...cur,
+                            {
+                              name: itemName,
+                              type: itemType,
+                              color: contractColorFor(itemType),
+                              startDate: timelineDays[idx].key,
+                              endDate: timelineDays[idx].key,
+                            },
+                          ],
+                        };
+                        // Firestore ADD
+                        if (uid && activeContractId) {
+                          assignResourceToDate({
+                            uid,
+                            contractId: activeContractId,
+                            soId,
+                            resourceName: itemName,
+                            resourceType: itemType,
+                            dateIso: timelineDays[idx].key,
+                          }).catch(() => {});
+                        }
+                        return updated;
+                      }
+                      return prev;
           });
         }
       }
@@ -1046,9 +1055,16 @@ const handleAreaDrop = React.useCallback(
             if (
               !cur.some((it) => it.name === itemName && it.type === itemType)
             ) {
+              const newItem: ContractCalendarItem = {
+                name: itemName,
+                type: itemType,
+                startDate: undefined, // or some Date if you have it
+                endDate: undefined, // or some Date if you have it
+                // Add default values for other required fields if needed
+              };
               const updated = {
                 ...prev,
-                [cellKey]: [...cur, { name: itemName, type: itemType }],
+                [cellKey]: [...cur, newItem],
               };
               // Firestore ADD
               if (uid && activeContractId) {

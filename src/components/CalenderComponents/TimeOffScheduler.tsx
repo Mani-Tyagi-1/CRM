@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronDown, ChevronUp, X } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import {
   addResourceToTimeoffCell,
   removeResourceFromTimeoffCell,
@@ -22,7 +22,7 @@ type WeekDay = { day: string; key: string };
 
 interface Props {
   weekDays: WeekDay[];
-  scrollRef: React.RefObject<HTMLDivElement> ;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
   data: CalendarData;
   onDragStart: DragStartFn;
   onDrop: DropFn;
