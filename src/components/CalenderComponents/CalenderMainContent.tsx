@@ -100,12 +100,12 @@ const shiftedTimelineDays = timelineDays.map((d) => ({
   key: (() => {
     // Add 2 days to the date and generate new key
     const newDate = new Date(d.date);
-    newDate.setDate(newDate.getDate() + 3);
+    newDate.setDate(newDate.getDate() + 2);
     return newDate.toISOString().slice(0, 10); // "YYYY-MM-DD"
   })(),
   day: (() => {
     const newDate = new Date(d.date);
-    newDate.setDate(newDate.getDate() + 3);
+    newDate.setDate(newDate.getDate() + 2);
 
     const weekday = newDate.toLocaleDateString(undefined, {
       weekday: "short",
@@ -117,12 +117,12 @@ const shiftedTimelineDays = timelineDays.map((d) => ({
   })(),
   date: (() => {
     const newDate = new Date(d.date);
-    newDate.setDate(newDate.getDate() + 3);
+    newDate.setDate(newDate.getDate() + 2);
     return newDate;
   })(),
   isToday: (() => {
     const newDate = new Date(d.date);
-    newDate.setDate(newDate.getDate() + 3);
+    newDate.setDate(newDate.getDate() + 2);
     const today = new Date();
     return (
       newDate.getFullYear() === today.getFullYear() &&

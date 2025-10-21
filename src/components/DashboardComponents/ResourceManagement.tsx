@@ -55,11 +55,13 @@ function BranchHeader({
   open,
   toggle,
   onAdd,
+  onDelete,
 }: {
   label: string;
   open: boolean;
   toggle: () => void;
-  onAdd: () => void;
+    onAdd: () => void;
+    onDelete: () => void;
 }) {
   return (
     <div className="relative pl-1 py-1 cursor-pointer flex items-center justify-between text-sm text-gray-900 before:absolute before:-left-4 before:top-1/2 before:-translate-y-1/2 before:w-4 before:h-px before:bg-gray-300 group">
@@ -74,6 +76,13 @@ function BranchHeader({
             onAdd();
           }}
         />
+        <Trash2                       /* 🚮 the new bin */
+          className="h-3 w-3 cursor-pointer text-gray-600 hover:text-red-600"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+       />
       </div>
       {open ? (
         <ChevronUp className="h-3 w-3 ml-1" />
@@ -148,6 +157,7 @@ type DeleteModalState = {
   category?: string;
   id?: string;
   name?: string;
+  isCategory?: boolean;
 };
 
 type AddCategoryMode = {
@@ -444,28 +454,70 @@ export default function ResourceManagementSidebar() {
   }
 
   // --------------- Delete (DeleteModal) ---------------
-  function openDeleteModal(
-    type: "employee" | "machine",
-    category: string,
-    id: string,
-    name: string
-  ) {
-    setDeleteModal({ open: true, type, category, id, name });
-  }
-  async function confirmDelete() {
-    if (!uid || !deleteModal.type || !deleteModal.category || !deleteModal.id)
+    function openDeleteModal(
+      type: "employee" | "machine",
+      category: string,
+      id: string,
+      name: string
+    ) {
+      setDeleteModal({ open: true, type, category, id, name });
+    }
+    async function confirmDelete() {
+      // ensure uid is available before performing any Firestore operations
+      if (!uid) {
+        setDeleteModal({ open: false });
+        return;
+      }
+  
+    // Deleting an entire category  ─────────────────────────
+    if (deleteModal.isCategory && deleteModal.category) {
+      const base = deleteModal.type === "employee" ? "employees" : "machines";
+      const cat = deleteModal.category;
+  
+     /* 1️⃣  remove every resource doc inside this category */
+      const snap = await getDocs(
+        collection(db, "companies", uid, "resources", base, cat)
+      );
+      await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
+      /* 2️⃣  remove the category doc itself */
+      const catDoc =
+        deleteModal.type === "employee"
+          ? ["companies", uid, "resources", "employeeCategories", "categories", cat]
+          : ["companies", uid, "resources", "machineCategories", "categories", cat];
+      await deleteDoc(doc(db, ...(catDoc as [string, ...string[]])));
+  
+      /* 3️⃣  update local UI */
+      if (deleteModal.type === "employee") {
+        setEmployeeCategories((c) => c.filter((k) => k !== cat));
+        setEmployees((e) => {
+          const { [cat]: _, ...rest } = e;
+          return rest;
+        });
+      } else {
+        setMachineCategories((c) => c.filter((k) => k !== cat));
+        setMachines((m) => {
+          const { [cat]: _, ...rest } = m;
+          return rest;
+        });
+      }
+  
+      setDeleteModal({ open: false });
       return;
-    const docPath = [
-      "companies",
-      uid,
-      "resources",
-      deleteModal.type === "employee" ? "employees" : "machines",
-      deleteModal.category,
-      deleteModal.id,
-    ];
-    await deleteDoc(doc(db, ...(docPath as [string, ...string[]])));
-    setDeleteModal({ open: false });
-  }
+    }
+  
+  
+      if (!deleteModal.type || !deleteModal.category || !deleteModal.id) return;
+      const docPath = [
+        "companies",
+        uid,
+        "resources",
+        deleteModal.type === "employee" ? "employees" : "machines",
+        deleteModal.category,
+        deleteModal.id,
+      ];
+      await deleteDoc(doc(db, ...(docPath as [string, ...string[]])));
+      setDeleteModal({ open: false });
+    }
 
 
   // -------- Employees Section --------
@@ -492,6 +544,15 @@ export default function ResourceManagementSidebar() {
                   setOpenEmp((p) => ({ ...p, [catKey]: !p[catKey] }))
                 }
                 onAdd={() => openAdd("employee", catKey)}
+                onDelete={() =>
+                  setDeleteModal({
+                    open: true,
+                    type: "employee",
+                    category: catKey,
+                    name: catKey,
+                    isCategory: true,
+                  })
+                }
               />
               {openEmp[catKey] && (
                 <div className="relative ml-2 pl-4 pb-1 space-y-1 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-gray-300">
@@ -567,6 +628,15 @@ export default function ResourceManagementSidebar() {
                   setOpenMachine((p) => ({ ...p, [catKey]: !p[catKey] }))
                 }
                 onAdd={() => openAdd("machine", catKey)}
+                onDelete={() =>
+                  setDeleteModal({
+                    open: true,
+                    type: "machine",
+                    category: catKey,
+                    name: catKey,
+                    isCategory: true,
+                  })
+                }
               />
               {openMachine[catKey] && (
                 <div className="relative ml-2 pl-4 pb-1 space-y-1 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-px before:bg-gray-300">

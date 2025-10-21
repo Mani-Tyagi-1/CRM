@@ -268,6 +268,7 @@ const timelineDays = React.useMemo(() => {
     | { kind: "contract-cell"; targetKey: string }
     | { kind: "contract-machine"; targetKey: string; machineName: string }
     | { kind: "contract-area"; anchorIso: string }
+    | { kind: "timeoff-cell"; targetKey: string }   
     | null;
   const [showRangeModal, setShowRangeModal] = useState(false);
   const [pendingTarget, setPendingTarget] = useState<PendingTarget>(null);
@@ -1390,8 +1391,23 @@ const handleAreaDrop = React.useCallback(
     });
   };
 
-  const onTimeOffDrop = (targetKey: string) =>
+  const onTimeOffDrop = (targetKey: string) => {
+    if (dragged && "name" in dragged) {
+      /* pre-fill modal with the dropped day */
+      const iso = targetKey.match(/\d{4}-\d{2}-\d{2}$/)?.[0] ?? "";
+      setRangeStart(iso);
+      setRangeEnd(iso);
+
+      setPendingTarget({ kind: "timeoff-cell", targetKey }); // 👈 NEW
+      setPendingDragged(dragged);
+      setShowRangeModal(true);
+      return;
+    }
+
+    // fallback (should rarely happen)
     moveTo({ zone: "timeoff", id: targetKey });
+  };
+
 
   /* ---------- sidebar drop targets ---------- */
   const onDropToEmployeeSection = (section: string) =>
@@ -1583,7 +1599,7 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
         type: pendingDragged.type,
         color: contractColorFor(pendingDragged.type),
         endDate: undefined,
-        startDate: undefined
+        startDate: undefined,
       };
 
       setContractData((prev) => {
@@ -1600,28 +1616,27 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
       });
 
       // persist to Firestore
-    if (uid && activeContractId) {
-      const { soId } = splitCellKey(pendingTarget.targetKey);
-      const assignedDates = getAllDateIsosInRange(startISO, endISO);
+      if (uid && activeContractId) {
+        const { soId } = splitCellKey(pendingTarget.targetKey);
+        const assignedDates = getAllDateIsosInRange(startISO, endISO);
 
-      const resourceRef = resourceDoc(
-        uid,
-        activeContractId,
-        soId,
-        pendingDragged.name
-      );
-      await setDoc(
-        resourceRef,
-        {
-          type: pendingDragged.type,
-          name: pendingDragged.name,
-          colour: contractColorFor(pendingDragged.type),
-          assignedDates, // <-- full array, not arrayUnion!
-        },
-        { merge: true }
-      );
-    }
-
+        const resourceRef = resourceDoc(
+          uid,
+          activeContractId,
+          soId,
+          pendingDragged.name
+        );
+        await setDoc(
+          resourceRef,
+          {
+            type: pendingDragged.type,
+            name: pendingDragged.name,
+            colour: contractColorFor(pendingDragged.type),
+            assignedDates, // <-- full array, not arrayUnion!
+          },
+          { merge: true }
+        );
+      }
     } else if (
       /* ───────────── 2 B. resource dropped INSIDE A MACHINE ───────────── */
       pendingTarget?.kind === "contract-machine" &&
@@ -1638,7 +1653,7 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
         type: pendingDragged.type,
         color: contractColorFor(pendingDragged.type),
         endDate: undefined,
-        startDate: undefined
+        startDate: undefined,
       };
 
       timelineDays.forEach(({ key }) => {
@@ -1685,8 +1700,54 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
           { merge: true }
         ).catch(() => {});
       }
+    } else if (
+      pendingTarget?.kind === "timeoff-cell" &&
+      pendingDragged &&
+      "name" in pendingDragged
+    ) {
+      /* figure out section + build one item prototype */
+      const m = pendingTarget.targetKey.match(
+        /^(vacation|sick|service)-\d{4}-\d{2}-\d{2}$/
+      );
+      if (!m) return;
+      const section = m[1] as "vacation" | "sick" | "service";
 
+      const timeOffItem = {
+        startDate: new Date(startISO),
+        name: pendingDragged.name,
+        type: pendingDragged.type as TimeOffItemType,
+        color: timeOffColorFor(pendingDragged.type as TimeOffItemType),
+      };
+
+      setTimeOffData((prev) => {
+        const next = { ...prev };
+        weekDays.forEach(({ key }) => {
+          if (key < startISO || key > endISO) return;
+          const cellKey = `${section}-${key}`;
+          const cur = next[cellKey] || [];
+          if (!cur.some((it) => it.name === timeOffItem.name)) {
+            next[cellKey] = [...cur, timeOffItem];
+          }
+        });
+        return next;
+      });
+
+      /* persist each day to Firestore */
+      if (uid) {
+        const allDates = getAllDateIsosInRange(startISO, endISO);
+        await Promise.all(
+          allDates.map((dateIso) =>
+            addResourceToTimeoffCell(
+              db,
+              uid,
+              `${section}-${dateIso}`,
+              timeOffItem
+            )
+          )
+        );
+      }
     }
+
 
     // Clean up modal and pending state
     setShowRangeModal(false);

@@ -18,7 +18,7 @@ export function DeleteModal({
           &lt; Back to resources management
         </div>
         <div className="mt-6  text-lg font-medium text-gray-900">
-          Do you really want to delete this resource
+          Do you really want to delete this ?
         </div>
         <div className="mb-8 text-2xl text-gray-900">{name}</div>
         <div className="flex justify-end gap-4">
