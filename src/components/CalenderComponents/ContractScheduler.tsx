@@ -252,9 +252,6 @@ const ContractScheduler: React.FC<Props> = ({
 
   const weekDays: WeekDay[] = getScheduledDays();
 
-  // console.log("these are the week days ", weekDays);
-  // console.log("this is the timeline", timelineDays);
-
 
   /* ---------- Resize logic (unchanged) ---------- */
   const startResize = (
@@ -267,9 +264,12 @@ const ContractScheduler: React.FC<Props> = ({
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;
-    const cellEl =
-      (e.currentTarget.parentElement?.parentElement as HTMLElement) || null;
-    const cellWidth = cellEl ? cellEl.offsetWidth : CELL_MIN_WIDTH;
+    /* the handle’s parent is the chip itself */
+    const chipEl = e.currentTarget.parentElement as HTMLElement; // 👈 NEW
+    const cols =
+      (parseInt(chipEl.style.gridColumnEnd) || 0) -
+        (parseInt(chipEl.style.gridColumnStart) || 0) || 1; // 👈 NEW
+    const cellWidth = chipEl.offsetWidth / cols || CELL_MIN_WIDTH;
 
     const onMouseMove = (mv: MouseEvent) => mv.preventDefault();
 
