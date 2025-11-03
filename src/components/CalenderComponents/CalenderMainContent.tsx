@@ -94,43 +94,59 @@ const CalendarMainContent: React.FC<Props> = ({
 }) => {
   const CELL_MIN_WIDTH = 180;
 
+
+  // Add this helper function in the component before the return statement
+
+  // Helper function to calculate days between two dates (inclusive)
+  const getNumberOfDaysInRange = (startISO: string, endISO: string) => {
+    const startDate = new Date(startISO);
+    const endDate = new Date(endISO);
+
+    // Calculate the time difference between the two dates
+    const timeDiff = endDate.getTime() - startDate.getTime();
+
+    // Convert the time difference to days and add 1 to include both the start and end date
+    const dayCount = timeDiff / (1000 * 3600 * 24) + 1;
+    return dayCount;
+  };
+
   // Create a shifted version of timelineDays (move each day -2 days back)
-const shiftedTimelineDays = timelineDays.map((d) => ({
-  ...d,
-  key: (() => {
-    // Add 2 days to the date and generate new key
-    const newDate = new Date(d.date);
-    newDate.setDate(newDate.getDate() + 2);
-    return newDate.toISOString().slice(0, 10); // "YYYY-MM-DD"
-  })(),
-  day: (() => {
-    const newDate = new Date(d.date);
-    newDate.setDate(newDate.getDate() + 2);
+  const shiftedTimelineDays = timelineDays.map((d) => ({
+    ...d,
+    key: (() => {
+      // Add 2 days to the date and generate new key
+      const newDate = new Date(d.date);
+      newDate.setDate(newDate.getDate() + 1);
+      return newDate.toISOString().slice(0, 10); // "YYYY-MM-DD"
+    })(),
+    day: (() => {
+      const newDate = new Date(d.date);
+      newDate.setDate(newDate.getDate() + 1);
 
-    const weekday = newDate.toLocaleDateString(undefined, {
-      weekday: "short",
-    });
-    const date = newDate.getDate(); // 1 - 31
-    const month = newDate.getMonth() + 1; // 0-index to 1-index
+      const weekday = newDate.toLocaleDateString(undefined, {
+        weekday: "short",
+      });
+      const date = newDate.getDate(); // 1 - 31
+      const month = newDate.getMonth() + 1; // 0-index to 1-index
 
-    return `${weekday} ${date}.${month}.`;
-  })(),
-  date: (() => {
-    const newDate = new Date(d.date);
-    newDate.setDate(newDate.getDate() + 2);
-    return newDate;
-  })(),
-  isToday: (() => {
-    const newDate = new Date(d.date);
-    newDate.setDate(newDate.getDate() + 2);
-    const today = new Date();
-    return (
-      newDate.getFullYear() === today.getFullYear() &&
-      newDate.getMonth() === today.getMonth() &&
-      newDate.getDate() === today.getDate()
-    );
-  })(),
-}));
+      return `${weekday} ${date}.${month}.`;
+    })(),
+    date: (() => {
+      const newDate = new Date(d.date);
+      newDate.setDate(newDate.getDate() + 1);
+      return newDate;
+    })(),
+    isToday: (() => {
+      const newDate = new Date(d.date);
+      newDate.setDate(newDate.getDate() + 1);
+      const today = new Date();
+      return (
+        newDate.getFullYear() === today.getFullYear() &&
+        newDate.getMonth() === today.getMonth() &&
+        newDate.getDate() === today.getDate()
+      );
+    })(),
+  }));
 
   const rulerRef = React.useRef<HTMLDivElement>(null);
   // const mainScrollRef = React.useRef<HTMLDivElement>(null);
@@ -138,7 +154,7 @@ const shiftedTimelineDays = timelineDays.map((d) => ({
 
   // ====== SO LIST STATE ======
   const [soList, setSOList] = React.useState<SOItem[]>([]);
-  const [uid, setUid] = React.useState<string | null>(null);;
+  const [uid, setUid] = React.useState<string | null>(null);
 
   // Get uid (if using Firebase Auth)
   React.useEffect(() => {
@@ -265,6 +281,14 @@ const shiftedTimelineDays = timelineDays.map((d) => ({
     onAreaDrop?.(anchorIso);
   };
 
+  // Calculate the number of days in the contract range
+  const numberOfDays =
+    scheduledStartISO && scheduledEndISO
+      ? getNumberOfDaysInRange(scheduledStartISO, scheduledEndISO)
+      : 0;
+
+  // Conditional margin-left based on the number of days (odd/even)
+  const marginLeftClass = numberOfDays % 2 !== 0 ? "ml-[-178px]" : "ml-0";
 
   // ---------- UI -----------
   return (
@@ -276,7 +300,7 @@ const shiftedTimelineDays = timelineDays.map((d) => ({
       onDragOver={handleAreaDragOver}
       onDrop={handleAreaDrop}
     >
-      <div className="min-w-max">
+      <div className="min-w-max ">
         {/* ---------- HEADER BAR ---------- */}
         <div className="bg-white w-[calc(100vw-256px)] px-6 py-3 sticky top-0 left-0 z-20">
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
@@ -364,21 +388,23 @@ const shiftedTimelineDays = timelineDays.map((d) => ({
         </div>
 
         {/* ---------- CONTRACT SCHEDULER GRID ---------- */}
-        <ContractScheduler
-          data={contractData}
-          soList={soList}
-          contractId={activeContractId || undefined}
-          contractName={activeContractTitle || undefined}
-          onDragStart={onContractItemDragStart}
-          onDrop={onContractDrop}
-          onDropToMachine={onContractDropToMachine}
-          unavailableResourceNames={allUnavailableResourceNames}
-          onResize={handleResize}
-          rangeWithinWeek={rangeWithinWeek}
-          timelineDays={timelineDays}
-          scheduledStartISO={scheduledStartISO}
-          scheduledEndISO={scheduledEndISO}
-        />
+        <div className={`${marginLeftClass}`}>
+          <ContractScheduler
+            data={contractData}
+            soList={soList}
+            contractId={activeContractId || undefined}
+            contractName={activeContractTitle || undefined}
+            onDragStart={onContractItemDragStart}
+            onDrop={onContractDrop}
+            onDropToMachine={onContractDropToMachine}
+            unavailableResourceNames={allUnavailableResourceNames}
+            onResize={handleResize}
+            rangeWithinWeek={rangeWithinWeek}
+            timelineDays={timelineDays}
+            scheduledStartISO={scheduledStartISO}
+            scheduledEndISO={scheduledEndISO}
+          />
+        </div>
       </div>
     </div>
   );

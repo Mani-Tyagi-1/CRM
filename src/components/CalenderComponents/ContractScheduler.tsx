@@ -188,9 +188,6 @@ const ContractScheduler: React.FC<Props> = ({
   scheduledStartISO,
   scheduledEndISO,
 }) => {
-
-
-
   const resourceSOCountByDate = React.useMemo(() => {
     return getResourceSOCountByDate(soList, data);
   }, [soList, data]);
@@ -487,7 +484,8 @@ const ContractScheduler: React.FC<Props> = ({
            zIndex: 2,
            marginTop: 2,
            marginBottom: 2,
-           maxWidth: "95%",
+           // Set maxWidth based on whether the resource spans a single day or multiple days
+           maxWidth: span.startIdx === span.endIdx ? "80%" : "85%",
          }}
          draggable
          onDragStart={(e) => {
@@ -513,6 +511,7 @@ const ContractScheduler: React.FC<Props> = ({
          {c.note && <div className="text-xs opacity-75 mt-1">{c.note}</div>}
        </div>
      );
+
    }
 
    // Person, tool, or machine chip
@@ -535,6 +534,7 @@ const ContractScheduler: React.FC<Props> = ({
            zIndex: 2,
            marginTop: 2,
            marginBottom: 2,
+           maxWidth: "90%",
          }}
        >
          {renderResizeHandles(soId, resource.name, "machine")}
