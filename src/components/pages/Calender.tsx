@@ -1,6 +1,5 @@
 // ===================== Calender.tsx =====================
 import React, { useMemo, useState, useEffect, useRef } from "react";
-import { Plus } from "lucide-react";
 import Sidebar from "../CalenderComponents/SideBar";
 import CalendarMainContent from "../CalenderComponents/CalenderMainContent";
 
@@ -15,7 +14,6 @@ import TimeOffScheduler, {
   ItemType as TimeOffItemType,
 } from "../CalenderComponents/TimeOffScheduler";
 
-import { useLocation, useNavigate } from "react-router-dom";
 import { auth, db } from "../../lib/firebase";
 import {
   doc,
@@ -178,8 +176,6 @@ const removeResourceFromDate = async ({
 
 const Calender: React.FC = () => {
   const DAYS_WINDOW = 2000; // large window to simulate infinite past/future
-  const location = useLocation();
-  const navigate = useNavigate();
 
    const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -1824,7 +1820,7 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
       />
 
       {/* ---------- Floating “Add contract” button ---------- */}
-      <button
+      {/* <button
         className="fixed z-100 bottom-6 right-6 bg-black text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg hover:bg-gray-800"
         onClick={() =>
           navigate("/add-contract", { state: { backgroundLocation: location } })
@@ -1832,7 +1828,7 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
       >
         <Plus className="h-4 w-4" />
         Add contract
-      </button>
+      </button> */}
 
       {/* ---------- Unavailable modal ---------- */}
       {showUnavailableModal && (

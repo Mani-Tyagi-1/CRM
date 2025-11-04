@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import Header from "../CalenderComponents/Header";
 import { useNavigate } from "react-router-dom";
-import SidebarContracts from "./SidebarContract";
+// import SidebarContracts from "./SidebarContract";
 
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { collection, getDocs } from "firebase/firestore";
@@ -62,8 +62,8 @@ const Sidebar: React.FC<Props> = ({
   toggleSection,
   sidebarSearch,
   setSidebarSearch,
-  onContractDragStart,
-  onContractDragEnd,
+  // onContractDragStart,
+  // onContractDragEnd,
 }) => {
   // Dynamic categories/resources
   const [employeeCategories, setEmployeeCategories] = useState<string[]>([]);
@@ -415,10 +415,10 @@ const Sidebar: React.FC<Props> = ({
       )}
 
       {/* ---------------- Contracts (Static) ---------------- */}
-      <SidebarContracts
+      {/* <SidebarContracts
         onContractDragStart={onContractDragStart}
         onContractDragEnd={onContractDragEnd}
-      />
+      /> */}
     </div>
   );
 };

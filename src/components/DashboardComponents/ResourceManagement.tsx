@@ -1,4 +1,7 @@
-/* ResourceManagementBoard.tsx */
+/* ------------------------------------------------------------------
+   ResourceManagementBoard.tsx  –  **UPDATED**
+   All contract-related logic now mirrors SidebarContracts.tsx
+------------------------------------------------------------------ */
 import React, { useEffect, useState } from "react";
 import {
   Users,
@@ -19,12 +22,14 @@ import {
   doc,
   setDoc,
   getDocs,
+  query,
+  orderBy,
   Unsubscribe,
 } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
 import { ResourceModal } from "./ResourceModal";
 import { DeleteModal } from "./DeleteModal";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 /* ------------------------------------------------------------------ */
 /* utilities                                                           */
@@ -165,6 +170,10 @@ function ResourceCard({
 /* main component                                                      */
 /* ------------------------------------------------------------------ */
 
+/* ---------- types ---------- */
+type SO = { id: string; soNumber?: string };
+type Contract = { id: string; name: string; status?: string; soList: SO[] };
+
 type ModalState = {
   open: boolean;
   mode?: "add" | "edit";
@@ -176,15 +185,18 @@ type ModalState = {
 
 type DeleteModalState = {
   open: boolean;
-  type?: "employee" | "machine";
+  type?: "employee" | "machine" | "contract-so";
   category?: string;
   id?: string;
   name?: string;
   isCategory?: boolean;
+  contractId?: string; // for SO delete
+  soId?: string; // for SO delete
 };
 
+
 type AddCategoryMode = {
-  type: null | "employee" | "machine";
+  type: null | "employee" | "machine" | "contract";
   open: boolean;
   value: string;
   loading?: boolean;
@@ -192,7 +204,8 @@ type AddCategoryMode = {
 
 export default function ResourceManagementBoard() {
   /* ----------------------------- state ---------------------------- */
-
+  const navigate = useNavigate();
+  const location = useLocation();
   const [uid, setUid] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -201,6 +214,30 @@ export default function ResourceManagementBoard() {
 
   const [employees, setEmployees] = useState<Record<string, any[]>>({});
   const [machines, setMachines] = useState<Record<string, any[]>>({});
+
+  /* ---------- contracts ---------- */
+  const [contracts, setContracts] = useState<Record<string, Contract>>({});
+  const [editingSO, setEditingSO] = useState<{
+    contractId: string;
+    soId: string;
+  } | null>(null);
+  const [editingSOValue, setEditingSOValue] = useState("");
+  const [deletingSO, setDeletingSO] = useState<{
+    contractId: string;
+    soId: string;
+  } | null>(null);
+
+  const [draggedSO, setDraggedSO] = useState<{
+    so: SO;
+    fromContractId: string;
+  } | null>(null);
+
+  const [showAddSOModal, setShowAddSOModal] = useState<{
+    contractId: string;
+    contractName: string;
+  } | null>(null);
+  const [addSOModalValue, setAddSOModalValue] = useState("");
+
 
   const [modal, setModal] = useState<ModalState>({ open: false });
   const [deleteModal, setDeleteModal] = useState<DeleteModalState>({
@@ -217,10 +254,9 @@ export default function ResourceManagementBoard() {
   type TabType = "employees" | "machines" | "contracts";
   const [activeTab, setActiveTab] = useState<TabType>("employees");
 
-  const navigate = useNavigate();
-
   /* -------------------- Firestore subscriptions ------------------- */
 
+  /* ---------- employees / machines ---------- */
   useEffect(() => {
     let empUnsubs: Unsubscribe[] = [];
     let machUnsubs: Unsubscribe[] = [];
@@ -241,7 +277,7 @@ export default function ResourceManagementBoard() {
       setErr(null);
       setUid(user.uid);
 
-      /* ---- pull category collections first ---- */
+      /* ---- pull employee / machine category collections ---- */
       const [empCatSnap, machCatSnap] = await Promise.all([
         getDocs(
           collection(
@@ -320,9 +356,79 @@ export default function ResourceManagementBoard() {
     };
   }, []);
 
-  /* ---------------------------- helpers --------------------------- */
+  /* ---------- contracts ---------- */
+  useEffect(() => {
+    if (activeTab !== "contracts" || !uid) return;
 
-  function startAddCategory(type: "employee" | "machine") {
+    const soUnsubs: Record<string, Unsubscribe> = {};
+
+    const unsubContracts = onSnapshot(
+      collection(db, "companies", uid, "contracts"),
+      (snap) => {
+        const docs = snap.docs.filter(
+          (d) => (d.get("status") ?? "draft") !== "archived"
+        );
+
+        /* seed contracts map first */
+        setContracts((prev) => {
+          const next: Record<string, Contract> = {};
+          docs.forEach((d) => {
+            const id = d.id;
+            next[id] = {
+              id,
+              name: d.get("name") || "Contract",
+              status: d.get("status"),
+              soList: prev[id]?.soList ?? [],
+            };
+          });
+          return next;
+        });
+
+        /* attach SO listeners */
+        docs.forEach((d) => {
+          if (soUnsubs[d.id]) return;
+          soUnsubs[d.id] = onSnapshot(
+            query(
+              collection(db, "companies", uid, "contracts", d.id, "so"),
+              orderBy("soNumber")
+            ),
+            (soSnap) => {
+              const list = soSnap.docs
+                .filter((s) => s.get("soNumber"))
+                .map((s) => ({
+                  id: s.id,
+                  soNumber: s.get("soNumber") as string,
+                }));
+              setContracts((prev) => ({
+                ...prev,
+                [d.id]: { ...prev[d.id], soList: list },
+              }));
+            }
+          );
+        });
+
+        /* clean up listeners for removed contracts */
+        const curIds = docs.map((d) => d.id);
+        Object.keys(soUnsubs).forEach((id) => {
+          if (!curIds.includes(id)) {
+            soUnsubs[id]();
+            delete soUnsubs[id];
+          }
+        });
+      }
+    );
+
+    return () => {
+      unsubContracts();
+      Object.values(soUnsubs).forEach((fn) => fn());
+    };
+  }, [uid, activeTab]);
+
+  /* ------------------------------------------------------------------ */
+  /* helpers                                                            */
+  /* ------------------------------------------------------------------ */
+
+  function startAddCategory(type: "employee" | "machine" | "contract") {
     setAddCategoryMode({ type, open: true, value: "", loading: false });
   }
 
@@ -330,42 +436,100 @@ export default function ResourceManagementBoard() {
     const { type, value } = addCategoryMode;
     if (!uid || !type || !value.trim()) return;
 
-    const key = value.trim().replace(/\s+/g, "");
-    setAddCategoryMode((p) => ({ ...p, loading: true }));
+    const trimmed = value.trim();
+    const key = trimmed.replace(/\s+/g, "");
 
-    const docPath =
-      type === "employee"
-        ? [
-            "companies",
-            uid,
-            "resources",
-            "employeeCategories",
-            "categories",
-            key,
-          ]
-        : [
-            "companies",
-            uid,
-            "resources",
-            "machineCategories",
-            "categories",
-            key,
-          ];
-
-    await setDoc(doc(db, ...(docPath as [string, ...string[]])), {
-      label: value.trim(),
-    });
-
-    if (type === "employee") {
-      setEmployeeCategories((c) => (c.includes(key) ? c : [...c, key]));
+    if (type === "contract") {
+      /* create a new contract document */
+      await addDoc(collection(db, "companies", uid, "contracts"), {
+        name: trimmed,
+        status: "draft",
+      });
     } else {
-      setMachineCategories((c) => (c.includes(key) ? c : [...c, key]));
+      /* employee / machine categories */
+      const docPath =
+        type === "employee"
+          ? [
+              "companies",
+              uid,
+              "resources",
+              "employeeCategories",
+              "categories",
+              key,
+            ]
+          : [
+              "companies",
+              uid,
+              "resources",
+              "machineCategories",
+              "categories",
+              key,
+            ];
+      await setDoc(doc(db, ...(docPath as [string, ...string[]])), {
+        label: trimmed,
+      });
+      if (type === "employee") {
+        setEmployeeCategories((c) => (c.includes(key) ? c : [...c, key]));
+      } else {
+        setMachineCategories((c) => (c.includes(key) ? c : [...c, key]));
+      }
     }
 
     setAddCategoryMode({ type: null, open: false, value: "", loading: false });
   }
 
-  /* ------------ generic modal openers / closers / actions --------- */
+  // Edit SO submit
+  async function handleEditSO(contractId: string, soId: string) {
+    if (!uid || !editingSOValue.trim()) return;
+    await updateDoc(
+      doc(db, "companies", uid, "contracts", contractId, "so", soId),
+      { soNumber: editingSOValue.trim() }
+    );
+    setEditingSO(null);
+    setEditingSOValue("");
+  }
+
+  // Delete SO
+  async function handleDeleteSO(contractId: string, soId: string) {
+    if (!uid) return;
+    await deleteDoc(
+      doc(db, "companies", uid, "contracts", contractId, "so", soId)
+    );
+    setDeletingSO(null);
+  }
+
+  // Move SO (drag and drop)
+  async function moveSO(fromContractId: string, toContractId: string, so: SO) {
+    if (!uid || !so.id) return;
+    // Get SO doc data
+    const soDoc = doc(
+      db,
+      "companies",
+      uid,
+      "contracts",
+      fromContractId,
+      "so",
+      so.id
+    );
+    const soSnap = await getDocs(
+      query(
+        collection(db, "companies", uid, "contracts", fromContractId, "so"),
+        orderBy("soNumber")
+      )
+    );
+    const soData = soSnap.docs.find((d) => d.id === so.id)?.data();
+    if (!soData) return;
+
+    // Add to new contract
+    await addDoc(
+      collection(db, "companies", uid, "contracts", toContractId, "so"),
+      soData
+    );
+    // Remove from old
+    await deleteDoc(soDoc);
+  }
+
+  /* ---------- resource modal ---------- */
 
   function openAdd(type: "employee" | "machine", category: string) {
     setModal({
@@ -414,6 +578,8 @@ export default function ResourceManagementBoard() {
     setModal({ open: false });
   }
 
+  /* ---------- delete modal ---------- */
+
   function openDeleteModal(
     type: "employee" | "machine",
     category: string,
@@ -429,6 +595,27 @@ export default function ResourceManagementBoard() {
       setDeleteModal({ open: false });
       return;
     }
+
+      if (
+        deleteModal.type === "contract-so" &&
+        deleteModal.contractId &&
+        deleteModal.soId
+      ) {
+        await deleteDoc(
+          doc(
+            db,
+            "companies",
+            uid,
+            "contracts",
+            deleteModal.contractId,
+            "so",
+            deleteModal.soId
+          )
+        );
+        setDeleteModal({ open: false });
+        return;
+      }
+
 
     /* deleting an entire category */
     if (deleteModal.isCategory && deleteModal.category) {
@@ -483,6 +670,7 @@ export default function ResourceManagementBoard() {
     /* deleting a single resource */
     if (!deleteModal.type || !deleteModal.category || !deleteModal.id) return;
 
+
     const docPath = [
       "companies",
       uid,
@@ -494,11 +682,9 @@ export default function ResourceManagementBoard() {
 
     await deleteDoc(doc(db, ...docPath));
     setDeleteModal({ open: false });
-  }
 
-  /* ------------------------------------------------------------------ */
-  /* ------------------------------ Render ---------------------------- */
-  /* ------------------------------------------------------------------ */
+    
+  }
 
   /* pick the data based on active tab */
   const categories =
@@ -517,9 +703,9 @@ export default function ResourceManagementBoard() {
 
   return (
     <>
-      {/* top tabs */}
+      {/* ---------------- top tabs ---------------- */}
       <div className="flex items-end gap-40  mb-1">
-        <div className="">
+        <div>
           <div className="inline-flex bg-gray-100 rounded-xl px-1 py-1">
             <Tab
               active={activeTab === "employees"}
@@ -542,8 +728,8 @@ export default function ResourceManagementBoard() {
           </div>
         </div>
 
-        {/* ---------- right: heading panel ---------- */}
-        <div className="w-1/3 shrink-0">
+        {/* ---------- right heading ---------- */}
+        <div className="w-1/2 shrink-0">
           <h2 className="text-2xl font-bold leading-tight mb-1">
             Resources management
           </h2>
@@ -559,11 +745,26 @@ export default function ResourceManagementBoard() {
           )}
         </div>
       </div>
-      {/* add-category link, board & side panel */}
+
+      {/* ---------------- board + side panel ---------------- */}
       <div className="flex gap-10">
         {/* ---------- left: board ---------- */}
         <div className="flex-1 overflow-x-auto">
-          {activeTab !== "contracts" && (
+          {activeTab === "contracts" ? (
+            <button
+              className="text-black text-sm mb-4 hover:underline"
+              onClick={() =>
+                navigate("/add-contract", {
+                  state: {
+                    backgroundLocation: { pathname: location.pathname },
+                  },
+                })
+              }
+              type="button"
+            >
+              + Add contract
+            </button>
+          ) : (
             <button
               className="text-black text-sm mb-4 hover:underline"
               onClick={() =>
@@ -578,16 +779,200 @@ export default function ResourceManagementBoard() {
             </button>
           )}
 
-          {/* board lanes */}
+          {/* ---------------- board lanes ---------------- */}
           <div className="flex gap-6 pb-4 min-h-[calc(100vh-200px)] overflow-x-auto scrollbar-none">
+            {/* ---------- CONTRACTS TAB ---------- */}
             {activeTab === "contracts" ? (
-              /* ---------------------------------------------------------------- */
-              /*                           Contracts placeholder                    */
-              /* ---------------------------------------------------------------- */
-              <div className="text-sm text-gray-500 italic">
-                Contract Code goes here
-              </div>
-            ) : categories.length === 0 ? (
+              Object.keys(contracts).length === 0 ? (
+                <div className="text-sm text-gray-400">
+                  No contracts yet. Add one above.
+                </div>
+              ) : (
+                Object.values(contracts).map((contract) => (
+                  <div
+                    key={contract.id}
+                    className="w-64 shrink-0 border-r last:border-r-0 border-gray-200 pr-3"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => {
+                      if (
+                        draggedSO &&
+                        draggedSO.fromContractId !== contract.id
+                      ) {
+                        moveSO(
+                          draggedSO.fromContractId,
+                          contract.id,
+                          draggedSO.so
+                        );
+                      }
+                      setDraggedSO(null);
+                    }}
+                  >
+                    {/* column header */}
+                    <div className="flex items-center justify-between py-2">
+                      <h3 className="text-base font-semibold text-gray-800 truncate">
+                        {contract.name}
+                      </h3>
+                      <div className="flex items-center gap-1 text-gray-600">
+                        <Plus
+                          className="h-4 w-4 cursor-pointer hover:text-black"
+                          onClick={() =>
+                            setShowAddSOModal({
+                              contractId: contract.id,
+                              contractName: contract.name,
+                            })
+                          }
+                        />
+
+                        <PencilLine className="h-4 w-4 opacity-30" />
+                        <Trash2 className="h-4 w-4 opacity-30" />
+                        <GripVertical className="h-4 w-4 cursor-move" />
+                      </div>
+                    </div>
+
+                    <div className="w-72 h-[1px] bg-slate-200 mb-2"></div>
+
+                    {/* SO list */}
+                    <div className="space-y-1 pb-2">
+                      {contract.soList.length === 0 && (
+                        <div className="text-[13px] text-gray-400 italic px-2 py-1">
+                          No SOs added
+                        </div>
+                      )}
+                      {contract.soList.map((so) => (
+                        <div
+                          key={so.id}
+                          className="flex items-center bg-white border border-gray-200 rounded-md px-3 py-1 text-[14px] font-medium text-gray-800  group"
+                          draggable
+                          onDragStart={() =>
+                            setDraggedSO({ so, fromContractId: contract.id })
+                          }
+                          onDragEnd={() => setDraggedSO(null)}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (
+                              draggedSO &&
+                              draggedSO.fromContractId !== contract.id &&
+                              draggedSO.so.id !== so.id
+                            ) {
+                              moveSO(
+                                draggedSO.fromContractId,
+                                contract.id,
+                                draggedSO.so
+                              );
+                            }
+                            setDraggedSO(null);
+                          }}
+                          onDragOver={(e) => e.preventDefault()}
+                          style={{
+                            opacity:
+                              draggedSO &&
+                              draggedSO.so.id === so.id &&
+                              draggedSO.fromContractId === contract.id
+                                ? 0.5
+                                : 1,
+                            cursor: "move",
+                            position: "relative",
+                          }}
+                        >
+                          {editingSO?.contractId === contract.id &&
+                          editingSO.soId === so.id ? (
+                            <form
+                              className="flex-1 flex items-center gap-2"
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                handleEditSO(contract.id, so.id);
+                              }}
+                            >
+                              <input
+                                className="px-2 py-1 text-[13px] border border-gray-300 rounded-md w-20 outline-none"
+                                value={editingSOValue}
+                                autoFocus
+                                onChange={(e) =>
+                                  setEditingSOValue(e.target.value)
+                                }
+                                onBlur={() => setEditingSO(null)}
+                              />
+                              <button
+                                type="submit"
+                                className="text-xs text-blue-600 hover:underline"
+                              >
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                className="text-xs text-gray-600 ml-1"
+                                onClick={() => setEditingSO(null)}
+                              >
+                                Cancel
+                              </button>
+                            </form>
+                          ) : (
+                            <>
+                              <span
+                                className="flex-1 truncate"
+                                title={so.soNumber}
+                              >
+                                {so.soNumber}
+                              </span>
+                              <PencilLine
+                                className="h-4 w-4 ml-2 opacity-0 group-hover:opacity-100 cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingSO({
+                                    contractId: contract.id,
+                                    soId: so.id,
+                                  });
+                                  setEditingSOValue(so.soNumber || "");
+                                }}
+                              />
+                              <Trash2
+                                className="h-4 w-4 ml-2 opacity-0 group-hover:opacity-100 text-red-500 cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteModal({
+                                    open: true,
+                                    type: "contract-so",
+                                    contractId: contract.id,
+                                    soId: so.id,
+                                    name: so.soNumber || "SO",
+                                    isCategory: false,
+                                  });
+                                }}
+                              />
+
+                              <GripVertical className="h-4 w-4 ml-2 opacity-0 group-hover:opacity-100" />
+                            </>
+                          )}
+                          {/* Inline confirm delete popup */}
+                          {deletingSO &&
+                            deletingSO.contractId === contract.id &&
+                            deletingSO.soId === so.id && (
+                              <div className="absolute top-full left-0 mt-1 bg-white border shadow rounded p-2 text-xs flex gap-2 z-20">
+                                <span>Delete SO?</span>
+                                <button
+                                  className="text-red-500"
+                                  onClick={() =>
+                                    handleDeleteSO(contract.id, so.id)
+                                  }
+                                >
+                                  Yes
+                                </button>
+                                <button
+                                  className="text-gray-500"
+                                  onClick={() => setDeletingSO(null)}
+                                >
+                                  No
+                                </button>
+                              </div>
+                            )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )
+            ) : /* ---------- EMPLOYEES / MACHINES ---------- */
+            categories.length === 0 ? (
               <div className="text-sm text-gray-400">
                 No categories yet. Add one above.
               </div>
@@ -673,7 +1058,7 @@ export default function ResourceManagementBoard() {
         onConfirm={confirmDelete}
       />
 
-      {/* quick “add category” modal */}
+      {/* quick “add category / contract” modal */}
       {addCategoryMode.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-2xl border p-6 w-full max-w-xs flex flex-col gap-4 relative">
@@ -694,12 +1079,18 @@ export default function ResourceManagementBoard() {
             <div className="text-base font-medium text-gray-700">
               {addCategoryMode.type === "employee"
                 ? "Add employee category"
-                : "Add machines category"}
+                : addCategoryMode.type === "machine"
+                ? "Add machines category"
+                : "Add contract"}
             </div>
             <input
               type="text"
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition"
-              placeholder="Enter category name"
+              placeholder={
+                addCategoryMode.type === "contract"
+                  ? "Contract name"
+                  : "Enter category name"
+              }
               value={addCategoryMode.value}
               autoFocus
               disabled={addCategoryMode.loading}
@@ -744,6 +1135,101 @@ export default function ResourceManagementBoard() {
                 Add
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showAddSOModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="relative w-full max-w-md rounded-2xl border border-gray-200 bg-white p-7 shadow-2xl flex flex-col gap-4">
+            {/* Close button */}
+            <button
+              className="absolute right-4 top-3 text-xl font-bold text-gray-400 hover:text-gray-700 transition-colors rounded-full p-1"
+              onClick={() => {
+                setShowAddSOModal(null);
+                setAddSOModalValue("");
+              }}
+              tabIndex={0}
+              aria-label="Close"
+            >
+              ×
+            </button>
+            {/* Title */}
+            <div className="mb-1 text-lg font-semibold text-gray-500 flex items-center gap-2">
+              <span>Contract </span>
+              <span className="inline-block font-bold">
+                {showAddSOModal.contractName}
+              </span>
+            </div>
+            {/* Subtitle / helper text */}
+            <div className="text-[13px] text-gray-600 mb-2">
+              Enter the SO number to add it under{" "}
+              <span className="font-semibold text-blue-700">
+                {showAddSOModal.contractName}
+              </span>
+              .
+            </div>
+            {/* Form */}
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!uid || !addSOModalValue.trim()) return;
+                await addDoc(
+                  collection(
+                    db,
+                    "companies",
+                    uid,
+                    "contracts",
+                    showAddSOModal.contractId,
+                    "so"
+                  ),
+                  { soNumber: addSOModalValue.trim() }
+                );
+                setShowAddSOModal(null);
+                setAddSOModalValue("");
+              }}
+              className="space-y-4"
+            >
+              <div className="flex flex-col gap-1">
+                <label
+                  htmlFor="so-number-input"
+                  className="text-sm font-medium text-gray-700 flex items-center"
+                >
+                  SO Number
+                  <span className="ml-1 text-red-500 text-base leading-none">
+                    *
+                  </span>
+                </label>
+                <input
+                  id="so-number-input"
+                  autoFocus
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-base transition focus:ring-2 focus:ring-blue-200 focus:outline-none"
+                  value={addSOModalValue}
+                  onChange={(e) => setAddSOModalValue(e.target.value)}
+                  placeholder="e.g. SO-12345"
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2 mt-2">
+                <button
+                  type="button"
+                  className="px-4 py-1.5 rounded-md bg-gray-200 text-gray-800 font-medium hover:bg-gray-300 transition"
+                  onClick={() => {
+                    setShowAddSOModal(null);
+                    setAddSOModalValue("");
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 rounded-md bg-blue-600 text-white font-semibold hover:bg-blue-700 transition shadow-sm focus:ring-2 focus:ring-blue-300 focus:outline-none"
+                  disabled={!addSOModalValue.trim()}
+                >
+                  Add SO
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
