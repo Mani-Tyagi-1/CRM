@@ -1,7 +1,9 @@
 // ===================== Calender.tsx =====================
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Sidebar from "../CalenderComponents/SideBar";
-import CalendarMainContent from "../CalenderComponents/CalenderMainContent";
+import CalendarMainContent, {
+  TimelineContract,
+} from "../CalenderComponents/CalenderMainContent";
 
 import {
   CalendarData as ContractData,
@@ -89,7 +91,11 @@ type DragPayload =
       /*  resources (person / machine / tool) – existing shape */
       name: string;
       type: "person" | "machine" | "tool";
-      source: { zone: "sidebar" | "contract" | "timeoff"; id: string };
+      source: {
+        zone: "sidebar" | "contract" | "timeoff";
+        id: string;
+        contractId?: string;
+      };
       meta?: {
         childrenSnapshot?: ContractCalendarItem[];
         childOf?: string;
@@ -215,6 +221,26 @@ const toDateKey = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
+const normalizeDateValue = (value: any): string | null => {
+  if (!value) return null;
+  if (typeof value === "string") {
+    return value.slice(0, 10);
+  }
+  if (value instanceof Date) {
+    return toDateKey(value);
+  }
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    typeof value.seconds === "number"
+  ) {
+    const millis = value.seconds * 1000 +
+      (typeof value.nanoseconds === "number" ? value.nanoseconds / 1_000_000 : 0);
+    return toDateKey(new Date(millis));
+  }
+  return null;
+};
+
 const timelineDays = React.useMemo(() => {
   const today = startOfDay(new Date());
   const half = Math.floor(DAYS_WINDOW / 2);
@@ -234,6 +260,7 @@ const timelineDays = React.useMemo(() => {
 }, [startOffsetDays]);
 
 
+
   const formatRangeHeader = (start: Date) =>
     `${start.toLocaleString(undefined, {
       month: "long",
@@ -251,35 +278,42 @@ const timelineDays = React.useMemo(() => {
 
   /* ---------- contract-scheduler state ---------- */
   const [contractData, setContractData] = useState<ContractData>({});
+  const [contractsById, setContractsById] = useState<Record<string, TimelineContract>>({});
+  const [soToContractMap, setSoToContractMap] = useState<Record<string, string>>({});
+  const soToContractMapRef = useRef<Record<string, string>>({});
+  const contractResourceUnsubsRef = useRef<Record<string, () => void>>({});
+  const getContractIdForSo = (soId: string) => soToContractMapRef.current[soId] ?? null;
   const [_scheduledContracts, setScheduledContracts] = useState<
     ScheduledContract[]
   >([]);
   const [activeContractId, setActiveContractId] = useState<string | null>(null);
-  const [activeContractTitle, setActiveContractTitle] = useState<string | null>(
-    null
-  );
 
   /* ---------- date range modal ---------- */
   type PendingTarget =
-    | { kind: "contract-cell"; targetKey: string }
-    | { kind: "contract-machine"; targetKey: string; machineName: string }
-    | { kind: "contract-area"; anchorIso: string }
-    | { kind: "timeoff-cell"; targetKey: string }   
+    | { kind: "contract-cell"; contractId: string; targetKey: string }
+    | {
+        kind: "contract-machine";
+        contractId: string;
+        targetKey: string;
+        machineName: string;
+      }
+    | { kind: "contract-area"; contractId: string; anchorIso: string }
+    | { kind: "timeoff-cell"; targetKey: string }
     | null;
   const [showRangeModal, setShowRangeModal] = useState(false);
   const [pendingTarget, setPendingTarget] = useState<PendingTarget>(null);
   const [rangeStart, setRangeStart] = useState<string>("");
   const [rangeEnd, setRangeEnd] = useState<string>("");
-  const [rangeDisplayText, setRangeDisplayText] = useState<string>("");
   const [rangeWithinWeek, setRangeWithinWeek] = useState<
     { startIdx: number; days: number } | undefined
   >(undefined);
   const [pendingDragged, setPendingDragged] = useState<DragPayload>(null);
-  const [scheduledStartISO, setScheduledStartISO] = useState<string | null>(
-    null
-  );
-  const [scheduledEndISO, setScheduledEndISO] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
+
+  const timelineContracts = useMemo(
+    () => Object.values(contractsById),
+    [contractsById]
+  );
 
   /* ---------- auth ---------- */
   useEffect(() => {
@@ -289,197 +323,255 @@ const timelineDays = React.useMemo(() => {
     return () => unsubAuth();
   }, []);
 
-  /* ---------- load scheduled contract metadata ---------- */
+  useEffect(() => {
+    soToContractMapRef.current = soToContractMap;
+  }, [soToContractMap]);
+
   useEffect(() => {
     if (!uid) return;
-    const loadScheduledContracts = async () => {
-      const scheduledRef = doc(
-        db,
-        "companies",
-        uid,
-        "calendar",
-        "activeContract"
-      );
-      const scheduledSnap = await getDoc(scheduledRef);
-      if (!scheduledSnap.exists()) return;
 
-      const scheduledData = scheduledSnap.data();
-      if (!scheduledData.contractId) return;
+    const subscribeToContractResources = (contractId: string) => {
+      let soResourceUnsubs: Record<string, () => void> = {};
 
-      const contractRef = doc(
+      const soColRef = collection(
         db,
         "companies",
         uid,
         "contracts",
-        scheduledData.contractId
+        contractId,
+        "so"
       );
-      const contractSnap = await getDoc(contractRef);
-      if (!contractSnap.exists()) return;
 
-      const cData = contractSnap.data() as any;
-      setActiveContractId(scheduledData.contractId);
-      setActiveContractTitle(
-        cData.name || scheduledData.contractTitle || "Contract"
-      );
-      if (cData.startDate) setScheduledStartISO(cData.startDate);
-      if (cData.endDate) setScheduledEndISO(cData.endDate);
-      if (cData.startDate && cData.endDate && !rangeDisplayText) {
-        setRangeDisplayText(`${cData.startDate} → ${cData.endDate}`);
-      }
-    };
-    loadScheduledContracts().catch(console.error);
-  }, [uid]);
+      const unsubSO = onSnapshot(soColRef, (soSnap) => {
+        const soList = soSnap.docs.map((soDoc) => ({
+          id: soDoc.id,
+          soNumber: soDoc.get("soNumber") || soDoc.id,
+        }));
 
-  /* ---------- listen to contract meta (start/end dates) ---------- */
-  useEffect(() => {
-    if (!uid || !activeContractId) return;
-    const ref = doc(db, "companies", uid, "contracts", activeContractId);
-    const unsub = onSnapshot(ref, (snap) => {
-      if (!snap.exists()) return;
-      const d = snap.data() as any;
-      if (typeof d.startDate === "string") setScheduledStartISO(d.startDate);
-      if (typeof d.endDate === "string") setScheduledEndISO(d.endDate);
-      if (d.title && !activeContractTitle) setActiveContractTitle(d.title);
-      if (d.startDate && d.endDate)
-        setRangeDisplayText(`${d.startDate} → ${d.endDate}`);
-    });
-    return () => unsub();
-  }, [uid, activeContractId]);
+        setContractsById((prev) => {
+          const prevEntry = prev[contractId];
+          const nextEntry: TimelineContract = {
+            id: contractId,
+            title: prevEntry?.title ?? "Contract",
+            startDate: prevEntry?.startDate ?? null,
+            endDate: prevEntry?.endDate ?? null,
+            soList,
+          };
+          return { ...prev, [contractId]: nextEntry };
+        });
 
-  /* ---------- CORE LISTENER:  /so/{soId}/resources ---------- */
-  useEffect(() => {
-    if (!uid || !activeContractId) return;
-    let unsubSOs: (() => void) | null = null;
+        setSoToContractMap((prev) => {
+          const next = { ...prev };
+          Object.entries(next).forEach(([soId, cid]) => {
+            if (cid === contractId && !soList.some((so) => so.id === soId)) {
+              delete next[soId];
+            }
+          });
+          soList.forEach(({ id }) => {
+            next[id] = contractId;
+          });
+          soToContractMapRef.current = next;
+          return next;
+        });
 
-    // Subscribe to SO collection in real time
-    const soColRef = collection(
-      db,
-      "companies",
-      uid,
-      "contracts",
-      activeContractId,
-      "so"
-    );
+        const currentSoIds = new Set(soList.map((so) => so.id));
+        Object.keys(soResourceUnsubs).forEach((soId) => {
+          if (!currentSoIds.has(soId)) {
+            soResourceUnsubs[soId]?.();
+            delete soResourceUnsubs[soId];
+            setContractData((prev) => {
+              const next = { ...prev };
+              Object.keys(next).forEach((cellKey) => {
+                if (cellKey.startsWith(`${soId}-`)) delete next[cellKey];
+              });
+              return next;
+            });
+          }
+        });
 
-    // Keep a reference to all sub-unsubs (for resources under each SO)
-    let soResourceUnsubs: (() => void)[] = [];
+        currentSoIds.forEach((soId) => {
+          if (soResourceUnsubs[soId]) return;
 
-    // This will subscribe to SOs and keep up-to-date if any are added/removed
-    const unsubSOListener = onSnapshot(soColRef, (soSnap) => {
-      // Clean up previous resource listeners
-      soResourceUnsubs.forEach((fn) => fn());
-      soResourceUnsubs = [];
+          const resColRef = collection(
+            db,
+            "companies",
+            uid,
+            "contracts",
+            contractId,
+            "so",
+            soId,
+            "resources"
+          );
 
-      // Gather all SO ids
-      const soIds: string[] = [];
-      soSnap.forEach((soDoc) => {
-        soIds.push(soDoc.id);
-      });
-
-      // Subscribe to each SO's resource subcollection
-      soIds.forEach((soId) => {
-        const resColRef = collection(
-          db,
-          "companies",
-          uid,
-          "contracts",
-          activeContractId,
-          "so",
-          soId,
-          "resources"
-        );
-        const resUnsub = onSnapshot(resColRef, (resSnap) => {
-          setContractData((prev) => {
-            const next: ContractData = { ...prev };
-            const promises: Promise<any>[] = [];
+          soResourceUnsubs[soId] = onSnapshot(resColRef, (resSnap) => {
+            const tasks: Promise<{
+              rd: any;
+              machineChildren?: ContractCalendarItem[];
+            }>[] = [];
 
             resSnap.forEach((resDoc) => {
               const rd = resDoc.data();
               if (rd.type === "machine") {
-                // For each machine, load children
-                const p = getDocs(
-                  collection(
-                    db,
-                    "companies",
-                    uid,
-                    "contracts",
-                    activeContractId,
-                    "so",
-                    soId,
-                    "resources",
-                    rd.name,
-                    "resources"
-                  )
-                ).then((machineResSnap) => {
-                  const machineChildren: ContractCalendarItem[] = [];
-                  machineResSnap.forEach((empDoc) => {
-                    const emp = empDoc.data();
-                    (emp.assignedDates || []).forEach((dateIso: string) => {
-                      machineChildren.push({
-                        name: emp.name,
-                        type: emp.type,
-                        color: contractColorFor(emp.type),
-                        assignedDates: emp.assignedDates,
-                        endDate: dateIso, // not use 
-                        startDate: dateIso, // no use
+                tasks.push(
+                  getDocs(
+                    collection(
+                      db,
+                      "companies",
+                      uid,
+                      "contracts",
+                      contractId,
+                      "so",
+                      soId,
+                      "resources",
+                      rd.name,
+                      "resources"
+                    )
+                  ).then((machineResSnap) => {
+                    const machineChildren: ContractCalendarItem[] = [];
+                    machineResSnap.forEach((empDoc) => {
+                      const emp = empDoc.data();
+                      (emp.assignedDates || []).forEach((dateIso: string) => {
+                        machineChildren.push({
+                          name: emp.name,
+                          type: emp.type,
+                          color: contractColorFor(emp.type),
+                          assignedDates: emp.assignedDates,
+                        startDate: dateIso,
+                        endDate: dateIso,
+                        });
                       });
                     });
-                  });
-                  return { rd, machineChildren };
-                });
-                promises.push(p);
+                    return { rd, machineChildren };
+                  })
+                );
               } else {
-                // flat resources
-                promises.push(Promise.resolve({ rd }));
+                tasks.push(Promise.resolve({ rd }));
               }
             });
 
-            Promise.all(promises).then((results) => {
+            Promise.all(tasks).then((results) => {
               setContractData((prev) => {
                 const next: ContractData = { ...prev };
+                Object.keys(next).forEach((cellKey) => {
+                  if (cellKey.startsWith(`${soId}-`)) delete next[cellKey];
+                });
+
                 results.forEach(({ rd, machineChildren }) => {
                   const dates: string[] =
                     rd.assignedDates || (rd.date ? [rd.date] : []);
-                  dates.forEach((dateIso) => {
+                  dates.forEach((dateIso: string) => {
                     const cellKey = `${soId}-${dateIso}`;
-                    if (!next[cellKey]) next[cellKey] = [];
-                    if (
-                      !next[cellKey].some(
-                        (i) => i.name === rd.name && i.type === rd.type
-                      )
-                    ) {
-                      next[cellKey] = [
-                        ...next[cellKey],
-                        {
-                          name: rd.name,
-                          type: rd.type,
-                          color: contractColorFor(rd.type),
-                          ...(machineChildren && { children: machineChildren }),
-                        },
-                      ];
-                    }
+                  const entry: ContractCalendarItem = {
+                      name: rd.name,
+                      type: rd.type,
+                      color: contractColorFor(rd.type),
+                    startDate: dateIso,
+                    endDate: dateIso,
+                      ...(machineChildren && { children: machineChildren }),
+                    };
+                    next[cellKey] = [...(next[cellKey] || []), entry];
                   });
                 });
+
                 return next;
               });
             });
-
-            return next;
           });
         });
-        soResourceUnsubs.push(resUnsub);
+      });
+
+      return () => {
+        unsubSO();
+        Object.values(soResourceUnsubs).forEach((fn) => fn());
+      };
+    };
+
+    const contractsColRef = collection(db, "companies", uid, "contracts");
+    const unsubContracts = onSnapshot(contractsColRef, (contractsSnap) => {
+      const seenIds = new Set<string>();
+      const metaUpdates: Record<
+        string,
+        { title: string; start: string | null; end: string | null }
+      > = {};
+
+      contractsSnap.forEach((contractDoc) => {
+        const data = contractDoc.data() as any;
+        const contractId = contractDoc.id;
+        seenIds.add(contractId);
+        metaUpdates[contractId] = {
+          title: data.name || data.title || "Contract",
+          start: normalizeDateValue(data.startDate),
+          end: normalizeDateValue(data.endDate),
+        };
+
+        if (!contractResourceUnsubsRef.current[contractId]) {
+          contractResourceUnsubsRef.current[contractId] =
+            subscribeToContractResources(contractId);
+        }
+      });
+
+      setContractsById((prev) => {
+        const next: Record<string, TimelineContract> = {};
+        Object.entries(metaUpdates).forEach(([contractId, meta]) => {
+          const prevEntry = prev[contractId];
+          next[contractId] = {
+            id: contractId,
+            title: meta.title,
+            startDate: meta.start,
+            endDate: meta.end,
+            soList: prevEntry?.soList ?? [],
+          };
+        });
+        return next;
+      });
+
+      Object.keys(contractResourceUnsubsRef.current).forEach((contractId) => {
+        if (!seenIds.has(contractId)) {
+          contractResourceUnsubsRef.current[contractId]?.();
+          delete contractResourceUnsubsRef.current[contractId];
+        }
+      });
+
+      setContractsById((prev) => {
+        const next = { ...prev };
+        Object.keys(next).forEach((contractId) => {
+          if (!seenIds.has(contractId)) {
+            delete next[contractId];
+          }
+        });
+        return next;
+      });
+
+      setSoToContractMap((prev) => {
+        const next = { ...prev };
+        Object.entries(next).forEach(([soId, contractId]) => {
+          if (!seenIds.has(contractId)) {
+            delete next[soId];
+          }
+        });
+        soToContractMapRef.current = next;
+        return next;
+      });
+
+      setContractData((prev) => {
+        const next = { ...prev };
+        Object.entries(next).forEach(([cellKey]) => {
+          const { soId } = splitCellKey(cellKey);
+          const contractId = soToContractMapRef.current[soId];
+          if (contractId && !seenIds.has(contractId)) {
+            delete next[cellKey];
+          }
+        });
+        return next;
       });
     });
 
-    unsubSOs = () => {
-      unsubSOListener();
-      soResourceUnsubs.forEach((fn) => fn());
-    };
-
     return () => {
-      unsubSOs?.();
+      unsubContracts();
+      Object.values(contractResourceUnsubsRef.current).forEach((fn) => fn());
+      contractResourceUnsubsRef.current = {};
     };
-  }, [uid, activeContractId]);
+  }, [uid]);
 
   /* ---------- time-off logic (unchanged) ---------- */
   const initialTimeOffData: TimeOffData = useMemo(() => {
@@ -587,6 +679,7 @@ const timelineDays = React.useMemo(() => {
   const moveTo = async (target: {
     zone: "sidebar" | "contract" | "timeoff";
     id: string;
+    contractId?: string;
     assignToMachine?: { machineName: string } | null;
   }) => {
     console.log("running");
@@ -637,18 +730,17 @@ const timelineDays = React.useMemo(() => {
             ]
       );
 
-      // Update contractData with cells for the date range
-      const startDate = new Date(anchorIso);
-      const endDate = new Date(anchorIso);
+      const contractMeta = contractsById[dragged.contractId];
+      const rangeStartIso = contractMeta?.startDate ?? anchorIso;
+      const rangeEndIso = contractMeta?.endDate ?? anchorIso;
 
-      // Use scheduled range if present
-      if (scheduledStartISO && scheduledEndISO) {
-        const savedStart = new Date(scheduledStartISO);
-        const savedEnd = new Date(scheduledEndISO);
-        if (!isNaN(savedStart.getTime()) && !isNaN(savedEnd.getTime())) {
-          startDate.setTime(savedStart.getTime());
-          endDate.setTime(savedEnd.getTime());
-        }
+      // Update contractData with cells for the date range
+      const startDate = new Date(rangeStartIso);
+      const endDate = new Date(rangeEndIso);
+
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        startDate.setTime(new Date(anchorIso).getTime());
+        endDate.setTime(startDate.getTime());
       }
 
       setContractData((prev) => {
@@ -679,8 +771,34 @@ const timelineDays = React.useMemo(() => {
         return next;
       });
 
+      setContractsById((prev) => {
+        const prevEntry = prev[dragged.contractId];
+        const updated: TimelineContract = {
+          id: dragged.contractId,
+          title: dragged.title,
+          startDate: prevEntry?.startDate ?? rangeStartIso,
+          endDate: prevEntry?.endDate ?? rangeEndIso,
+          soList:
+            prevEntry?.soList?.length
+              ? prevEntry.soList
+              : dragged.soList.map((so) => ({
+                  id: so.id,
+                  soNumber: so.soNumber ?? "",
+                })),
+        };
+        return { ...prev, [dragged.contractId]: updated };
+      });
+
+      setSoToContractMap((prev) => {
+        const next = { ...prev };
+        dragged.soList.forEach((so) => {
+          next[so.id] = dragged.contractId;
+        });
+        soToContractMapRef.current = next;
+        return next;
+      });
+
       setActiveContractId(dragged.contractId); // Set active contract
-      setActiveContractTitle(dragged.title); // Set contract title
 
       // Persist active contract to Firebase (for direct drops without range modal)
       if (uid) {
@@ -694,8 +812,8 @@ const timelineDays = React.useMemo(() => {
         setDoc(calendarRef, {
           contractId: dragged.contractId,
           contractTitle: dragged.title,
-          startDate: scheduledStartISO || null,
-          endDate: scheduledEndISO || null,
+          startDate: contractMeta?.startDate ?? null,
+          endDate: contractMeta?.endDate ?? null,
           updatedAt: new Date().toISOString(),
         }).catch((e) =>
           console.error(
@@ -726,10 +844,12 @@ const timelineDays = React.useMemo(() => {
     /* remove from old location (state + firestore) */
     if (draggedItem.source.zone === "contract") {
       const { soId, dateIso } = splitCellKey(draggedItem.source.id);
-      if (uid && activeContractId) {
+      const sourceContractId =
+        draggedItem.source.contractId ?? getContractIdForSo(soId);
+      if (uid && sourceContractId) {
         await removeResourceFromDate({
           uid,
-          contractId: activeContractId,
+          contractId: sourceContractId,
           soId,
           resourceName: draggedItem.name,
           dateIso,
@@ -741,6 +861,7 @@ const timelineDays = React.useMemo(() => {
 
     // Add to target zone
     if (target.zone === "contract") {
+      const targetContractId = target.contractId;
       if (target.assignToMachine) {
         // Add to a specific machine and persist
         attachToMachine(
@@ -749,18 +870,19 @@ const timelineDays = React.useMemo(() => {
           itemToAdd
         );
         // Persist target cell after attach
-        if (uid && activeContractId) {
+        const { soId } = splitCellKey(target.id);
+        const resolvedContractId =
+          targetContractId ?? getContractIdForSo(soId);
+        if (uid && resolvedContractId) {
           const next = { ...contractData };
           // const itemsForCell = next[target.id] || [];
-          const { soId } = splitCellKey(target.id);
-
           // First update the state
           setContractData(next);
 
           // Then handle the async operations
           const machineRef = resourceDoc(
             uid,
-            activeContractId,
+            resolvedContractId,
             soId,
             target.assignToMachine!.machineName
           );
@@ -772,7 +894,7 @@ const timelineDays = React.useMemo(() => {
             // write the employee under its sub-collection
             const empRef = machineEmployeeDoc(
               uid,
-              activeContractId,
+              resolvedContractId,
               soId,
               target.assignToMachine!.machineName,
               draggedItem.name
@@ -792,7 +914,7 @@ const timelineDays = React.useMemo(() => {
                 "companies",
                 uid,
                 "contracts",
-                activeContractId,
+                  resolvedContractId,
                 "schedule",
                 srcKey
               );
@@ -802,9 +924,19 @@ const timelineDays = React.useMemo(() => {
             console.error("Error updating Firebase:", error);
           }
         }
+        if (resolvedContractId) {
+          setActiveContractId(resolvedContractId);
+        }
       } else {
         /* NORMAL CELL */
         const { soId, dateIso } = splitCellKey(target.id);
+        const resolvedContractId =
+          targetContractId ?? getContractIdForSo(soId);
+        if (!resolvedContractId) {
+          console.warn("No contract mapping for", soId);
+          setDragged(null);
+          return;
+        }
         setContractData((prev) => {
           const cur = prev[target.id] || [];
           if (
@@ -816,16 +948,17 @@ const timelineDays = React.useMemo(() => {
           return { ...prev, [target.id]: [...cur, itemToAdd] };
         });
 
-        if (uid && activeContractId) {
+        if (uid && resolvedContractId) {
           await assignResourceToDate({
             uid,
-            contractId: activeContractId,
+            contractId: resolvedContractId,
             soId,
             resourceName: draggedItem.name,
             resourceType: draggedItem.type,
             dateIso,
           });
         }
+        setActiveContractId(resolvedContractId);
       }
 
     } 
@@ -900,12 +1033,17 @@ const handleAreaDrop = React.useCallback(
   (anchorIso: string) => {
     /* 1️⃣ contract rows → show range modal */
     if (dragged && "contractId" in dragged) {
-      setPendingTarget({ kind: "contract-area", anchorIso });
+      setPendingTarget({
+        kind: "contract-area",
+        contractId: dragged.contractId,
+        anchorIso,
+      });
       setPendingDragged(dragged);
       setShowRangeModal(true);
       return;
     }
     /* 2️⃣ everything else → immediate move */
+    if (dragged && "name" in dragged) return;
     moveTo({ zone: "contract", id: anchorIso });
   },
   [dragged] // <- deps
@@ -935,13 +1073,16 @@ const handleAreaDrop = React.useCallback(
   };
 
   const handleResize = (
+    contractId: string,
     soId: string,
     itemName: string,
     itemType: ContractItemType,
     edge: "left" | "right",
     dayDelta: number
   ) => {
-    if (!scheduledStartISO || !scheduledEndISO || !timelineDays.length) return;
+    const contractMeta = contractsById[contractId];
+    if (!contractMeta?.startDate || !contractMeta?.endDate || !timelineDays.length)
+      return;
     if (dayDelta === 0) return;
 
     // Find all days this resource is scheduled for this SO
@@ -990,10 +1131,10 @@ const handleAreaDrop = React.useCallback(
                           ],
                         };
                         // Firestore ADD
-                        if (uid && activeContractId) {
+                        if (uid) {
                           assignResourceToDate({
                             uid,
-                            contractId: activeContractId,
+                            contractId,
                             soId,
                             resourceName: itemName,
                             resourceType: itemType,
@@ -1024,10 +1165,10 @@ const handleAreaDrop = React.useCallback(
                 ),
               };
               // Firestore REMOVE
-              if (uid && activeContractId) {
+              if (uid) {
                 removeResourceFromDate({
                   uid,
-                  contractId: activeContractId,
+                  contractId,
                   soId,
                   resourceName: itemName,
                   dateIso: timelineDays[idx].key,
@@ -1064,10 +1205,10 @@ const handleAreaDrop = React.useCallback(
                 [cellKey]: [...cur, newItem],
               };
               // Firestore ADD
-              if (uid && activeContractId) {
+              if (uid) {
                 assignResourceToDate({
                   uid,
-                  contractId: activeContractId,
+                  contractId,
                   soId,
                   resourceName: itemName,
                   resourceType: itemType,
@@ -1098,10 +1239,10 @@ const handleAreaDrop = React.useCallback(
                 ),
               };
               // Firestore REMOVE
-              if (uid && activeContractId) {
+              if (uid) {
                 removeResourceFromDate({
                   uid,
-                  contractId: activeContractId,
+                  contractId,
                   soId,
                   resourceName: itemName,
                   dateIso: timelineDays[idx].key,
@@ -1317,6 +1458,7 @@ const handleAreaDrop = React.useCallback(
 
   /* ---------- contract / time-off drag-starts ---------- */
   const onContractItemDragStart = (
+    contractId: string,
     name: string,
     sourceKey: string,
     type: ContractItemType,
@@ -1325,7 +1467,7 @@ const handleAreaDrop = React.useCallback(
     setDragged({
       name,
       type,
-      source: { zone: "contract", id: sourceKey },
+      source: { zone: "contract", id: sourceKey, contractId },
       meta,
     });
 
@@ -1343,7 +1485,8 @@ const handleAreaDrop = React.useCallback(
   const allowDrop = (e: React.DragEvent<HTMLElement>) => e.preventDefault();
 
   /* ---------- contract-grid drop TARGETS ---------- */
-  const onContractDrop = (targetKey: string) => {
+  const onContractDrop = (contractId: string, targetKey: string) => {
+    setActiveContractId(contractId);
     // if a resource (person / machine / tool) is being dropped → open the modal
 
     console.log("inside the contract drop ", targetKey);
@@ -1354,17 +1497,22 @@ const handleAreaDrop = React.useCallback(
       setRangeStart(iso);
       setRangeEnd(iso);
 
-      setPendingTarget({ kind: "contract-cell", targetKey });
+      setPendingTarget({ kind: "contract-cell", contractId, targetKey });
       setPendingDragged(dragged);
       setShowRangeModal(true);
       return;
     }
 
     // anything else (e.g. whole-contract rows) keeps the old behaviour
-    moveTo({ zone: "contract", id: targetKey });
+    moveTo({ zone: "contract", id: targetKey, contractId });
   };
 
-  const onContractDropToMachine = (targetKey: string, machineName: string) => {
+  const onContractDropToMachine = (
+    contractId: string,
+    targetKey: string,
+    machineName: string
+  ) => {
+    setActiveContractId(contractId);
     if (dragged && "name" in dragged) {
       const iso = targetKey.match(/\d{4}-\d{2}-\d{2}$/)?.[0] ?? "";
       setRangeStart(iso);
@@ -1372,6 +1520,7 @@ const handleAreaDrop = React.useCallback(
 
       setPendingTarget({
         kind: "contract-machine",
+        contractId,
         targetKey,
         machineName,
       });
@@ -1383,6 +1532,7 @@ const handleAreaDrop = React.useCallback(
     moveTo({
       zone: "contract",
       id: targetKey,
+      contractId,
       assignToMachine: { machineName },
     });
   };
@@ -1533,8 +1683,6 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
     const startISO = fmt(start);
     const endISO = fmt(end);
 
-    setRangeDisplayText(`${startISO} → ${endISO}`);
-
     const weekDays = timelineDays.filter(
       (d) => d.key >= startISO && d.key <= endISO
     );
@@ -1545,14 +1693,40 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
       pendingDragged &&
       "contractId" in pendingDragged
     ) {
-      setActiveContractId(pendingDragged.contractId);
-      setActiveContractTitle(pendingDragged.title);
-      setScheduledStartISO(startISO);
-      setScheduledEndISO(endISO);
+      const contractId = pendingTarget.contractId;
+      setActiveContractId(contractId);
+      setContractsById((prev) => {
+        const prevEntry = prev[contractId];
+        const soList = prevEntry?.soList?.length
+          ? prevEntry.soList
+          : pendingDragged.soList.map((so) => ({
+              id: so.id,
+              soNumber: so.soNumber || "Contract",
+            }));
+        return {
+          ...prev,
+          [contractId]: {
+            id: contractId,
+            title: prevEntry?.title ?? pendingDragged.title,
+            startDate: startISO,
+            endDate: endISO,
+            soList,
+          },
+        };
+      });
+
+      setSoToContractMap((prev) => {
+        const next = { ...prev };
+        pendingDragged.soList.forEach((so) => {
+          next[so.id] = contractId;
+        });
+        soToContractMapRef.current = next;
+        return next;
+      });
 
       // Persist range and contract info
       await persistContractRange(
-        pendingDragged.contractId,
+        contractId,
         pendingDragged.title,
         pendingTarget.anchorIso,
         startISO,
@@ -1561,7 +1735,7 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
 
       // Create empty cells in local state & Firestore
       await createContractCells(
-        pendingDragged.contractId,
+        contractId,
         pendingDragged.soList.map((so) => ({
           id: so.id,
           soNumber: so.soNumber || "Contract",
@@ -1588,6 +1762,8 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
       const base = pendingTarget.targetKey.match(/^(.*)-\d{4}-\d{2}-\d{2}$/);
       if (!base) return; // could not parse key
       const soId = base[1];
+      const contractId = pendingTarget.contractId;
+      if (!contractId) return;
 
       // build the item once
       const item: ContractCalendarItem = {
@@ -1612,13 +1788,13 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
       });
 
       // persist to Firestore
-      if (uid && activeContractId) {
+      if (uid) {
         const { soId } = splitCellKey(pendingTarget.targetKey);
         const assignedDates = getAllDateIsosInRange(startISO, endISO);
 
         const resourceRef = resourceDoc(
           uid,
-          activeContractId,
+          contractId,
           soId,
           pendingDragged.name
         );
@@ -1643,6 +1819,8 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
       const base = targetKey.match(/^(.*)-\d{4}-\d{2}-\d{2}$/);
       if (!base) return;
       const soId = base[1];
+      const contractId = pendingTarget.contractId;
+      if (!contractId) return;
 
       const item: ContractCalendarItem = {
         name: pendingDragged.name,
@@ -1661,11 +1839,11 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
       });
 
       // Persist to Firestore: assign all dates in the range
-      if (uid && activeContractId) {
+      if (uid) {
         // 1. ensure machine doc exists
         const machineRef = resourceDoc(
           uid,
-          activeContractId,
+          contractId,
           soId,
           machineName
         );
@@ -1680,7 +1858,7 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
 
         const empRef = machineEmployeeDoc(
           uid,
-          activeContractId,
+          contractId,
           soId,
           machineName,
           item.name
@@ -1787,24 +1965,19 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
         headerLabel={headerLabel}
         setHeaderLabel={setHeaderLabel}
         setStartOffsetDays={setStartOffsetDays}
+        setSidebarSearch={setSidebarSearch}
+        contracts={timelineContracts}
         contractData={contractData}
-        setContractData={setContractData}
+        soToContractMap={soToContractMap}
         onContractItemDragStart={onContractItemDragStart}
         onContractDrop={onContractDrop}
         onContractDropToMachine={onContractDropToMachine}
         allUnavailableResourceNames={allUnavailableResourceNames}
         handleResize={handleResize}
-        timeOffData={timeOffData}
-        onTimeOffItemDragStart={onTimeOffItemDragStart}
-        onTimeOffDrop={onTimeOffDrop}
-        setSidebarSearch={setSidebarSearch}
         onAreaDrop={handleAreaDrop}
         isDraggingContract={isDraggingContract}
         activeContractId={activeContractId}
-        activeContractTitle={activeContractTitle || undefined}
         rangeWithinWeek={rangeWithinWeek}
-        scheduledStartISO={scheduledStartISO}
-        scheduledEndISO={scheduledEndISO}
       />
 
       {/* ---------- Time-off footer ---------- */}
