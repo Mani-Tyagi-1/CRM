@@ -16,6 +16,9 @@ export type CreateContractInput = {
   startDate?: Date; // Resource start (optional)
   endDate?: Date; // Resource end (optional)
   resourceRef?: string | null; // Optional pointer to a resource catalog item
+  workPrice: string | undefined;
+  unit: string | undefined;
+  soNumbers: string[];
 };
 
 export async function createContractWithSoAndResource(
