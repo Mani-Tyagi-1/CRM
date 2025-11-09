@@ -1,7 +1,3 @@
-/* ------------------------------------------------------------------
-   ResourceManagementBoard.tsx  –  **UPDATED**
-   All contract-related logic now mirrors SidebarContracts.tsx
------------------------------------------------------------------- */
 import React, { useEffect, useState } from "react";
 import {
   Users,
@@ -32,10 +28,6 @@ import { DeleteModal } from "./DeleteModal";
 import { useLocation, useNavigate } from "react-router-dom";
 import EditContractForm from "../pages/EditContract";
 
-/* ------------------------------------------------------------------ */
-/* utilities                                                           */
-/* ------------------------------------------------------------------ */
-
 const GRADIENTS = [
   "from-sky-100 to-blue-50 border-blue-400",
   "from-emerald-100 to-green-50 border-green-400",
@@ -47,10 +39,6 @@ const GRADIENTS = [
 function classNames(...classes: (string | boolean | undefined)[]) {
   return classes.filter(Boolean).join(" ");
 }
-
-/* ------------------------------------------------------------------ */
-/* tiny building blocks                                                */
-/* ------------------------------------------------------------------ */
 
 function Tab({
   active,

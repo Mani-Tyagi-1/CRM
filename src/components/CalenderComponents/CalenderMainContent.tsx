@@ -1,6 +1,6 @@
 import React, {useState,useCallback, useMemo, useLayoutEffect, useRef } from "react";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
-import { DayPicker } from "react-day-picker";
+// import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css"; 
 
 import ContractScheduler, {
@@ -160,7 +160,7 @@ const CalendarMainContent: React.FC<Props> = ({
      📌 1. helper: pack contracts into non-overlapping “lanes”
      ──────────────────────────────────────────────────────────*/
   // CalendarMainContent.tsx – before placeIntoLanes
-  const scheduledContracts = contracts.filter((c) => c.startDate && c.endDate);
+  // const scheduledContracts = contracts.filter((c) => c.startDate && c.endDate);
 
   function placeIntoLanes(cs: TimelineContract[]): TimelineContract[][] {
     if (cs.length === 0) return [];
@@ -175,7 +175,7 @@ const CalendarMainContent: React.FC<Props> = ({
 
     sorted.forEach((c) => {
       const cStart = new Date(c.startDate ?? "2100-01-01").getTime();
-      const cEnd = new Date(c.endDate ?? "1970-01-01").getTime();
+      // const cEnd = new Date(c.endDate ?? "1970-01-01").getTime();
 
       /* find first lane whose last contract ends before this one starts */
       const targetLane = lanes.find((lane) => {
