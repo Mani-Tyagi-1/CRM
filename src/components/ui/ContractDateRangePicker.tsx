@@ -1,6 +1,4 @@
-import * as React from "react";
 import { Calendar } from "../ui/calendar";
-import type { DateRange } from "react-day-picker";
 
 // --- Type for parent communication ---
 type Props = {
