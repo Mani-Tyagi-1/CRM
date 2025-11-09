@@ -155,7 +155,7 @@ const EditContractForm: React.FC<Props> = ({
       {/* Header */}
       <div className="flex items-center px-6 py-2 border-b border-gray-200 w-full">
         <div className="flex items-center min-w-[160px]">
-          <a href="/calender">
+          <a href="/calender" className="flex items-center">
             <ChevronLeft className="w-5 h-5 text-gray-600 mr-3" />
             <span className="text-gray-600 text-sm cursor-pointer">
               Back to the calendar

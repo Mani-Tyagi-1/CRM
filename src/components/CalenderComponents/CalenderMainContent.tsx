@@ -1,5 +1,7 @@
 import React, {useState,useCallback, useMemo, useLayoutEffect, useRef } from "react";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { DayPicker } from "react-day-picker";
+import "react-day-picker/dist/style.css"; 
 
 import ContractScheduler, {
   CalendarData as ContractData,
@@ -355,10 +357,10 @@ const CalendarMainContent: React.FC<Props> = ({
               />
             </div>
             <div className="justify-self-end flex items-center gap-3">
-              <div className="inline-flex items-stretch rounded-lg overflow-hidden ring-1 ring-gray-200 bg-white mr-7">
+              <div className="inline-flex items-stretch  rounded-lg overflow-hidden ring-1 ring-gray-200 bg-white mr-7">
                 {/* previous-day */}
                 <button
-                  className="px-2 py-2 hover:bg-gray-50"
+                  className="px-2 py-2 hover:bg-gray-50 cursor-pointer"
                   onClick={() => {
                     const newOffset = currentOffset - 1;
                     setStartOffsetDays(newOffset);
@@ -372,7 +374,7 @@ const CalendarMainContent: React.FC<Props> = ({
                 {/* 🆕  date-picker trigger */}
                 <div className="relative">
                   <button
-                    className="px-4 py-2 text-sm font-medium border-x border-gray-200 hover:bg-gray-50 w-full"
+                    className="px-4 py-2 cursor-pointer text-sm font-medium border-x border-gray-200 hover:bg-gray-50 w-full"
                     onClick={() => setDatePickerOpen((o) => !o)}
                   >
                     {dateButtonLabel}
@@ -397,7 +399,7 @@ const CalendarMainContent: React.FC<Props> = ({
 
                 {/* next-day */}
                 <button
-                  className="px-2 py-2 hover:bg-gray-50"
+                  className="px-2 py-2 hover:bg-gray-50 cursor-pointer"
                   onClick={() => {
                     const newOffset = currentOffset + 1;
                     setStartOffsetDays(newOffset);

@@ -654,6 +654,7 @@ const ContractScheduler: React.FC<Props> = ({
             zIndex: 2,
             marginTop: 2,
             marginBottom: 2,
+            maxWidth: span.startIdx === span.endIdx ? "90%" : "100%",
           }}
           draggable
           onDragStart={(e) => {
@@ -724,7 +725,7 @@ const ContractScheduler: React.FC<Props> = ({
                 <div
                   key={cellKey}
                   className={[
-                    "p-3 hover:bg-gray-25 transition-colors border border-transparent hover:border-gray-200 hover:border-dashed min-h-[80px] relative",
+                    "p-3 hover:bg-gray-25  min-h-[20px] relative",
                     inRange ? "bg-blue-50/40" : "",
                   ].join(" ")}
                   onDragOver={(e) => {
