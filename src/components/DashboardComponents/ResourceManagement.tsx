@@ -30,6 +30,7 @@ import { auth, db } from "../../lib/firebase";
 import { ResourceModal } from "./ResourceModal";
 import { DeleteModal } from "./DeleteModal";
 import { useLocation, useNavigate } from "react-router-dom";
+import EditContractForm from "../pages/EditContract";
 
 /* ------------------------------------------------------------------ */
 /* utilities                                                           */
@@ -185,7 +186,7 @@ type ModalState = {
 
 type DeleteModalState = {
   open: boolean;
-  type?: "employee" | "machine" | "contract-so";
+  type?: "employee" | "machine" | "contract-so" | "contract";
   category?: string;
   id?: string;
   name?: string;
@@ -249,6 +250,10 @@ export default function ResourceManagementBoard() {
     value: "",
     loading: false,
   });
+  const [editingContractId, setEditingContractId] = useState<string | null>(
+    null
+  );
+
 
   /* Which tab is active? */
   type TabType = "employees" | "machines" | "contracts";
@@ -596,6 +601,21 @@ export default function ResourceManagementBoard() {
       return;
     }
 
+    if (deleteModal.type === "contract" && deleteModal.id) {
+      // Delete all SOs under the contract
+      const soSnap = await getDocs(
+        collection(db, "companies", uid, "contracts", deleteModal.id, "so")
+      );
+      await Promise.all(soSnap.docs.map((d) => deleteDoc(d.ref)));
+
+      // Delete the contract itself
+      await deleteDoc(doc(db, "companies", uid, "contracts", deleteModal.id));
+
+      setDeleteModal({ open: false });
+      return;
+    }
+
+
       if (
         deleteModal.type === "contract-so" &&
         deleteModal.contractId &&
@@ -823,8 +843,24 @@ export default function ResourceManagementBoard() {
                           }
                         />
 
-                        <PencilLine className="h-4 w-4 opacity-30" />
-                        <Trash2 className="h-4 w-4 opacity-30" />
+                        <PencilLine
+                          className="h-4 w-4 cursor-pointer hover:text-black"
+                          onClick={() => setEditingContractId(contract.id)}
+                        />
+
+                        <Trash2
+                          className="h-4 w-4 cursor-pointer hover:text-red-600"
+                          onClick={() =>
+                            setDeleteModal({
+                              open: true,
+                              type: "contract",
+                              id: contract.id,
+                              name: contract.name,
+                              isCategory: true,
+                            })
+                          }
+                        />
+
                         <GripVertical className="h-4 w-4 cursor-move" />
                       </div>
                     </div>
@@ -1230,6 +1266,25 @@ export default function ResourceManagementBoard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {editingContractId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl border p-0 w-full max-w-4xl flex flex-col relative">
+            <button
+              className="absolute right-3 top-2 text-lg hover:bg-gray-100 rounded-full px-2 py-1 transition"
+              onClick={() => setEditingContractId(null)}
+              tabIndex={0}
+            >
+              ×
+            </button>
+            <EditContractForm
+              companyId={uid!}
+              contractId={editingContractId}
+              onUpdated={() => setEditingContractId(null)}
+            />
           </div>
         </div>
       )}

@@ -27,7 +27,7 @@ export async function createContractWithSoAndResource(
 ) {
   const companyId = opts?.uid ?? auth.currentUser?.uid;
   if (!companyId) throw new Error("Not signed in.");
-  // Only check date order if both are given
+
   if (input.startDate && input.endDate && input.endDate < input.startDate) {
     throw new Error("End date cannot be before start date.");
   }
@@ -35,50 +35,42 @@ export async function createContractWithSoAndResource(
   const batch = writeBatch(db);
   const now = serverTimestamp();
 
-  // Always create contract
+  // Ensure soNumbers is always an array
+  const soNumbers =
+    input.soNumbers && input.soNumbers.length > 0
+      ? input.soNumbers.filter((s) => !!s.trim())
+      : ["Default SO"];
+
+  // Create contract document with all fields
   const contractRef = doc(collection(db, "companies", companyId, "contracts"));
   batch.set(contractRef, {
     name: input.name,
     workType: input.workType,
     contractId: input.contractId || null,
     agreementId: input.agreementId || null,
+    workPrice: input.workPrice || null,
+    unit: input.unit || null,
+    startDate: input.startDate ? Timestamp.fromDate(input.startDate) : null,
+    endDate: input.endDate ? Timestamp.fromDate(input.endDate) : null,
+    soNumbers, // Store the array of SOs
     status: "draft",
     createdAt: now,
     updatedAt: now,
   });
 
-  // Only create SO if soNumber is provided and not blank
-  let soId: string | undefined = undefined;
-  let resourceId: string | undefined = undefined;
-  if (input.soNumber && input.soNumber.trim() !== "") {
-    // Create SO
+  // Always create at least one SO (either from user or "Default SO")
+  soNumbers.forEach((soNumber) => {
     const soRef = doc(collection(contractRef, "so"));
     batch.set(soRef, {
-      soNumber: input.soNumber,
+      soNumber,
       createdAt: now,
       updatedAt: now,
     });
-    soId = soRef.id;
-
-    // Only create resource if resourceRef and dates provided
-    if (input.resourceRef && input.startDate && input.endDate) {
-      const resourceRef = doc(collection(soRef, "resources"));
-      batch.set(resourceRef, {
-        resourceRef: input.resourceRef ?? null,
-        startTime: Timestamp.fromDate(input.startDate),
-        endTime: Timestamp.fromDate(input.endDate),
-        createdAt: now,
-        updatedAt: now,
-      });
-      resourceId = resourceRef.id;
-    }
-  }
+  });
 
   await batch.commit();
 
   return {
     contractId: contractRef.id,
-    soId,
-    resourceId,
   };
 }
