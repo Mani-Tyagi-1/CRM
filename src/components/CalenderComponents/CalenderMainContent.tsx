@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef } from "react";
+import React, {useState,useCallback, useMemo, useLayoutEffect, useRef } from "react";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 
 import ContractScheduler, {
@@ -83,6 +83,76 @@ const CalendarMainContent: React.FC<Props> = ({
   const rulerRef = React.useRef<HTMLDivElement>(null);
   const dayRefs = useRef<(HTMLDivElement | null)[]>([]);
   const laneRef = useRef<HTMLDivElement>(null);
+
+  // date
+  /* current local date *without* time component */
+  /* 🆕 */
+  const today = useMemo(() => {
+    const t = new Date();
+    t.setHours(0, 0, 0, 0);
+    return t;
+  }, []);
+
+  /* 🆕  calendar-picker state */
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+  /* 🆕  helper: yyyy-mm-dd for <input type="date"> */
+  const toISODate = (d: Date) => d.toISOString().slice(0, 10); // "2025-11-10"
+
+  /* 🆕  label on the center button */
+  const dateButtonLabel = useMemo(() => {
+    if (!selectedDate) return "Today";
+    return selectedDate.getTime() === today.getTime()
+      ? "Today"
+      : selectedDate.toLocaleDateString(undefined, {
+          day: "numeric",
+          month: "short",
+          year:
+            selectedDate.getFullYear() !== today.getFullYear()
+              ? "numeric"
+              : undefined,
+        });
+  }, [selectedDate, today]);
+
+  /* 🆕  when a day is picked from the calendar */
+  const handleDatePick = useCallback(
+    (iso: string) => {
+      const picked = new Date(`${iso}T00:00:00`);
+      picked.setHours(0, 0, 0, 0);
+
+      if (picked.getTime() === today.getTime()) {
+        setSelectedDate(null); // This resets to today label
+        setStartOffsetDays(0);
+      } else {
+        setSelectedDate(picked);
+        const diffDays = Math.floor(
+          (picked.getTime() - today.getTime()) / 86_400_000
+        );
+        setStartOffsetDays(diffDays);
+      }
+      setDatePickerOpen(false);
+    },
+    [today, setStartOffsetDays]
+  );
+
+
+  // Add at the top, after your today const:
+  const getDateByOffset = (offset: number) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + offset);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  // Helper to get the offset for a given Date (compared to today)
+  const getOffsetForDate = (date: Date) =>
+    Math.round((date.getTime() - today.getTime()) / 86_400_000);
+
+  const currentOffset =
+    selectedDate?.getTime() === today.getTime() || !selectedDate
+      ? 0
+      : getOffsetForDate(selectedDate);
 
   /* ──────────────────────────────────────────────────────────
      📌 1. helper: pack contracts into non-overlapping “lanes”
@@ -223,6 +293,22 @@ const CalendarMainContent: React.FC<Props> = ({
     ]
   );
 
+  /* 🆕  autoscroll horizontally to the freshly-selected day */
+  React.useEffect(() => {
+    if (!selectedDate || !scrollRef.current || !timelineDays.length) return;
+
+    const key = toISODate(selectedDate);
+    const idx = timelineDays.findIndex((d) => d.key === key);
+    if (idx === -1) return;
+
+    const el = dayRefs.current[idx];
+    if (el) {
+      const container = scrollRef.current;
+      container.scrollLeft =
+        el.offsetLeft - container.clientWidth / 2 + el.clientWidth / 2;
+    }
+  }, [selectedDate, timelineDays, scrollRef]);
+
   const handleAreaDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
@@ -270,22 +356,53 @@ const CalendarMainContent: React.FC<Props> = ({
             </div>
             <div className="justify-self-end flex items-center gap-3">
               <div className="inline-flex items-stretch rounded-lg overflow-hidden ring-1 ring-gray-200 bg-white mr-7">
+                {/* previous-day */}
                 <button
                   className="px-2 py-2 hover:bg-gray-50"
-                  onClick={() => setStartOffsetDays((d) => d - 1)}
+                  onClick={() => {
+                    const newOffset = currentOffset - 1;
+                    setStartOffsetDays(newOffset);
+                    setSelectedDate(getDateByOffset(newOffset)); // 🆕
+                  }}
                   title="Previous day"
                 >
                   <ChevronLeft className="h-4 w-4 text-gray-800" />
                 </button>
-                <button
-                  className="px-4 py-2 text-sm font-medium border-x border-gray-200 hover:bg-gray-50"
-                  onClick={() => setStartOffsetDays(0)}
-                >
-                  Today
-                </button>
+
+                {/* 🆕  date-picker trigger */}
+                <div className="relative">
+                  <button
+                    className="px-4 py-2 text-sm font-medium border-x border-gray-200 hover:bg-gray-50 w-full"
+                    onClick={() => setDatePickerOpen((o) => !o)}
+                  >
+                    {dateButtonLabel}
+                  </button>
+
+                  {/* 🆕  pop-up calendar (native input) */}
+                  {datePickerOpen && (
+                    <input
+                      type="date"
+                      autoFocus
+                      value={
+                        selectedDate
+                          ? toISODate(selectedDate)
+                          : toISODate(today)
+                      }
+                      onChange={(e) => handleDatePick(e.target.value)}
+                      onBlur={() => setDatePickerOpen(false)}
+                      className="absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-1 border rounded-md shadow-lg bg-white text-sm"
+                    />
+                  )}
+                </div>
+
+                {/* next-day */}
                 <button
                   className="px-2 py-2 hover:bg-gray-50"
-                  onClick={() => setStartOffsetDays((d) => d + 1)}
+                  onClick={() => {
+                    const newOffset = currentOffset + 1;
+                    setStartOffsetDays(newOffset);
+                    setSelectedDate(getDateByOffset(newOffset)); // 🆕
+                  }}
                   title="Next day"
                 >
                   <ChevronRight className="h-4 w-4 text-gray-800" />
@@ -347,10 +464,7 @@ const CalendarMainContent: React.FC<Props> = ({
           </div>
         ) : (
           contractLanes.map((lane, laneIdx) => (
-            <div
-              key={laneIdx}
-              className="relative min-h-[520px]"
-            >
+            <div key={laneIdx} className="relative min-h-[520px]">
               {lane.map((contract) => {
                 const dataSlice = contractDataByContract[contract.id] || {};
                 const scheduledStart = contract.startDate || undefined;

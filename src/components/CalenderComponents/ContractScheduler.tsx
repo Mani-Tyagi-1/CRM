@@ -1,5 +1,8 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { ChevronDown, Info, File } from "lucide-react";
+import EditContractForm from "../pages/EditContract";
+import { onAuthStateChanged, type User } from "firebase/auth";
+import { auth } from "../../lib/firebase";
 
 /* ---------- Types ---------- */
 export type ItemType = "person" | "machine" | "tool";
@@ -202,6 +205,22 @@ const ContractScheduler: React.FC<Props> = ({
 
   const [showNoteModal, setShowNoteModal] = React.useState(false);
   const [noteInput, setNoteInput] = React.useState("");
+    const [editingContractId, setEditingContractId] = useState<string | null>(
+      null
+  );
+  const [uid, setUid] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const authUnsub = onAuthStateChanged(auth, async (user: User | null) => {
+    
+      if (!user) {
+        setUid(null);
+        return;
+      }
+      setUid(user.uid);
+    })
+    return () => authUnsub();
+  }, []);
 
   const handleSaveNote = () => {
     if (hoveredResource) {
@@ -797,8 +816,17 @@ const ContractScheduler: React.FC<Props> = ({
       }}
     >
       {/* Show contract name at top from prop */}
-      <div className="text-lg font-semibold px-3 py-2 border-b border-gray-200 bg-gray-50">
-        {contractName}
+      <div className="flex items-center justify-between text-lg font-semibold px-3 py-2 border-b border-gray-200 bg-gray-50">
+        <span>{contractName}</span>
+        <button
+          type="button"
+          aria-label="Contract info"
+          className="ml-2 text-slate-400 hover:text-slate-700 rounded-full p-1 transition"
+          onClick={() => setEditingContractId(contractId)}
+          title="Contract details"
+        >
+          <Info className="w-5 h-5" />
+        </button>
       </div>
 
       <div className="p-2">
@@ -883,6 +911,25 @@ const ContractScheduler: React.FC<Props> = ({
                 Save
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {editingContractId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl border p-0 w-full max-w-4xl flex flex-col relative">
+            <button
+              className="absolute right-3 top-2 text-lg hover:bg-gray-100 rounded-full px-2 py-1 transition"
+              onClick={() => setEditingContractId(null)}
+              tabIndex={0}
+            >
+              ×
+            </button>
+            <EditContractForm
+              companyId={uid!}
+              contractId={editingContractId}
+              onUpdated={() => setEditingContractId(null)}
+            />
           </div>
         </div>
       )}
