@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useLayoutEffect, useRef } from "react";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 
 import ContractScheduler, {
@@ -80,37 +80,57 @@ const CalendarMainContent: React.FC<Props> = ({
   rangeWithinWeek,
 }) => {
   const CELL_MIN_WIDTH = 180;
-
-  const getNumberOfDaysInRange = (startISO: string, endISO: string) => {
-    const startDate = new Date(startISO);
-    const endDate = new Date(endISO);
-    const timeDiff = endDate.getTime() - startDate.getTime();
-    return timeDiff / (1000 * 3600 * 24) + 1;
-  };
-
-  // const shiftedTimelineDays = timelineDays.map((d) => {
-  //   const newDate = new Date(d.date);
-  //   newDate.setDate(newDate.getDate() + 1);
-  //   const weekday = newDate.toLocaleDateString(undefined, {
-  //     weekday: "short",
-  //   });
-  //   const date = newDate.getDate();
-  //   const month = newDate.getMonth() + 1;
-  //   return {
-  //     ...d,
-  //     key: newDate.toISOString().slice(0, 10),
-  //     day: `${weekday} ${date}.${month}.`,
-  //     date: newDate,
-  //     isToday:
-  //       newDate.getFullYear() === new Date().getFullYear() &&
-  //       newDate.getMonth() === new Date().getMonth() &&
-  //       newDate.getDate() === new Date().getDate(),
-  //   };
-  // });
-
   const rulerRef = React.useRef<HTMLDivElement>(null);
   const dayRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const laneRef = useRef<HTMLDivElement>(null);
 
+  /* ──────────────────────────────────────────────────────────
+     📌 1. helper: pack contracts into non-overlapping “lanes”
+     ──────────────────────────────────────────────────────────*/
+  // CalendarMainContent.tsx – before placeIntoLanes
+  const scheduledContracts = contracts.filter((c) => c.startDate && c.endDate);
+
+  function placeIntoLanes(cs: TimelineContract[]): TimelineContract[][] {
+    if (cs.length === 0) return [];
+    /* sort by start date for deterministic packing */
+    const sorted = [...cs].sort(
+      (a, b) =>
+        new Date(a.startDate ?? "2100-01-01").getTime() -
+        new Date(b.startDate ?? "2100-01-01").getTime()
+    );
+
+    const lanes: TimelineContract[][] = [];
+
+    sorted.forEach((c) => {
+      const cStart = new Date(c.startDate ?? "2100-01-01").getTime();
+      const cEnd = new Date(c.endDate ?? "1970-01-01").getTime();
+
+      /* find first lane whose last contract ends before this one starts */
+      const targetLane = lanes.find((lane) => {
+        const last = lane[lane.length - 1];
+        const lastEnd = new Date(last.endDate ?? "1970-01-01").getTime();
+        return lastEnd < cStart;
+      });
+
+      if (targetLane) {
+        targetLane.push(c);
+      } else {
+        lanes.push([c]);
+      }
+    });
+
+    console.log("Placed contracts into lanes:", lanes);
+
+    return lanes;
+  }
+
+  /* create lanes just once per contracts change */
+  const contractLanes = React.useMemo(
+    () => placeIntoLanes(contracts),
+    [contracts]
+  );
+
+  /* (unchanged) slice contractData by contractId … */
   const contractDataByContract = React.useMemo(() => {
     const slices: Record<string, ContractData> = {};
     Object.entries(contractData).forEach(([cellKey, items]) => {
@@ -128,6 +148,8 @@ const CalendarMainContent: React.FC<Props> = ({
     return slices;
   }, [contracts, contractData, soToContractMap]);
 
+  /* (rest of hooks: scroll/visible month logic) – unchanged ↓↓↓ */
+  /* ---------------------------------------------------------- */
   const activeContractRange = React.useMemo(() => {
     if (!activeContractId) return null;
     const active = contracts.find((c) => c.id === activeContractId);
@@ -190,6 +212,17 @@ const CalendarMainContent: React.FC<Props> = ({
     return () => container.removeEventListener("scroll", handleScroll);
   }, [timelineDays, setHeaderLabel, scrollRef]);
 
+  useLayoutEffect(
+    () => {
+      if (laneRef.current) {
+        laneRef.current.style.height = laneRef.current.scrollHeight + "px";
+      }
+    },
+    [
+      /* deps: SO collapse state, note modal open, etc. */
+    ]
+  );
+
   const handleAreaDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
@@ -207,15 +240,9 @@ const CalendarMainContent: React.FC<Props> = ({
     if (anchorIso) onAreaDrop(anchorIso);
   };
 
-  const numberOfDays = activeContractRange
-    ? getNumberOfDaysInRange(
-        activeContractRange.startISO,
-        activeContractRange.endISO
-      )
-    : 0;
-
-  const marginLeftClass = numberOfDays % 2 !== 0 ? "ml-[-178px]" : "ml-0";
-
+  /* ──────────────────────────────────────────────────────────
+     📋   JSX
+     ──────────────────────────────────────────────────────────*/
   return (
     <div
       ref={scrollRef}
@@ -225,6 +252,7 @@ const CalendarMainContent: React.FC<Props> = ({
       onDragOver={handleAreaDragOver}
       onDrop={handleAreaDrop}
     >
+      {/* ---------- Sticky header ---------- */}
       <div className="min-w-max ">
         <div className="bg-white w-[calc(100vw-256px)] px-6 py-3 sticky top-0 left-0 z-20">
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
@@ -267,18 +295,20 @@ const CalendarMainContent: React.FC<Props> = ({
           </div>
         </div>
 
-        <div className="bg-white border-b border-gray-200">
+        {/* ---------- Day ruler ---------- */}
+        <div className="bg-white border-b border-gray-200 sticky top-15 z-50">
           <div
-            className="overflow-x-auto scrollbar-hide"
-            ref={rulerRef}
+            className="overflow-x-auto overflow-y-hidden scrollbar-hide"
             onWheel={(e) => {
-              e.preventDefault();
-              if (rulerRef.current)
-                rulerRef.current.scrollBy({
+              if (e.deltaY !== 0) {
+                e.preventDefault();
+                e.currentTarget.scrollBy({
                   left: e.deltaY,
                   behavior: "smooth",
                 });
+              }
             }}
+            ref={rulerRef}
           >
             <div
               className="grid"
@@ -309,24 +339,24 @@ const CalendarMainContent: React.FC<Props> = ({
           </div>
         </div>
 
-        <div className={`${marginLeftClass}`}>
-          {contracts.length === 0 ? (
-            <div className="px-6 py-4 text-sm text-gray-500">
-              No contracts scheduled. Drag a contract from the sidebar to get
-              started.
-            </div>
-          ) : (
-            contracts.map((contract) => {
-              const dataSlice = contractDataByContract[contract.id] || {};
-              const scheduledStart = contract.startDate || undefined;
-              const scheduledEnd = contract.endDate || undefined;
-              // console.log(dataSlice);
-              // console.log(scheduledStart, scheduledEnd);
-              return (
-                <div key={contract.id} className="mb-8">
-                  <div className="px-6 pb-2 text-base font-semibold text-gray-700">
-                    {contract.title}
-                  </div>
+        {/* ---------- Contracts ---------- */}
+        {contracts.length === 0 ? (
+          <div className="px-6 py-4 text-sm text-gray-500">
+            No contracts scheduled. Drag a contract from the sidebar to get
+            started.
+          </div>
+        ) : (
+          contractLanes.map((lane, laneIdx) => (
+            <div
+              key={laneIdx}
+              className="relative min-h-[520px]"
+            >
+              {lane.map((contract) => {
+                const dataSlice = contractDataByContract[contract.id] || {};
+                const scheduledStart = contract.startDate || undefined;
+                const scheduledEnd = contract.endDate || undefined;
+
+                return (
                   <ContractScheduler
                     data={dataSlice}
                     soList={contract.soList}
@@ -371,11 +401,11 @@ const CalendarMainContent: React.FC<Props> = ({
                     scheduledStartISO={scheduledStart}
                     scheduledEndISO={scheduledEnd}
                   />
-                </div>
-              );
-            })
-          )}
-        </div>
+                );
+              })}
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

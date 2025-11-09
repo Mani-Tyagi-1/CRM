@@ -473,7 +473,7 @@ const ContractScheduler: React.FC<Props> = ({
             : span.endIdx + 2;
 
         // Always use global count for this resource on the date
-        const dateKey = weekDays[span.startIdx].key;
+        const dateKey = days[span.startIdx].key;
         const globalCount = resourceSOCountByDate[dateKey]?.[c.name];
         const showCount = globalCount > 1 ? globalCount : null;
 
@@ -789,10 +789,11 @@ const ContractScheduler: React.FC<Props> = ({
 
   return (
     <div
-      className=" mx-auto bg-white border border-gray-200 rounded-lg shadow-sm min-h-[200px]"
+      className=" absolute bg-white border border-gray-200 rounded-lg shadow-sm min-h-[200px]"
       style={{
         width: containerWidthPx,
-        marginLeft: offsetPx,
+        left: offsetPx,
+        top: 0,
       }}
     >
       {/* Show contract name at top from prop */}
