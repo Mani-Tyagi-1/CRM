@@ -654,7 +654,8 @@ const ContractScheduler: React.FC<Props> = ({
             zIndex: 2,
             marginTop: 2,
             marginBottom: 2,
-            maxWidth: span.startIdx === span.endIdx ? "90%" : "100%",
+            height:"30px",
+            maxWidth: span.startIdx === span.endIdx ? "90%" : "97%",
           }}
           draggable
           onDragStart={(e) => {
@@ -710,6 +711,20 @@ const ContractScheduler: React.FC<Props> = ({
             className="grid relative"
             style={{
               gridTemplateColumns: `repeat(${visibleDays.length}, minmax(${CELL_MIN_WIDTH}px, 1fr))`,
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+            }}
+            onDrop={(e) => {
+              const gridRect = e.currentTarget.getBoundingClientRect();
+              const relX = e.clientX - gridRect.left;
+              const colWidth = gridRect.width / visibleDays.length;
+              const colIdx = Math.floor(relX / colWidth);
+              const dayKey = visibleDays[colIdx]?.key || visibleDays[0]?.key;
+              if (dayKey) {
+                handleDrop(e, `${soId}-${dayKey}`);
+              }
             }}
           >
             {/* Day drop cells (these serve as drop targets & backgrounds) */}
