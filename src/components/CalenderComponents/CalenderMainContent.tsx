@@ -59,6 +59,10 @@ type Props = {
 
   activeContractId: string | null;
   rangeWithinWeek?: { startIdx: number; days: number };
+  resourceIndex?: Record<
+    string,
+    { category: string; id: string; type: "employee" | "machine" }
+  >;
 };
 
 const CalendarMainContent: React.FC<Props> = ({
@@ -80,6 +84,8 @@ const CalendarMainContent: React.FC<Props> = ({
   allUnavailableResourceNames,
   activeContractId,
   rangeWithinWeek,
+  resourceIndex,
+
 }) => {
   const CELL_MIN_WIDTH = 180;
   const rulerRef = React.useRef<HTMLDivElement>(null);
@@ -536,6 +542,7 @@ const CalendarMainContent: React.FC<Props> = ({
                     timelineDays={timelineDays}
                     scheduledStartISO={scheduledStart}
                     scheduledEndISO={scheduledEnd}
+                    resourceIndex={resourceIndex}
                   />
                 );
               })}

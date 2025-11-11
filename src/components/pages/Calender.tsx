@@ -76,6 +76,8 @@ const machineEmployeeDoc = (
     employeeId
   );
 
+  
+
 /* little util to split the old cellKey (`{soId}-{yyyy-mm-dd}`) */
 const splitCellKey = (cellKey: string) => {
   const match = cellKey.match(/^(.+)-(\d{4}-\d{2}-\d{2})$/);
@@ -216,6 +218,14 @@ const Calender: React.FC = () => {
     monday.setDate(monday.getDate() + startOffsetDays);
     return monday;
   }, [startOffsetDays]);
+
+  const [resourceIndex, setResourceIndex] = useState<
+    Record<
+      string,
+      { category: string; id: string; type: "employee" | "machine" }
+    >
+  >({});
+
 
   const toDateKey = (date: Date) => {
     const year = date.getFullYear();
@@ -2047,6 +2057,7 @@ const Calender: React.FC = () => {
         }
         onContractDragEnd={() => setDragged(null)}
         toggleSection={toggleSection}
+        onResourceIndexChange={setResourceIndex}
       />
 
       {/* ---------- MAIN CONTENT ---------- */}
@@ -2070,6 +2081,7 @@ const Calender: React.FC = () => {
         isDraggingContract={isDraggingContract}
         activeContractId={activeContractId}
         rangeWithinWeek={rangeWithinWeek}
+        resourceIndex={resourceIndex}
       />
 
       {/* ---------- Time-off footer ---------- */}

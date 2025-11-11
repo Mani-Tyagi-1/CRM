@@ -48,6 +48,12 @@ type Props = {
     soList: { id: string; soNumber?: string }[];
   }) => void;
   onContractDragEnd?: () => void;
+   onResourceIndexChange?: (
+   idx: Record<
+     string,
+     { category: string; id: string; type: "employee" | "machine" }
+   >
+ ) => void;
 };
 
 // ---------------- Component ----------------
@@ -64,6 +70,7 @@ const Sidebar: React.FC<Props> = ({
   setSidebarSearch,
   // onContractDragStart,
   // onContractDragEnd,
+  onResourceIndexChange,
 }) => {
   // Dynamic categories/resources
   const [employeeCategories, setEmployeeCategories] = useState<string[]>([]);
@@ -185,7 +192,28 @@ const Sidebar: React.FC<Props> = ({
         });
         return out;
       });
+
+      const idx: Record<
+        string,
+        { category: string; id: string; type: "employee" | "machine" }
+      > = {};
+  
+      fetchedEmpCats.forEach((cat) => {
+        (empObj[cat] || []).forEach(({ id, display }) => {
+          idx[display] = { category: cat, id, type: "employee" };
+        });
+      });
+      fetchedMachCats.forEach((cat) => {
+        (machObj[cat] || []).forEach(({ id, display }) => {
+          idx[display] = { category: cat, id, type: "machine" };
+        });
+      });
+  
+      /* fire the callback */
+      onResourceIndexChange?.(idx);
     });
+
+
 
     return () => {
       if (unsubAuth) unsubAuth();

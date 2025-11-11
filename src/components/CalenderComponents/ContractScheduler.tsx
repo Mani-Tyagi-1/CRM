@@ -3,6 +3,8 @@ import { ChevronDown, Info, File } from "lucide-react";
 import EditContractForm from "../pages/EditContract";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "../../lib/firebase";
+import { useNavigate } from "react-router-dom";
+
 
 /* ---------- Types ---------- */
 export type ItemType = "person" | "machine" | "tool";
@@ -63,6 +65,10 @@ interface Props {
   timelineDays?: { key: string; day: string; date: Date; isToday: boolean }[];
   scheduledStartISO?: string | null;
   scheduledEndISO?: string | null;
+  resourceIndex?: Record<
+    string,
+    { category: string; id: string; type: "employee" | "machine" }
+  >;
 }
 
 /* ---------- Helpers ---------- */
@@ -184,16 +190,19 @@ const ContractScheduler: React.FC<Props> = ({
   onDrop,
   onDropToMachine,
   onResize,
-  onMachineInfo,
+  // onMachineInfo,
   unavailableResourceNames = [],
   onUnavailableDrop,
   timelineDays = [],
   scheduledStartISO,
   scheduledEndISO,
+  resourceIndex,
 }) => {
   const resourceSOCountByDate = React.useMemo(() => {
     return getResourceSOCountByDate(soList, data);
   }, [soList, data]);
+
+  const navigate = useNavigate();
 
   // notes
   const [hoveredResource, setHoveredResource] = React.useState<{
@@ -232,6 +241,8 @@ const ContractScheduler: React.FC<Props> = ({
       alert("Note saved!");
     }
   };
+
+  
 
   const [collapsedRows, setCollapsedRows] = React.useState<
     Record<string, boolean>
@@ -398,6 +409,19 @@ const ContractScheduler: React.FC<Props> = ({
     onDropToMachine(targetKey, machineName);
   };
 
+   /** Invoked by every Info icon in a chip */
+  const handleResourceInfo = (resourceName: string) => {
+    const meta = resourceIndex?.[resourceName];
+    if (!meta) return; // not found – silently ignore
+
+    const { category, id, type } = meta;
+    if (type === "employee") {
+      navigate(`/employee-preview/${category}/${id}`);
+    } else if (type === "machine") {
+      navigate(`/machine-preview/${category}/${id}`);
+    }
+  };
+
   /* ---------- Row renderer: Per SO ---------- */
   const renderSORow = (soId: string, soNumber: string) => {
     const days = visibleDays;   
@@ -532,6 +556,22 @@ const ContractScheduler: React.FC<Props> = ({
               )}
             </div>
             {c.note && <div className="text-xs opacity-75 mt-1">{c.note}</div>}
+            {(c.type === "person" || c.type === "machine") && (
+              <button
+                type="button"
+                aria-label={`${c.type} info`}
+                className="absolute top-0.5 right-0.5 p-0.5 text-blue-700 hover:text-blue-900 cursor-pointer"
+                draggable={false}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleResourceInfo(c.name);
+                }}
+              >
+                <Info className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         );
       }
@@ -589,9 +629,9 @@ const ContractScheduler: React.FC<Props> = ({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                onMachineInfo?.(cellKeyFirst, resource.name);
+                handleResourceInfo(resource.name);
               }}
-              className="absolute top-1.5 right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-green-700"
+              className="absolute cursor-pointer top-1.5 right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-green-700"
               title="Machine details"
             >
               <Info className="h-3.5 w-3.5" />
@@ -654,7 +694,7 @@ const ContractScheduler: React.FC<Props> = ({
             zIndex: 2,
             marginTop: 2,
             marginBottom: 2,
-            height:"30px",
+            height: "30px",
             maxWidth: span.startIdx === span.endIdx ? "90%" : "97%",
           }}
           draggable
@@ -677,6 +717,22 @@ const ContractScheduler: React.FC<Props> = ({
               <File className="ml-1 inline-block text-blue-500" size={16} />
             )}
           </div>
+          {(resource.type === "person" || resource.type === "machine") && (
+            <button
+              type="button"
+              aria-label={`${resource.type} info`}
+              className="absolute cursor-pointer top-0.5 right-0.5 p-0.5 text-blue-700 hover:text-blue-900"
+              draggable={false}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleResourceInfo(resource.name);
+              }}
+            >
+              <Info className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       );
     }
