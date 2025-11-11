@@ -750,7 +750,7 @@ const ContractScheduler: React.FC<Props> = ({
             aria-controls={`${soId}-grid`}
             title={isCollapsed ? "Expand row" : "Collapse row"}
           >
-            <span>{soNumber}</span>
+            {soNumber !== "Default SO" && <span>{soNumber}</span>}
             <ChevronDown
               size={12}
               className={`ml-1 transition-transform duration-200 ${
