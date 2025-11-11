@@ -647,21 +647,21 @@ const timelineDays = React.useMemo(() => {
           : it
       );
 
-  const stripEverywhere = (name: string) => {
-    setContractData((prev) => {
-      const next: ContractData = {};
-      for (const k of Object.keys(prev))
-        next[k] = stripFromItems(prev[k], name);
-      return next;
-    });
-    setTimeOffData((prev) => {
-      const next: TimeOffData = {};
-      for (const k of Object.keys(prev)) {
-        next[k] = (prev[k] || []).filter((it) => it.name !== name);
-      }
-      return next;
-    });
-  };
+  // const stripEverywhere = (name: string) => {
+  //   setContractData((prev) => {
+  //     const next: ContractData = {};
+  //     for (const k of Object.keys(prev))
+  //       next[k] = stripFromItems(prev[k], name);
+  //     return next;
+  //   });
+  //   setTimeOffData((prev) => {
+  //     const next: TimeOffData = {};
+  //     for (const k of Object.keys(prev)) {
+  //       next[k] = (prev[k] || []).filter((it) => it.name !== name);
+  //     }
+  //     return next;
+  //   });
+  // };
 
   const contractColorFor = (t: ContractItemType) =>
     t === "person"
@@ -856,8 +856,14 @@ const timelineDays = React.useMemo(() => {
         });
         console.log("removeResourceFromDate done");
       }
-      stripEverywhere(draggedItem.name);
-    }
+             // local optimistic update – strip only from the source cell
+        setContractData(prev => {
+          const next = { ...prev };
+          next[draggedItem.source.id] =
+           stripFromItems(next[draggedItem.source.id] || [], draggedItem.name);
+          return next;
+        });
+      }
 
     // Add to target zone
     if (target.zone === "contract") {
@@ -1790,24 +1796,36 @@ function getAllDateIsosInRange(startISO: string, endISO: string) {
       // persist to Firestore
       if (uid) {
         const { soId } = splitCellKey(pendingTarget.targetKey);
-        const assignedDates = getAllDateIsosInRange(startISO, endISO);
-
         const resourceRef = resourceDoc(
           uid,
           contractId,
           soId,
           pendingDragged.name
         );
-        await setDoc(
-          resourceRef,
-          {
-            type: pendingDragged.type,
-            name: pendingDragged.name,
-            colour: contractColorFor(pendingDragged.type),
-            assignedDates, // <-- full array, not arrayUnion!
-          },
-          { merge: true }
-        );
+
+         const newDates = getAllDateIsosInRange(startISO, endISO);
+
+         // 1. fetch current dates (if doc exists)
+         let currentDates: string[] = [];
+         const snap = await getDoc(resourceRef);
+         if (snap.exists()) {
+           currentDates = snap.data().assignedDates || [];
+         }
+
+         // 2. build the union (deduplicated)
+         const union = Array.from(new Set([...currentDates, ...newDates]));
+
+         // 3. write back **once**
+         await setDoc(
+           resourceRef,
+           {
+             type: pendingDragged.type,
+             name: pendingDragged.name,
+             colour: contractColorFor(pendingDragged.type),
+             assignedDates: union, // ✅ keep old + new
+           },
+           { merge: true }
+         );
       }
     } else if (
       /* ───────────── 2 B. resource dropped INSIDE A MACHINE ───────────── */
