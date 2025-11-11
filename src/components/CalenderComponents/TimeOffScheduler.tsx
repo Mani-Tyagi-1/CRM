@@ -524,7 +524,7 @@ const TimeOffScheduler: React.FC<Props> = ({
     <>
       <div className={open ? "h-36" : "h-14"} />
       {/* ═════ Fixed footer bar ═════ */}
-      <div className="fixed left-64 right-0 bottom-0 z-40">
+      <div className="fixed left-64 right-0 bottom-4 z-40">
         <div className="border-t border-rose-200 bg-rose-50/90">
           {/* Toggle button */}
           <button
