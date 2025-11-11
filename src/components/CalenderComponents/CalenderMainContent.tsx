@@ -100,7 +100,13 @@ const CalendarMainContent: React.FC<Props> = ({
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   /* 🆕  helper: yyyy-mm-dd for <input type="date"> */
-  const toISODate = (d: Date) => d.toISOString().slice(0, 10); // "2025-11-10"
+  const toISODate = (d: Date) =>
+    d
+      ? new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+          .toISOString()
+          .slice(0, 10)
+      : "";
+
 
   /* 🆕  label on the center button */
   const dateButtonLabel = useMemo(() => {
@@ -120,11 +126,14 @@ const CalendarMainContent: React.FC<Props> = ({
   /* 🆕  when a day is picked from the calendar */
   const handleDatePick = useCallback(
     (iso: string) => {
-      const picked = new Date(`${iso}T00:00:00`);
+      const [year, month, day] = iso.split("-").map(Number);
+      const picked = new Date(year, month - 1, day);
       picked.setHours(0, 0, 0, 0);
 
+      console.log("Picked date:", picked);
+
       if (picked.getTime() === today.getTime()) {
-        setSelectedDate(null); // This resets to today label
+        setSelectedDate(null);
         setStartOffsetDays(0);
       } else {
         setSelectedDate(picked);
@@ -137,6 +146,7 @@ const CalendarMainContent: React.FC<Props> = ({
     },
     [today, setStartOffsetDays]
   );
+
 
 
   // Add at the top, after your today const:
@@ -455,6 +465,16 @@ const CalendarMainContent: React.FC<Props> = ({
                 </div>
               ))}
             </div>
+            <div
+              style={{
+                minWidth: `${
+                  scrollRef.current?.clientWidth
+                    ? scrollRef.current.clientWidth / 2
+                    : 300
+                }px`,
+              }}
+              aria-hidden="true"
+            />
           </div>
         </div>
 
