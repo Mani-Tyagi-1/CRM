@@ -344,6 +344,20 @@ const CalendarMainContent: React.FC<Props> = ({
     if (anchorIso) onAreaDrop(anchorIso);
   };
 
+
+  const handleDayClick = (idx: number, date: Date) => {
+    setSelectedDate(date);
+    setStartOffsetDays(getOffsetForDate(date)); // keep offset in sync
+    // Center scroll
+    const el = dayRefs.current[idx];
+    const container = scrollRef.current;
+    if (el && container) {
+      container.scrollLeft =
+        el.offsetLeft - container.clientWidth / 2 + el.clientWidth / 2;
+    }
+  };
+
+
   /* ──────────────────────────────────────────────────────────
      📋   JSX
      ──────────────────────────────────────────────────────────*/
@@ -458,11 +472,15 @@ const CalendarMainContent: React.FC<Props> = ({
                     dayRefs.current[i] = el;
                   }}
                   className={[
-                    "p-1 text-center text-[13px]",
+                    "p-1 text-center text-[13px] cursor-pointer transition-colors",
                     i > 0 ? "border-l border-gray-400" : "",
                     d.isToday ? "text-black font-semibold" : "text-gray-600",
+                    selectedDate && toISODate(selectedDate) === d.key
+                      ? "bg-slate-50"
+                      : "",
                   ].join(" ")}
                   title={d.date.toLocaleDateString()}
+                  onClick={() => handleDayClick(i, d.date)} // <-- ADD THIS
                 >
                   <div>{d.day}</div>
                   {d.isToday && (

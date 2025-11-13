@@ -253,7 +253,11 @@ const Sidebar: React.FC<Props> = ({
 
       {/* ---------------- Employees ---------------- */}
       {employeeCategories.length > 0 && (
-        <div className="border-b border-gray-200">
+        <div
+          className="border-b border-gray-200"
+          onDragOver={allowDrop}
+          onDrop={() => onDropToEmployeeSection("__ALL__")}
+        >
           <div className="px-3 py-2 text-sm font-medium flex items-center gap-2">
             <Users className="h-4 w-4 text-gray-600" /> Employees
           </div>
@@ -349,7 +353,11 @@ const Sidebar: React.FC<Props> = ({
 
       {/* ---------------- Machines ---------------- */}
       {machineCategories.length > 0 && (
-        <div className="px-3 py-2">
+        <div
+          className="px-3 py-2"
+          onDragOver={allowDrop}
+          onDrop={() => onDropToMachineSection("__ALL__")}
+        >
           <div className="text-sm font-medium mb-1">
             <Truck className="h-4 w-4 inline-block mr-1 text-gray-600" />{" "}
             Machines
