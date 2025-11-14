@@ -8,6 +8,7 @@ import ContractScheduler, {
   ItemType as ContractItemType,
   CalendarItem as ContractCalendarItem,
 } from "../CalenderComponents/ContractScheduler";
+import { fetchAllContracts } from "../../services/fetchAllContracts";
 
 type SOItem = { id: string; soNumber: string };
 
@@ -207,7 +208,7 @@ const CalendarMainContent: React.FC<Props> = ({
       }
     });
 
-    console.log("Placed contracts into lanes:", lanes);
+    // console.log("Placed contracts into lanes:", lanes);
 
     return lanes;
   }
@@ -326,6 +327,23 @@ const CalendarMainContent: React.FC<Props> = ({
         el.offsetLeft - container.clientWidth / 2 + el.clientWidth / 2;
     }
   }, [selectedDate, timelineDays, scrollRef]);
+
+
+  React.useEffect(() => {
+    loadContracts();
+  }, []);
+
+  const loadContracts = async () => {
+    try {
+      const result = await fetchAllContracts();
+      console.log("Contracts:", result);
+      // Set this result into your state
+      // setContracts(result); or whatever state you want
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
 
   const handleAreaDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
