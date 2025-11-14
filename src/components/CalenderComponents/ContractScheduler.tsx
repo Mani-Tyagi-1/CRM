@@ -69,6 +69,7 @@ interface Props {
     string,
     { category: string; id: string; type: "employee" | "machine" }
   >;
+  globalResourceCounts: Record<string, Record<string, number>>;
 }
 
 /* ---------- Helpers ---------- */
@@ -197,10 +198,12 @@ const ContractScheduler: React.FC<Props> = ({
   scheduledStartISO,
   scheduledEndISO,
   resourceIndex,
+  globalResourceCounts,
 }) => {
-  const resourceSOCountByDate = React.useMemo(() => {
-    return getResourceSOCountByDate(soList, data);
-  }, [soList, data]);
+  const resourceSOCountByDate = React.useMemo(
+    () => globalResourceCounts,
+    [globalResourceCounts]
+  );
 
   const navigate = useNavigate();
 
@@ -214,20 +217,19 @@ const ContractScheduler: React.FC<Props> = ({
 
   const [showNoteModal, setShowNoteModal] = React.useState(false);
   const [noteInput, setNoteInput] = React.useState("");
-    const [editingContractId, setEditingContractId] = useState<string | null>(
-      null
+  const [editingContractId, setEditingContractId] = useState<string | null>(
+    null
   );
   const [uid, setUid] = useState<string | null>(null);
-  
+
   useEffect(() => {
     const authUnsub = onAuthStateChanged(auth, async (user: User | null) => {
-    
       if (!user) {
         setUid(null);
         return;
       }
       setUid(user.uid);
-    })
+    });
     return () => authUnsub();
   }, []);
 
@@ -241,8 +243,6 @@ const ContractScheduler: React.FC<Props> = ({
       alert("Note saved!");
     }
   };
-
-  
 
   const [collapsedRows, setCollapsedRows] = React.useState<
     Record<string, boolean>
@@ -409,7 +409,7 @@ const ContractScheduler: React.FC<Props> = ({
     onDropToMachine(targetKey, machineName);
   };
 
-   /** Invoked by every Info icon in a chip */
+  /** Invoked by every Info icon in a chip */
   const handleResourceInfo = (resourceName: string) => {
     const meta = resourceIndex?.[resourceName];
     if (!meta) return; // not found – silently ignore
@@ -424,7 +424,7 @@ const ContractScheduler: React.FC<Props> = ({
 
   /* ---------- Row renderer: Per SO ---------- */
   const renderSORow = (soId: string, soNumber: string) => {
-    const days = visibleDays;   
+    const days = visibleDays;
     const isCollapsed = !!collapsedRows[soId];
 
     // Gather items for each cell/day in this SO
@@ -494,6 +494,17 @@ const ContractScheduler: React.FC<Props> = ({
       ),
     ];
 
+    /** How many distinct SOs use <name> on *any* day inside this span? */
+    const countAcrossSpan = (
+      span: { dayKeys: string[] },
+      resourceName: string
+    ) => {
+      return span.dayKeys.reduce((max, iso) => {
+        const n = resourceSOCountByDate[iso]?.[resourceName] ?? 1;
+        return n > max ? n : max;
+      }, 1);
+    };
+
     // Helper for rendering chips (either normal or inside machines)
     function renderChip(
       span: ChipToRender,
@@ -516,9 +527,9 @@ const ContractScheduler: React.FC<Props> = ({
             : span.endIdx + 2;
 
         // Always use global count for this resource on the date
-        const dateKey = days[span.startIdx].key;
-        const globalCount = resourceSOCountByDate[dateKey]?.[c.name];
-        const showCount = globalCount > 1 ? globalCount : null;
+        // const dateKey = days[span.startIdx].key;
+        const maxCount  = countAcrossSpan(span, c.name);
+        const showCount = maxCount > 1 ? maxCount : null;
 
         return (
           <div
@@ -583,8 +594,8 @@ const ContractScheduler: React.FC<Props> = ({
 
       // Machine chip: renders children grid inside itself
       if (isMachine) {
-        const machineCount =
-          resourceSOCountByDate[weekDays[span.startIdx].key]?.[resource.name];
+        const machineCount = countAcrossSpan(span, resource.name);
+
         return (
           <div
             key={`span-chip-machine-${resource.name}-${idx}`}
@@ -679,9 +690,9 @@ const ContractScheduler: React.FC<Props> = ({
 
       // Regular chip (person or tool)
       const name = resource.name;
-      const dateKey = weekDays[span.startIdx].key;
-      const globalCount = resourceSOCountByDate[dateKey]?.[name];
-      const showCount = globalCount > 1 ? globalCount : null;
+      // const dateKey = weekDays[span.startIdx].key;
+      const maxCount = countAcrossSpan(span, name);
+      const showCount = maxCount > 1 ? maxCount : null;
 
       return (
         <div
@@ -876,7 +887,6 @@ const ContractScheduler: React.FC<Props> = ({
 
   /*  E. slice the period we really need for the chips ---------------- */
   const visibleDays = weekDays.slice(startIdx, endIdx + 1);
-
 
   return (
     <div

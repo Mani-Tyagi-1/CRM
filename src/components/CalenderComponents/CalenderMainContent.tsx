@@ -9,6 +9,7 @@ import ContractScheduler, {
   CalendarItem as ContractCalendarItem,
 } from "../CalenderComponents/ContractScheduler";
 import { fetchAllContracts } from "../../services/fetchAllContracts";
+import { parseContracts } from "../../utils/parsedContracts";
 
 type SOItem = { id: string; soNumber: string };
 
@@ -93,6 +94,16 @@ const CalendarMainContent: React.FC<Props> = ({
   const dayRefs = useRef<(HTMLDivElement | null)[]>([]);
   const laneRef = useRef<HTMLDivElement>(null);
 
+  /* CalendarMainContent.tsx ----------------------------------------------- */
+  const [contractss, setContractss] = useState<TimelineContract[]>([]);
+  const [contractDataa, setContractDataa] = useState<ContractData>({});
+  const [soToContractMapp, setSoToContractMapp] = useState<
+    Record<string, string>
+  >({});
+  const [resourceCounts, setResourceCounts] = useState<
+    Record<string, Record<string, number>>
+  >({});
+
   // date
   /* current local date *without* time component */
   /* 🆕 */
@@ -113,7 +124,6 @@ const CalendarMainContent: React.FC<Props> = ({
           .toISOString()
           .slice(0, 10)
       : "";
-
 
   /* 🆕  label on the center button */
   const dateButtonLabel = useMemo(() => {
@@ -153,8 +163,6 @@ const CalendarMainContent: React.FC<Props> = ({
     },
     [today, setStartOffsetDays]
   );
-
-
 
   // Add at the top, after your today const:
   const getDateByOffset = (offset: number) => {
@@ -328,22 +336,22 @@ const CalendarMainContent: React.FC<Props> = ({
     }
   }, [selectedDate, timelineDays, scrollRef]);
 
-
   React.useEffect(() => {
     loadContracts();
   }, []);
 
-  const loadContracts = async () => {
-    try {
-      const result = await fetchAllContracts();
-      console.log("Contracts:", result);
-      // Set this result into your state
-      // setContracts(result); or whatever state you want
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
+   const loadContracts = async () => {
+     try {
+       const raw = await fetchAllContracts();
+       const parsed = parseContracts(raw); // ← NEW
+       setContractss(parsed.contracts);
+       setContractDataa(parsed.contractData);
+       setSoToContractMapp(parsed.soToContractMap);
+       setResourceCounts(parsed.resourceSOCountByDate); // ← NEW
+     } catch (err) {
+       console.error(err);
+     }
+   };
 
   const handleAreaDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -362,7 +370,6 @@ const CalendarMainContent: React.FC<Props> = ({
     if (anchorIso) onAreaDrop(anchorIso);
   };
 
-
   const handleDayClick = (idx: number, date: Date) => {
     setSelectedDate(date);
     setStartOffsetDays(getOffsetForDate(date)); // keep offset in sync
@@ -374,7 +381,6 @@ const CalendarMainContent: React.FC<Props> = ({
         el.offsetLeft - container.clientWidth / 2 + el.clientWidth / 2;
     }
   };
-
 
   /* ──────────────────────────────────────────────────────────
      📋   JSX
@@ -579,6 +585,7 @@ const CalendarMainContent: React.FC<Props> = ({
                     scheduledStartISO={scheduledStart}
                     scheduledEndISO={scheduledEnd}
                     resourceIndex={resourceIndex}
+                    globalResourceCounts={resourceCounts}
                   />
                 );
               })}
