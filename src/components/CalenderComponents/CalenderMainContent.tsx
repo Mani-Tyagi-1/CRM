@@ -95,11 +95,11 @@ const CalendarMainContent: React.FC<Props> = ({
   const laneRef = useRef<HTMLDivElement>(null);
 
   /* CalendarMainContent.tsx ----------------------------------------------- */
-  const [contractss, setContractss] = useState<TimelineContract[]>([]);
-  const [contractDataa, setContractDataa] = useState<ContractData>({});
-  const [soToContractMapp, setSoToContractMapp] = useState<
-    Record<string, string>
-  >({});
+  // const [contractss, setContractss] = useState<TimelineContract[]>([]);
+  // const [contractDataa, setContractDataa] = useState<ContractData>({});
+  // const [soToContractMapp, setSoToContractMapp] = useState<
+  //   Record<string, string>
+  // >({});
   const [resourceCounts, setResourceCounts] = useState<
     Record<string, Record<string, number>>
   >({});
@@ -344,9 +344,9 @@ const CalendarMainContent: React.FC<Props> = ({
      try {
        const raw = await fetchAllContracts();
        const parsed = parseContracts(raw); // ← NEW
-       setContractss(parsed.contracts);
-       setContractDataa(parsed.contractData);
-       setSoToContractMapp(parsed.soToContractMap);
+      //  setContractss(parsed.contracts);
+      //  setContractDataa(parsed.contractData);
+      //  setSoToContractMapp(parsed.soToContractMap);
        setResourceCounts(parsed.resourceSOCountByDate); // ← NEW
      } catch (err) {
        console.error(err);

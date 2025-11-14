@@ -80,33 +80,34 @@ interface Props {
 // ) => !!arr?.some((i) => i.name === name && i.type === type);
 
 /* ---------- Helpers ---------- */
-const getResourceSOCountByDate = (
-  soList: any[],
-  data: Record<string, CalendarItem[]>
-) => {
-  const countMap: Record<string, Record<string, number>> = {}; // { dateKey: { resourceName: count } }
+// const getResourceSOCountByDate = (
+//   soList: any[],
+//   data: Record<string, CalendarItem[]>
+// ) => {
+//   const countMap: Record<string, Record<string, number>> = {}; // { dateKey: { resourceName: count } }
 
-  soList.forEach(({ id: soId }) => {
-    Object.keys(data).forEach((cellKey) => {
-      // Only check keys that belong to this SO
-      if (cellKey.startsWith(soId + "-")) {
-        const [, dateKey] = cellKey.split(`${soId}-`);
-        const items = data[cellKey] || [];
-        items.forEach((item) => {
-          if (item.type === "person" || item.type === "machine") {
-            countMap[dateKey] = countMap[dateKey] || {};
-            countMap[dateKey][item.name] =
-              (countMap[dateKey][item.name] || 0) + 1;
-          }
-        });
-      }
-    });
-  });
+//   soList.forEach(({ id: soId }) => {
+//     Object.keys(data).forEach((cellKey) => {
+//       // Only check keys that belong to this SO
+//       if (cellKey.startsWith(soId + "-")) {
+//         const [, dateKey] = cellKey.split(`${soId}-`);
+//         const items = data[cellKey] || [];
+//         items.forEach((item) => {
+//           if (item.type === "person" || item.type === "machine") {
+//             countMap[dateKey] = countMap[dateKey] || {};
+//             countMap[dateKey][item.name] =
+//               (countMap[dateKey][item.name] || 0) + 1;
+//           }
+//         });
+//       }
+//     });
+//   });
 
-  return countMap;
-};
+//   return countMap;
+// };
 
 // New: Find spans of each resource across consecutive days
+
 type ResourceSpan = {
   item: CalendarItem;
   type: ItemType;
