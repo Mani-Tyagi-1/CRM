@@ -108,6 +108,20 @@ function ColumnHeader({
   );
 }
 
+function getEmployeeColor(workingRelation?: string) {
+  switch ((workingRelation || "").toLowerCase()) {
+    case "full-time":
+      return "from-sky-100 to-blue-50 border-blue-400 text-blue-800";
+    case "part-time":
+      return "from-emerald-100 to-green-50 border-green-400 text-green-800";
+    case "book-off-time":
+      return "from-fuchsia-100 to-pink-100 border-pink-400 text-pink-800";
+    default:
+      return "from-slate-100 to-gray-50 border-gray-300 text-gray-600";
+  }
+}
+
+
 function ResourceCard({
   data,
   gradient,
@@ -129,7 +143,7 @@ function ResourceCard({
     <div
       onClick={onClick}
       className={classNames(
-        "group cursor-pointer px-3 py-1.5 rounded-md border-b-2 shadow-sm text-[11px] leading-[14px] font-semibold text-slate-700 flex items-center gap-1",
+        "group cursor-pointer px-3 py-1.5 rounded-md border-b-2 shadow-sm text-[11px] leading-[14px] font-semibold flex items-center gap-1",
         "hover:brightness-110 transition",
         "bg-gradient-to-b",
         gradient
@@ -1032,7 +1046,11 @@ export default function ResourceManagementBoard() {
                         <ResourceCard
                           key={docObj.id}
                           data={docObj}
-                          gradient={GRADIENTS[idx % GRADIENTS.length]}
+                          gradient={
+                            docObj.workingRelation
+                              ? getEmployeeColor(docObj.workingRelation)
+                              : GRADIENTS[idx % GRADIENTS.length]
+                          }
                           onEdit={() =>
                             openEdit(type, catKey, docObj, docObj.id)
                           }

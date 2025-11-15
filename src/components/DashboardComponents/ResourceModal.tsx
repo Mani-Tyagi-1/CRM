@@ -88,12 +88,19 @@ const employeeFields: {
   { key: "alias", label: "Alias", type: "text" },
   { key: "birthDate", label: "Birth date", type: "date" },
   { key: "payment", label: "Payment", type: "text" },
-  { key: "workingRelation", label: "Working relation", type: "text" },
+  {
+    key: "workingRelation",
+    label: "Working relation",
+    type: "select",
+    required: true,
+    options: ["full-time", "part-time", "book-off-time"],
+  },
   { key: "typeOfStay", label: "Type of stay", type: "text" },
   { key: "stayingTill", label: "Staying till", type: "date" },
   { key: "quickNote", label: "Quick note", type: "text" },
   { key: "problems", label: "Problems", type: "text" },
 ];
+
 
 export function ResourceModal({
   open,

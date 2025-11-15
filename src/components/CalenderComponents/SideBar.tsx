@@ -19,6 +19,7 @@ import { auth, db } from "../../lib/firebase";
 // ---------------- Types ----------------
 
 type ResourceItem = {
+  workingRelation: string;
   id: string;
   display: string;
 };
@@ -82,6 +83,20 @@ const Sidebar: React.FC<Props> = ({
 
   // ---------------- Helpers ----------------
 
+  const getEmployeeChipColor = (workingRelation: string) => {
+    switch (workingRelation) {
+      case "full-time":
+        return "bg-blue-100 border-blue-300 text-blue-800";
+      case "part-time":
+        return "bg-green-100 border-green-300 text-green-800";
+      case "book-off-time":
+        return "bg-pink-100 border-pink-300 text-pink-800";
+      default:
+        return "bg-gray-100 border-gray-400 text-gray-600";
+    }
+  };
+
+
   const buildDisplayName = (data: any): string => {
     if (data.name || data.surname) {
       return [data.name, data.surname].filter(Boolean).join(" ");
@@ -135,10 +150,14 @@ const Sidebar: React.FC<Props> = ({
 
           empObj[cat] =
             resSnap && !resSnap.empty
-              ? resSnap.docs.map((doc) => ({
-                  id: doc.id,
-                  display: buildDisplayName(doc.data()),
-                }))
+              ? resSnap.docs.map((doc) => {
+                  const data = doc.data();
+                  return {
+                    id: doc.id,
+                    display: buildDisplayName(data),
+                    workingRelation: data.workingRelation, // Ensure the workingRelation field is added
+                  };
+                })
               : [];
         })
       );
@@ -175,6 +194,7 @@ const Sidebar: React.FC<Props> = ({
               ? resSnap.docs.map((doc) => ({
                   id: doc.id,
                   display: buildDisplayName(doc.data()),
+                  workingRelation: doc.data().workingRelation,
                 }))
               : [];
         })
@@ -197,7 +217,7 @@ const Sidebar: React.FC<Props> = ({
         string,
         { category: string; id: string; type: "employee" | "machine" }
       > = {};
-  
+
       fetchedEmpCats.forEach((cat) => {
         (empObj[cat] || []).forEach(({ id, display }) => {
           idx[display] = { category: cat, id, type: "employee" };
@@ -208,7 +228,7 @@ const Sidebar: React.FC<Props> = ({
           idx[display] = { category: cat, id, type: "machine" };
         });
       });
-  
+
       /* fire the callback */
       onResourceIndexChange?.(idx);
     });
@@ -293,7 +313,7 @@ const Sidebar: React.FC<Props> = ({
                         <div className="text-xs text-gray-400 italic px-2" />
                       ) : (
                         filterBySearch(sidebarEmployees[catKey] || []).map(
-                          (emp, idx) => (
+                          (emp, _idx) => (
                             <div
                               key={`${catKey}-${emp.id}`}
                               className="relative before:absolute before:left-[-1rem] before:top-1/2 before:-translate-y-1/2 before:w-4 before:h-px before:bg-gray-300"
@@ -315,14 +335,8 @@ const Sidebar: React.FC<Props> = ({
                                   )
                                 }
                                 className={[
-                                  "flex items-center justify-between gap-1 px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold text-slate-700 shadow-sm cursor-pointer border-b-[2px]",
-                                  idx === 0
-                                    ? "bg-gradient-to-b from-sky-100 to-blue-50 border-blue-400"
-                                    : idx === 1
-                                    ? "bg-gradient-to-b from-emerald-100 to-green-50 border-green-400"
-                                    : idx === 2
-                                    ? "bg-gradient-to-b from-fuchsia-100 to-pink-100 border-pink-400"
-                                    : "bg-gradient-to-b from-slate-100 to-rose-50 border-rose-400 text-slate-400",
+                                  "flex items-center justify-between gap-1 px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold shadow-sm cursor-pointer border-b-[2px]",
+                                  getEmployeeChipColor(emp.workingRelation), // Apply color based on workingRelation
                                 ].join(" ")}
                               >
                                 <span className="truncate flex-1">
