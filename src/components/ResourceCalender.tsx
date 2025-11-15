@@ -18,10 +18,22 @@ const monthNames = [
 ];
 
 function parseDMY(dateStr: string): Date | null {
+  // First, try to parse ISO date format (YYYY-MM-DD)
+  const isoDateMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoDateMatch) {
+    const [, y, m, d] = isoDateMatch;
+    return new Date(Number(y), Number(m) - 1, Number(d));
+  }
+
+  // If not ISO format, try to parse DD. MM. YYYY format
   const match = dateStr.match(/(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})/);
-  if (!match) return null;
-  const [, d, m, y] = match;
-  return new Date(Number(y), Number(m) - 1, Number(d));
+  if (match) {
+    const [, d, m, y] = match;
+    return new Date(Number(y), Number(m) - 1, Number(d));
+  }
+
+  // Return null if no valid date format is found
+  return null;
 }
 
 function getDateRangeStrings(start: Date, end: Date): string[] {
@@ -42,13 +54,20 @@ type OccurrenceType = {
 type Props = {
   occurrences: OccurrenceType[];
   highlightColorClass: string; // e.g. "bg-blue-500" or "bg-amber-500"
+  stayingTill: string | null;
 };
 
 const ResourceCalendar: React.FC<Props> = ({
   occurrences,
   highlightColorClass,
+  stayingTill,
 }) => {
   const [baseMonth, setBaseMonth] = useState(new Date());
+
+  // Parse the stayingTill date into a Date object for comparison
+  const stayingTillDate = stayingTill ? parseDMY(stayingTill) : null;
+
+  console.log("Staying till",stayingTill ,"Formated", stayingTillDate);
 
   const blockedDates = useMemo(() => {
     const set = new Set<string>();
@@ -88,20 +107,41 @@ const ResourceCalendar: React.FC<Props> = ({
       fullDate: Date;
     }[] = [];
 
+    // Fill in days from the previous month
     for (let i = startDayOfWeek - 1; i >= 0; i--) {
       const fullDate = new Date(year, month - 1, daysInPrevMonth - i);
       days.push({ day: daysInPrevMonth - i, isCurrentMonth: false, fullDate });
     }
+
+    // Fill in days for the current month
     for (let day = 1; day <= daysInMonth; day++) {
       const fullDate = new Date(year, month, day);
       days.push({ day, isCurrentMonth: true, fullDate });
     }
+
+    // Fill in days from the next month
     const remainingCells = 42 - days.length;
     for (let day = 1; day <= remainingCells; day++) {
       const fullDate = new Date(year, month + 1, day);
       days.push({ day, isCurrentMonth: false, fullDate });
     }
-    return days;
+
+    return days.map((date) => {
+      const dateStr = date.fullDate.toISOString().slice(0, 10);
+      const isBlocked = date.isCurrentMonth && blockedDates.has(dateStr);
+
+      // Disable dates after stayingTill date
+      const isDisabled =
+        stayingTillDate &&
+        date.isCurrentMonth &&
+        date.fullDate > stayingTillDate;
+
+      return {
+        ...date,
+        isBlocked,
+        isDisabled,
+      };
+    });
   };
 
   const renderMonth = (monthDate: Date, showChevrons = true) => (
@@ -147,20 +187,26 @@ const ResourceCalendar: React.FC<Props> = ({
       </div>
       <div className="grid grid-cols-7 gap-1">
         {generateCalendarDays(monthDate).map((date, idx) => {
-          const dateStr = date.fullDate.toISOString().slice(0, 10);
-          const isBlocked = date.isCurrentMonth && blockedDates.has(dateStr);
           return (
             <div
               key={idx}
-              className={`
-                w-8 h-8 text-sm flex items-center justify-center rounded
+              className={`w-7 h-7 text-sm flex items-center justify-center rounded
                 ${!date.isCurrentMonth ? "text-gray-300" : ""}
                 ${
-                  date.isCurrentMonth && isBlocked
-                    ? highlightColorClass + " text-white font-semibold"
+                  date.isCurrentMonth && date.isBlocked
+                    ? highlightColorClass + " text-white font-semibold bg-red-400"
                     : ""
                 }
-                ${date.isCurrentMonth && !isBlocked ? "bg-white" : ""}
+                ${
+                  date.isCurrentMonth && date.isDisabled
+                    ? "bg-gray-200 text-gray-600"
+                    : ""
+                }
+                ${
+                  date.isCurrentMonth && !date.isBlocked && !date.isDisabled
+                    ? "bg-transparent"
+                    : ""
+                }
               `}
             >
               {date.day}
@@ -180,3 +226,4 @@ const ResourceCalendar: React.FC<Props> = ({
 };
 
 export default ResourceCalendar;
+

@@ -20,15 +20,14 @@ const TAB_LABELS = [
   { key: "issues", label: "Issues" },
 ];
 
-type EmployeeType = {
+type category = {
   alias: string;
   birthDate: string;
-  employeeType: string;
-  hourlyRate: string;
+  payment: string;
   currency: string;
-  workRelation: string;
+  workingRelation: string;
   typeOfStay: string;
-  stayExpiration: string;
+  stayingTill: string;
   id: string;
   name: ReactNode;
   surname?: string;
@@ -66,7 +65,7 @@ const NotFound = () => (
 const EmployeePreview: React.FC = () => {
   const { category, id } = useParams();
   const navigate = useNavigate();
-  const [employeeInfo, setEmployeeInfo] = useState<EmployeeType | null>(null);
+  const [employeeInfo, setEmployeeInfo] = useState<category | null>(null);
   const [occurrences, setOccurrences] = useState<OccurrenceType[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -78,7 +77,7 @@ const EmployeePreview: React.FC = () => {
   // ----- EDIT STATE -----
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [editInfo, setEditInfo] = useState<EmployeeType | null>(null);
+  const [editInfo, setEditInfo] = useState<category | null>(null);
 
   // On load, set editInfo as a copy of employeeInfo
   useEffect(() => {
@@ -119,7 +118,7 @@ const EmployeePreview: React.FC = () => {
         const data = employeeDocSnap.data();
 
         if (employeeDocSnap.exists()) {
-          const info: EmployeeType = {
+          const info: category = {
             id,
             name: data?.name ?? "",
             surname: data?.surname ?? "",
@@ -131,12 +130,11 @@ const EmployeePreview: React.FC = () => {
             status: data?.status ?? "",
             alias: data?.alias ?? "",
             birthDate: data?.birthDate ?? "",
-            employeeType: data?.employeeType ?? "",
-            hourlyRate: data?.hourlyRate?.toString() ?? "0",
+            payment: data?.payment?.toString() ?? "0", // Change this line
             currency: data?.currency ?? "Czk",
-            workRelation: data?.workRelation ?? "",
+            workingRelation: data?.workingRelation ?? "",
             typeOfStay: data?.typeOfStay ?? "",
-            stayExpiration: data?.stayExpiration ?? "",
+            stayingTill: data?.stayingTill ?? "",
           };
           setEmployeeInfo(info);
         } else {
@@ -216,11 +214,12 @@ const EmployeePreview: React.FC = () => {
         id
       );
 
-      // Ensure dates are in YYYY-MM-DD (for "birthDate" and "stayExpiration")
+      // Ensure dates are in YYYY-MM-DD (for "birthDate" and "stayingTill")
       const toUpdate: any = {
         ...editInfo,
         birthDate: editInfo.birthDate?.slice(0, 10) || "",
-        stayExpiration: editInfo.stayExpiration?.slice(0, 10) || "",
+        stayingTill: editInfo.stayingTill?.slice(0, 10) || "",
+        payment: editInfo.payment, 
       };
 
       await setDoc(employeeDocRef, toUpdate, { merge: true });
@@ -242,12 +241,13 @@ const EmployeePreview: React.FC = () => {
   function renderTabContent() {
     if (activeTab === "info") {
       return (
-        <div className="grid grid-cols-2 gap-x-6 gap-y-4 mb-8">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-2 mb-8">
           {/* Name */}
           <div>
-            <label className="block text-sm text-black mb-1">Name</label>
+            <label className="block text-sm text-black ">Name</label>
             <input
-              className="border rounded-lg w-full px-2 py-1 text-sm font-medium"
+              className={`w-full px-2 py-1 text-sm font-medium 
+      ${editMode ? "border rounded-lg" : ""} `}
               value={editInfo?.name as string}
               readOnly={!editMode}
               onChange={(e) =>
@@ -259,9 +259,10 @@ const EmployeePreview: React.FC = () => {
           </div>
           {/* Surname */}
           <div>
-            <label className="block text-sm text-black mb-1">Surname</label>
+            <label className="block text-sm text-black ">Surname</label>
             <input
-              className="border rounded-lg w-full px-2 py-1 text-sm font-medium"
+              className={`w-full px-2 py-1 text-sm font-medium 
+      ${editMode ? "border rounded-lg" : ""}`}
               value={editInfo?.surname || ""}
               readOnly={!editMode}
               onChange={(e) =>
@@ -273,9 +274,10 @@ const EmployeePreview: React.FC = () => {
           </div>
           {/* Alias */}
           <div>
-            <label className="block text-sm text-black mb-1">Alias</label>
+            <label className="block text-sm text-black ">Alias</label>
             <input
-              className="border rounded-lg w-full px-2 py-1 text-sm font-medium"
+              className={`w-full px-2 py-1 text-sm font-medium 
+      ${editMode ? "border rounded-lg" : ""}`}
               value={editInfo?.alias || ""}
               readOnly={!editMode}
               onChange={(e) =>
@@ -287,11 +289,12 @@ const EmployeePreview: React.FC = () => {
           </div>
           {/* Birth date */}
           <div>
-            <label className="block text-sm text-black mb-1">Birth date</label>
+            <label className="block text-sm text-black ">Birth date</label>
             <div className="flex items-center">
               <input
                 type="date"
-                className="border rounded-lg w-full px-2 py-1 text-sm font-medium"
+                className={`w-auto px-2 py-1 text-sm font-medium 
+      ${editMode ? "border rounded-lg" : ""}`}
                 value={
                   editInfo?.birthDate ? formatDate(editInfo.birthDate) : ""
                 }
@@ -319,16 +322,15 @@ const EmployeePreview: React.FC = () => {
           </div>
           {/* Employee type */}
           <div>
-            <label className="block text-sm text-black mb-1">
-              Employee type
-            </label>
+            <label className="block text-sm text-black ">Employee type</label>
             <input
-              className="border rounded-lg w-full px-2 py-1 text-sm font-medium bg-white"
-              value={editInfo?.employeeType || ""}
+              className={`w-full px-2 py-1 text-sm font-medium 
+      ${editMode ? "border rounded-lg" : ""}`}
+              value={editInfo?.category || ""}
               readOnly={!editMode}
               onChange={(e) =>
                 setEditInfo((prev) =>
-                  prev ? { ...prev, employeeType: e.target.value } : prev
+                  prev ? { ...prev, category: e.target.value } : prev
                 )
               }
             />
@@ -336,13 +338,12 @@ const EmployeePreview: React.FC = () => {
           {/* Hourly rate + Currency */}
           <div className="flex gap-2">
             <div className="flex-1">
-              <label className="block text-sm text-black mb-1">
-                Hourly rate
-              </label>
+              <label className="block text-sm text-black ">Hourly rate</label>
               <input
                 type="number"
-                className="border rounded-lg w-full px-2 py-1 text-sm font-medium"
-                value={editInfo?.hourlyRate || ""}
+                className={`w-full px-2 py-1 text-sm font-medium 
+      ${editMode ? "border rounded-lg" : ""}`}
+                value={editInfo?.payment || ""}
                 readOnly={!editMode}
                 onChange={(e) =>
                   setEditInfo((prev) =>
@@ -352,9 +353,10 @@ const EmployeePreview: React.FC = () => {
               />
             </div>
             <div className="w-[80px]">
-              <label className="block text-sm text-black mb-1">&nbsp;</label>
+              <label className="block text-sm text-black ">&nbsp;</label>
               <input
-                className="border rounded-lg w-full px-2 py-1 text-sm font-medium bg-white"
+                className={`w-full px-2 py-1 text-sm font-medium 
+      ${editMode ? "border rounded-lg" : ""}`}
                 value={editInfo?.currency || ""}
                 readOnly={!editMode}
                 onChange={(e) =>
@@ -367,27 +369,38 @@ const EmployeePreview: React.FC = () => {
           </div>
           {/* Work relation */}
           <div>
-            <label className="block text-sm text-black mb-1">
-              Work relation
-            </label>
-            <input
-              className="border rounded-lg w-full px-2 py-1 text-sm font-medium bg-white"
-              value={editInfo?.workRelation || ""}
-              readOnly={!editMode}
-              onChange={(e) =>
-                setEditInfo((prev) =>
-                  prev ? { ...prev, workRelation: e.target.value } : prev
-                )
-              }
-            />
+            <label className="block text-sm text-black ">Work relation</label>
+            {editMode ? (
+              <select
+                className={`w-full px-2 py-1 text-sm font-medium 
+      ${editMode ? "border rounded-lg" : ""}`}
+                value={editInfo?.workingRelation || ""}
+                onChange={(e) =>
+                  setEditInfo((prev) =>
+                    prev ? { ...prev, workingRelation: e.target.value } : prev
+                  )
+                }
+              >
+                <option value="full-time">Full-time</option>
+                <option value="part-time">Part-time</option>
+                <option value="book-off-time">Book-off-time</option>
+              </select>
+            ) : (
+              <input
+                className={`w-full px-2 py-1 text-sm font-medium 
+      ${editMode ? "border rounded-lg" : ""}`}
+                value={editInfo?.workingRelation || ""}
+                readOnly
+              />
+            )}
           </div>
+
           {/* Type of stay */}
           <div>
-            <label className="block text-sm text-black mb-1">
-              Type of stay
-            </label>
+            <label className="block text-sm text-black ">Type of stay</label>
             <input
-              className="border rounded-lg w-full px-2 py-1 text-sm font-medium bg-white"
+              className={`w-full px-2 py-1 text-sm font-medium 
+      ${editMode ? "border rounded-lg" : ""}`}
               value={editInfo?.typeOfStay || ""}
               readOnly={!editMode}
               onChange={(e) =>
@@ -399,22 +412,19 @@ const EmployeePreview: React.FC = () => {
           </div>
           {/* Stay expiration */}
           <div>
-            <label className="block text-sm text-black mb-1">
-              Stay expiration
-            </label>
+            <label className="block text-sm text-black ">Stay expiration</label>
             <div className="flex items-center">
               <input
                 type="date"
-                className="border rounded-lg w-full px-2 py-1 text-sm font-bold"
+                className={`w-full px-2 py-1 text-sm font-medium 
+      ${editMode ? "border rounded-lg" : ""}`}
                 value={
-                  editInfo?.stayExpiration
-                    ? formatDate(editInfo.stayExpiration)
-                    : ""
+                  editInfo?.stayingTill ? formatDate(editInfo.stayingTill) : ""
                 }
                 readOnly={!editMode}
                 onChange={(e) =>
                   setEditInfo((prev) =>
-                    prev ? { ...prev, stayExpiration: e.target.value } : prev
+                    prev ? { ...prev, stayingTill: e.target.value } : prev
                   )
                 }
               />
@@ -432,71 +442,6 @@ const EmployeePreview: React.FC = () => {
                 </svg>
               </span>
             </div>
-          </div>
-          {/* Email */}
-          <div>
-            <label className="block text-sm text-black mb-1">Email</label>
-            <input
-              type="email"
-              className="border rounded-lg w-full px-2 py-1 text-sm font-medium"
-              value={editInfo?.email || ""}
-              readOnly={!editMode}
-              onChange={(e) =>
-                setEditInfo((prev) =>
-                  prev ? { ...prev, email: e.target.value } : prev
-                )
-              }
-            />
-          </div>
-          {/* Phone */}
-          <div>
-            <label className="block text-sm text-black mb-1">Phone</label>
-            <input
-              type="tel"
-              className="border rounded-lg w-full px-2 py-1 text-sm font-medium"
-              value={editInfo?.phone || ""}
-              readOnly={!editMode}
-              onChange={(e) =>
-                setEditInfo((prev) =>
-                  prev ? { ...prev, phone: e.target.value } : prev
-                )
-              }
-            />
-          </div>
-          {/* Status */}
-          <div>
-            <label className="block text-sm text-black mb-1">Status</label>
-            <input
-              className="border rounded-lg w-full px-2 py-1 text-sm font-medium"
-              value={editInfo?.status || ""}
-              readOnly={!editMode}
-              onChange={(e) =>
-                setEditInfo((prev) =>
-                  prev ? { ...prev, status: e.target.value } : prev
-                )
-              }
-            />
-          </div>
-          {/* Unavailable Until */}
-          <div>
-            <label className="block text-sm text-black mb-1">
-              Unavailable Until
-            </label>
-            <input
-              type="date"
-              className="border rounded-lg w-full px-2 py-1 text-sm font-medium"
-              value={
-                editInfo?.unavailableUntil
-                  ? formatDate(editInfo.unavailableUntil)
-                  : ""
-              }
-              readOnly={!editMode}
-              onChange={(e) =>
-                setEditInfo((prev) =>
-                  prev ? { ...prev, unavailableUntil: e.target.value } : prev
-                )
-              }
-            />
           </div>
         </div>
       );
@@ -550,7 +495,7 @@ const EmployeePreview: React.FC = () => {
           </div>
           <div className="absolute right-6 top-6 flex items-center gap-2">
             <span className="text-xs text-gray-500">
-              Until {employeeInfo.unavailableUntil || "—"}
+              Until {employeeInfo.stayingTill || "—"}
             </span>
             <span className="bg-red-100 text-red-700 text-xs px-3 py-1 rounded-full">
               {employeeInfo.status || "Unavailable"}
@@ -691,6 +636,7 @@ const EmployeePreview: React.FC = () => {
             <EmployeCalendar
               occurrences={occurrences}
               highlightColorClass="bg-amber-500"
+              stayingTill={editInfo?.stayingTill ?? null} // Convert undefined to null
             />
           )}
         </div>
