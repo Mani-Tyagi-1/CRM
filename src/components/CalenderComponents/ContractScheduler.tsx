@@ -19,6 +19,7 @@ export type CalendarItem = {
   children?: CalendarItem[];
   assignedDates?: string[];
   __parent?: string;
+  workingRelation?: string;
 };
 
 export type CalendarData = Record<string, CalendarItem[]>;
@@ -67,7 +68,12 @@ interface Props {
   scheduledEndISO?: string | null;
   resourceIndex?: Record<
     string,
-    { category: string; id: string; type: "employee" | "machine" }
+    {
+      category: string;
+      id: string;
+      type: "employee" | "machine";
+      workingRelation?: string;
+    }
   >;
   globalResourceCounts: Record<string, Record<string, number>>;
 }
@@ -181,6 +187,33 @@ function findSpans(
   }
   return spans;
 }
+
+const colourForWorkingRelation = (wr?: string) => {
+  switch (wr) {
+    case "full-time":
+      return "bg-[#38BDF826]  text-[#0369A1]";
+    case "part-time":
+      return "bg-[#ECFDF5]  text-[#047857]";
+    case "book-off-time":
+      return "bg-[#FF7FF226] text-[#A1008C]";
+    default:
+      return "bg-gray-100 text-gray-600"; // fallback
+  }
+};
+
+const badgeColorsForWorkingRelation = (wr?: string) => {
+  switch (wr) {
+    case "full-time":
+      return {  text: "#0369A1" }; // light blue
+    case "part-time":
+      return {  text: "#047857" }; // light green
+    case "book-off-time":
+      return {  text: "#A1008C" }; // light pink
+    default:
+      return { bg: "#E5E7EB", text: "#4B5563" }; // gray fallback
+  }
+};
+
 
 /* ---------- Component ---------- */
 const ContractScheduler: React.FC<Props> = ({
@@ -324,18 +357,18 @@ const ContractScheduler: React.FC<Props> = ({
   };
 
   /* ---------- Styling helpers ---------- */
-  const chipCls = (t: ItemType, joinsLeft = false, joinsRight = false) =>
-    [
-      "px-2 py-1.5 rounded-md text-xs cursor-move hover:shadow-sm transition-all duration-200 relative group",
-      t === "person"
-        ? "bg-blue-100 text-blue-800 border-blue-300/50"
-        : t === "tool"
-        ? "bg-amber-50 text-amber-800 border-amber-300/60"
-        : "bg-green-100 text-green-800 border-green-300/50",
-      joinsLeft ? "-ml-7 border-l-0 rounded-l-none" : "",
-      joinsRight ? "rounded-r-none" : "",
-      "flex items-center",
-    ].join(" ");
+  // const chipCls = (t: ItemType, joinsLeft = false, joinsRight = false) =>
+  //   [
+  //     "px-2 py-1.5 rounded-md text-xs cursor-move hover:shadow-sm transition-all duration-200 relative group",
+  //     t === "person"
+  //       ? "bg-blue-100 text-blue-800 border-blue-300/50"
+  //       : t === "tool"
+  //       ? "bg-amber-50 text-amber-800 border-amber-300/60"
+  //       : "bg-green-100 text-green-800 border-green-300/50",
+  //     joinsLeft ? "-ml-7 border-l-0 rounded-l-none" : "",
+  //     joinsRight ? "rounded-r-none" : "",
+  //     "flex items-center",
+  //   ].join(" ");
 
   const machineContainerCls = (joinsLeft = false, joinsRight = false) =>
     [
@@ -535,7 +568,14 @@ const ContractScheduler: React.FC<Props> = ({
         return (
           <div
             key={`machinechild-chip-${span.machineName}-${c.type}-${c.name}-${idx}`}
-            className={chipCls(c.type)}
+            className={[
+              "px-2 py-1 rounded-lg text-sm font-medium ", // base classes
+              c.type === "person"
+                ? colourForWorkingRelation(
+                    resourceIndex?.[c.name]?.workingRelation
+                  )
+                : colourForWorkingRelation(c.type), // your actual function
+            ].join(" ")}
             style={{
               gridColumnStart: gridStart,
               gridColumnEnd: gridEnd,
@@ -558,10 +598,21 @@ const ContractScheduler: React.FC<Props> = ({
           >
             <div className="font-medium flex justify-center items-center gap-2 w-full">
               {showCount && (
-                <span className="text-[10px] bg-blue-200 text-blue-900 font-semibold px-1.5 py-0.5 rounded-full">
+                <span
+                  className="text-[12px] font-semibold  rounded-full"
+                  style={{
+                    background: badgeColorsForWorkingRelation(
+                      resourceIndex?.[c.name]?.workingRelation
+                    ).bg,
+                    color: badgeColorsForWorkingRelation(
+                      resourceIndex?.[c.name]?.workingRelation
+                    ).text,
+                  }}
+                >
                   {showCount}
                 </span>
               )}
+
               <span className="mx-auto">{c.name}</span>
               {c.note && (
                 <File className="ml-1 inline-block text-blue-500" size={16} />
@@ -572,7 +623,7 @@ const ContractScheduler: React.FC<Props> = ({
               <button
                 type="button"
                 aria-label={`${c.type} info`}
-                className="absolute top-0.5 right-0.5 p-0.5 text-blue-700 hover:text-blue-900 cursor-pointer"
+                className="absolute top-0.5 right-0.5 p-0.5 text-slate-500 hover:text-slate-700 cursor-pointer"
                 draggable={false}
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
@@ -602,6 +653,7 @@ const ContractScheduler: React.FC<Props> = ({
             key={`span-chip-machine-${resource.name}-${idx}`}
             className={machineContainerCls()}
             style={{
+              background: "#FFFBEB", // <-- pastel yellow background
               gridColumnStart: span.startIdx + 1,
               gridColumnEnd: span.endIdx + 2,
               position: "relative",
@@ -613,7 +665,7 @@ const ContractScheduler: React.FC<Props> = ({
           >
             {renderResizeHandles(soId, resource.name, "machine")}
             <div
-              className="px-2 py-1.5 pr-7 text-xs font-medium text-green-900 cursor-move select-none flex items-center"
+              className="px-2 py-1.5 pr-7 text-xs font-medium text-[#B45309] cursor-move select-none flex items-center"
               draggable
               onDragStart={(e) => {
                 e.dataTransfer.setData("text/plain", resource.name);
@@ -627,7 +679,7 @@ const ContractScheduler: React.FC<Props> = ({
               title={resource.note || ""}
             >
               {machineCount > 1 && (
-                <span className="text-[10px] bg-green-200 text-green-900 font-semibold px-1.5 py-0.5 rounded-full mr-2">
+                <span className="text-[12px] text-[#B45309] font-semibold px-1.5 py-0.5 rounded-full mr-2">
                   {machineCount}
                 </span>
               )}
@@ -643,7 +695,7 @@ const ContractScheduler: React.FC<Props> = ({
                 e.stopPropagation();
                 handleResourceInfo(resource.name);
               }}
-              className="absolute cursor-pointer top-1.5 right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-green-700"
+              className="absolute cursor-pointer top-1.5 right-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-500"
               title="Machine details"
             >
               <Info className="h-3.5 w-3.5" />
@@ -698,7 +750,14 @@ const ContractScheduler: React.FC<Props> = ({
       return (
         <div
           key={`span-chip-${resource.type}-${resource.name}-${idx}`}
-          className={chipCls(resource.type)}
+          className={[
+            "px-2 py-1 rounded-lg text-sm font-medium ", // base classes
+            resource.type === "person"
+              ? colourForWorkingRelation(
+                  resourceIndex?.[resource.name]?.workingRelation
+                )
+              : colourForWorkingRelation(resource.type), // your actual function
+          ].join(" ")}
           style={{
             gridColumnStart: span.startIdx + 1,
             gridColumnEnd: span.endIdx + 2,
@@ -720,10 +779,21 @@ const ContractScheduler: React.FC<Props> = ({
           {renderResizeHandles(soId, resource.name, resource.type)}
           <div className="font-medium flex justify-center items-center gap-2 w-full">
             {showCount && (
-              <span className="text-[10px] bg-blue-200 text-blue-900 font-semibold px-1.5 py-0.5 rounded-full">
+              <span
+                className="text-[12px] font-semibold  rounded-full"
+                style={{
+                  background: badgeColorsForWorkingRelation(
+                    resourceIndex?.[resource.name]?.workingRelation
+                  ).bg,
+                  color: badgeColorsForWorkingRelation(
+                    resourceIndex?.[resource.name]?.workingRelation
+                  ).text,
+                }}
+              >
                 {showCount}
               </span>
             )}
+
             <span className="mx-auto">{resource.name}</span>
             {resource.note && (
               <File className="ml-1 inline-block text-blue-500" size={16} />
@@ -733,7 +803,7 @@ const ContractScheduler: React.FC<Props> = ({
             <button
               type="button"
               aria-label={`${resource.type} info`}
-              className="absolute cursor-pointer top-0.5 right-0.5 p-0.5 text-blue-700 hover:text-blue-900"
+              className="absolute cursor-pointer top-0.5 right-0.5 p-0.5 text-slate-500 hover:text-blue-900"
               draggable={false}
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {

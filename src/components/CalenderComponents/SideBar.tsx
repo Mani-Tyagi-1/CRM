@@ -215,12 +215,23 @@ const Sidebar: React.FC<Props> = ({
 
       const idx: Record<
         string,
-        { category: string; id: string; type: "employee" | "machine" }
+        {
+          category: string;
+          id: string;
+          type: "employee" | "machine";
+          workingRelation?: string;
+        }
       > = {};
 
+      
       fetchedEmpCats.forEach((cat) => {
-        (empObj[cat] || []).forEach(({ id, display }) => {
-          idx[display] = { category: cat, id, type: "employee" };
+        empObj[cat].forEach((employee) => {
+          idx[employee.display] = {
+            category: cat,
+            id: employee.id,
+            type: "employee",
+            workingRelation: employee.workingRelation, // or whatever property holds the info
+          };
         });
       });
       fetchedMachCats.forEach((cat) => {

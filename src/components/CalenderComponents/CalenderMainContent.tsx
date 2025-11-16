@@ -63,7 +63,12 @@ type Props = {
   rangeWithinWeek?: { startIdx: number; days: number };
   resourceIndex?: Record<
     string,
-    { category: string; id: string; type: "employee" | "machine" }
+    {
+      category: string;
+      id: string;
+      type: "employee" | "machine";
+      workingRelation?: string;
+    }
   >;
 };
 
