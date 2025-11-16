@@ -7,6 +7,16 @@ import {
 
 import { TimelineContract } from "../components/CalenderComponents/CalenderMainContent";
 
+type ResourceAssignment = {
+  resourceId: string; // "Employee test"
+  resourceName: string; // "Employee test"
+  type: string; // "person" or "machine"
+  assignedDates: string[]; // ["2025-11-06", ...]  (ISO date)
+  soIds: string[]; // All SO ids this resource is assigned on those dates
+  contractIds: string[]; // All contract ids
+};
+
+
 export type Parsed = {
   contracts: TimelineContract[];
   contractData: CalendarData;
@@ -93,3 +103,68 @@ export const parseContracts = (raw: any[]): Parsed => {
 
   return { contracts, contractData, soToContractMap, resourceSOCountByDate };
 };
+
+export function collectResourceAssignments(
+  contractsRaw: any[]
+): ResourceAssignment[] {
+  type Tmp = Omit<
+    ResourceAssignment,
+    "assignedDates" | "soIds" | "contractIds"
+  > & {
+    assignedDates: Set<string>;
+    soIds: Set<string>;
+    contractIds: Set<string>;
+  };
+
+  const map = new Map<string, Tmp>();
+
+  contractsRaw.forEach((contract) => {
+    const contractId = contract.id;
+    contract.so.forEach((so: any) => {
+      const soId = so.id;
+      function walk(resources: any[]) {
+        resources.forEach((res: any) => {
+          const id = res.id;
+          if (!id) return;
+          // Set up entry if not yet present
+          if (!map.has(id)) {
+            map.set(id, {
+              resourceId: id,
+              resourceName: res.name,
+              type: res.type,
+              assignedDates: new Set<string>(),
+              soIds: new Set<string>(),
+              contractIds: new Set<string>(),
+            });
+          }
+          const entry = map.get(id)!;
+          (res.assignedDates ?? []).forEach((date: any) => {
+            // Normalize date string to ISO (YYYY-MM-DD)
+            const isoDate =
+              typeof date === "string"
+                ? date.slice(0, 10)
+                : typeof date === "object" && date?.seconds
+                ? new Date(date.seconds * 1000).toISOString().slice(0, 10)
+                : "";
+            if (isoDate) entry.assignedDates.add(isoDate);
+          });
+          entry.soIds.add(soId);
+          entry.contractIds.add(contractId);
+
+          // Dive into nestedResources
+          if (res.nestedResources?.length) walk(res.nestedResources);
+        });
+      }
+      walk(so.resources);
+    });
+  });
+
+  // Flatten the map to array, turn Sets into arrays
+  return Array.from(map.values()).map((e) => ({
+    ...e,
+    assignedDates: Array.from(e.assignedDates),
+    soIds: Array.from(e.soIds),
+    contractIds: Array.from(e.contractIds),
+  }));
+}
+

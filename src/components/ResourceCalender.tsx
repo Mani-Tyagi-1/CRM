@@ -63,28 +63,40 @@ const ResourceCalendar: React.FC<Props> = ({
   stayingTill,
 }) => {
   const [baseMonth, setBaseMonth] = useState(new Date());
+  console.log("Occurrences in calender", occurrences);
 
   // Parse the stayingTill date into a Date object for comparison
   const stayingTillDate = stayingTill ? parseDMY(stayingTill) : null;
 
-  console.log("Staying till",stayingTill ,"Formated", stayingTillDate);
+  // console.log("Staying till",stayingTill ,"Formated", stayingTillDate);
 
-  const blockedDates = useMemo(() => {
-    const set = new Set<string>();
-    for (const occ of occurrences) {
-      const parts = occ.date.split("-");
-      if (parts.length === 2) {
-        const start = parseDMY(parts[0].trim());
-        const end = parseDMY(parts[1].trim());
-        if (start && end) {
-          for (const d of getDateRangeStrings(start, end)) {
-            set.add(d);
-          }
-        }
-      }
-    }
-    return set;
-  }, [occurrences]);
+ const blockedDates = useMemo(() => {
+   const set = new Set<string>();
+   for (const occ of occurrences) {
+     // Check if the date is a range like "YYYY-MM-DD - YYYY-MM-DD"
+     const parts = occ.date.split("-");
+     if (
+       parts.length === 2 &&
+       occ.date.match(/\d{4}-\d{2}-\d{2}\s*-\s*\d{4}-\d{2}-\d{2}/)
+     ) {
+       const start = parseDMY(parts[0].trim());
+       const end = parseDMY(parts[1].trim());
+       if (start && end) {
+         for (const d of getDateRangeStrings(start, end)) {
+           set.add(d);
+         }
+       }
+     } else {
+       // Handle single date
+       const singleDate = parseDMY(occ.date.trim());
+       if (singleDate) {
+         set.add(singleDate.toISOString().slice(0, 10));
+       }
+     }
+   }
+   return set;
+ }, [occurrences]);
+
 
   const addMonths = (date: Date, count: number) => {
     const d = new Date(date);

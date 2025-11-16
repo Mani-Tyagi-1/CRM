@@ -5,13 +5,11 @@ import { auth, db } from "../../lib/firebase";
 import {
   doc,
   getDoc,
-  collection,
-  getDocs,
-  query,
-  where,
   setDoc,
 } from "firebase/firestore";
 import MachineCalendar from "../ResourceCalender";
+import { fetchAllContracts } from "../../services/fetchAllContracts";
+import { collectResourceAssignments } from "../../utils/parsedContracts";
 
 const TAB_LABELS = [
   { key: "rightNow", label: "Right now" },
@@ -127,28 +125,6 @@ const MachinePreview: React.FC = () => {
           setLoading(false);
           return;
         }
-
-        // -- Fetch contracts (unchanged) --
-        const contractsSnap = await getDocs(
-          query(
-            collection(db, "companies", user.uid, "contracts"),
-            where("machineId", "==", id)
-          )
-        );
-        const occList: OccurrenceType[] = [];
-        contractsSnap.forEach((doc) => {
-          const cdata = doc.data();
-          if (cdata.startDate && cdata.endDate && cdata.contractName) {
-            occList.push({
-              date: `${formatDate(cdata.startDate)} - ${formatDate(
-                cdata.endDate
-              )}`,
-              contractName: cdata.contractName,
-            });
-          }
-        });
-
-        setOccurrences(occList);
         setErr(null);
       } catch (e: any) {
         setErr(
@@ -162,6 +138,45 @@ const MachinePreview: React.FC = () => {
 
     return () => unsubscribe();
   }, [id, category]);
+
+  useEffect(() => {
+    if (!machineInfo) return;
+    const loadContracts = async () => {
+      try {
+        const raw = await fetchAllContracts();
+        const assignments = collectResourceAssignments(raw);
+
+        // Match the machine by name (or better: by id if you have it in resourceId)
+        // Here assuming assignments resourceId === machineInfo.name, but adjust if needed!
+        // For better matching, combine name and licencePlate or use machineInfo.id
+        const candidateNames = [
+          (machineInfo.name ?? "").trim().toLowerCase(),
+          (machineInfo.licencePlate ?? "").trim().toLowerCase(),
+        ];
+        const found = assignments.find(
+          (a) =>
+            candidateNames.includes(
+              (a.resourceId ?? "").trim().toLowerCase()
+            ) ||
+            candidateNames.includes((a.resourceName ?? "").trim().toLowerCase())
+        );
+
+        // Build occurrences for the calendar
+        const occ = found
+          ? (found.assignedDates || []).map((date) => ({
+              date,
+              contractName: found.resourceName,
+            }))
+          : [];
+
+        setOccurrences(occ);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    loadContracts();
+  }, [machineInfo]);
+
 
   // Helper to format Firestore Timestamp or string date
   function formatDate(date: any): string {
@@ -426,7 +441,7 @@ const MachinePreview: React.FC = () => {
           {/* Right Section: Calendar */}
           <MachineCalendar
             occurrences={occurrences}
-            highlightColorClass="bg-blue-500" stayingTill={null} />
+            highlightColorClass="bg-red-500" stayingTill={null} />
         </div>
       );
     }

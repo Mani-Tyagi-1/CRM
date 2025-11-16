@@ -5,13 +5,11 @@ import { auth, db } from "../../lib/firebase";
 import {
   doc,
   getDoc,
-  collection,
-  getDocs,
-  query,
-  where,
   setDoc, // <-- make sure this is imported!
 } from "firebase/firestore";
 import EmployeCalendar from "../ResourceCalender"; // or whatever your calendar component is
+import { fetchAllContracts } from "../../services/fetchAllContracts";
+import { collectResourceAssignments } from "../../utils/parsedContracts";
 
 const TAB_LABELS = [
   { key: "rightNow", label: "Right now" },
@@ -79,6 +77,9 @@ const EmployeePreview: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [editInfo, setEditInfo] = useState<category | null>(null);
 
+  // -- Fetch contracts (if you want to show contracts associated with this employee) --
+  
+
   // On load, set editInfo as a copy of employeeInfo
   useEffect(() => {
     setEditInfo(employeeInfo);
@@ -145,27 +146,6 @@ const EmployeePreview: React.FC = () => {
           return;
         }
 
-        // -- Fetch contracts (if you want to show contracts associated with this employee) --
-        const contractsSnap = await getDocs(
-          query(
-            collection(db, "companies", user.uid, "contracts"),
-            where("employeeId", "==", id)
-          )
-        );
-        const occList: OccurrenceType[] = [];
-        contractsSnap.forEach((doc) => {
-          const cdata = doc.data();
-          if (cdata.startDate && cdata.endDate && cdata.contractName) {
-            occList.push({
-              date: `${formatDate(cdata.startDate)} - ${formatDate(
-                cdata.endDate
-              )}`,
-              contractName: cdata.contractName,
-            });
-          }
-        });
-
-        setOccurrences(occList);
         setErr(null);
       } catch (e: any) {
         setErr(
@@ -180,6 +160,51 @@ const EmployeePreview: React.FC = () => {
     return () => unsubscribe();
   }, [id, category]);
 
+
+
+ useEffect(() => {
+   if (!employeeInfo) return;
+   const loadContracts = async () => {
+     try {
+       const raw = await fetchAllContracts();
+       const assignments = collectResourceAssignments(raw);
+
+       // Combine first name and surname for comparison (case-insensitive, trimmed)
+       const empFullName = `${employeeInfo.name ?? ""} ${
+         employeeInfo.surname ?? ""
+       }`
+         .trim()
+         .toLowerCase();
+
+       const found = assignments.find(
+         (a) =>
+           (a.resourceId ?? "").trim().toLowerCase() === empFullName ||
+           (a.resourceName ?? "").trim().toLowerCase() === empFullName
+       );
+
+
+       const occ = found
+         ? (found.assignedDates || []).map((date) => ({
+             date,
+             contractName: found.resourceName,
+           }))
+         : [];
+
+       console.log("occ in employee", occ);
+       
+       
+       setOccurrences(occ);
+     } catch (err) {
+       console.error(err);
+     }
+   };
+   loadContracts();
+ }, [employeeInfo]);
+
+
+
+
+  
   // FORMAT FOR CONTRACT DATES
   function formatDate(date: any): string {
     // Accepts either a string or Firestore Timestamp or Date
@@ -219,7 +244,7 @@ const EmployeePreview: React.FC = () => {
         ...editInfo,
         birthDate: editInfo.birthDate?.slice(0, 10) || "",
         stayingTill: editInfo.stayingTill?.slice(0, 10) || "",
-        payment: editInfo.payment, 
+        payment: editInfo.payment,
       };
 
       await setDoc(employeeDocRef, toUpdate, { merge: true });
@@ -635,7 +660,7 @@ const EmployeePreview: React.FC = () => {
           {activeTab === "info" && (
             <EmployeCalendar
               occurrences={occurrences}
-              highlightColorClass="bg-amber-500"
+              highlightColorClass="bg-red-500"
               stayingTill={editInfo?.stayingTill ?? null} // Convert undefined to null
             />
           )}
