@@ -426,8 +426,7 @@ const MachinePreview: React.FC = () => {
           {/* Right Section: Calendar */}
           <MachineCalendar
             occurrences={occurrences}
-            highlightColorClass="bg-blue-500"
-          />
+            highlightColorClass="bg-blue-500" stayingTill={null} />
         </div>
       );
     }

@@ -305,7 +305,7 @@ const EmployeePreview: React.FC = () => {
                   )
                 }
               />
-              <span className="ml-2">
+              {/* <span className="ml-2">
                 <svg width={20} height={20} fill="none" stroke="black">
                   <rect
                     x="3"
@@ -317,7 +317,7 @@ const EmployeePreview: React.FC = () => {
                   />
                   <path d="M3 9h14M7 3v4m6-4v4" strokeWidth="1.2" />
                 </svg>
-              </span>
+              </span> */}
             </div>
           </div>
           {/* Employee type */}
@@ -428,7 +428,7 @@ const EmployeePreview: React.FC = () => {
                   )
                 }
               />
-              <span className="ml-2">
+              {/* <span className="ml-2">
                 <svg width={20} height={20} fill="none" stroke="black">
                   <rect
                     x="3"
@@ -440,7 +440,7 @@ const EmployeePreview: React.FC = () => {
                   />
                   <path d="M3 9h14M7 3v4m6-4v4" strokeWidth="1.2" />
                 </svg>
-              </span>
+              </span> */}
             </div>
           </div>
         </div>

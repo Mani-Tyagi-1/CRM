@@ -194,7 +194,7 @@ const ResourceCalendar: React.FC<Props> = ({
                 ${!date.isCurrentMonth ? "text-gray-300" : ""}
                 ${
                   date.isCurrentMonth && date.isBlocked
-                    ? highlightColorClass + " text-white font-semibold bg-red-400"
+                    ? highlightColorClass + " text-white font-semibold "
                     : ""
                 }
                 ${
