@@ -63,7 +63,7 @@ const ResourceCalendar: React.FC<Props> = ({
   stayingTill,
 }) => {
   const [baseMonth, setBaseMonth] = useState(new Date());
-  console.log("Occurrences in calender", occurrences);
+  // console.log("Occurrences in calender", occurrences);
 
   // Parse the stayingTill date into a Date object for comparison
   const stayingTillDate = stayingTill ? parseDMY(stayingTill) : null;
@@ -202,7 +202,7 @@ const ResourceCalendar: React.FC<Props> = ({
           return (
             <div
               key={idx}
-              className={`w-7 h-7 text-sm flex items-center justify-center rounded
+              className={`w-9 h-6 text-sm flex items-center justify-center mb-1
                 ${!date.isCurrentMonth ? "text-gray-300" : ""}
                 ${
                   date.isCurrentMonth && date.isBlocked
@@ -230,7 +230,7 @@ const ResourceCalendar: React.FC<Props> = ({
   );
 
   return (
-    <div className="w-1/3 p-8 bg-gray-50 rounded-lg">
+    <div className="w-[280px] p-4 bg-gray-50 rounded-lg">
       {renderMonth(baseMonth, true)}
       {renderMonth(addMonths(baseMonth, 1), false)}
     </div>

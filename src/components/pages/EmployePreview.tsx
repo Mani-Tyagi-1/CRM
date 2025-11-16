@@ -190,7 +190,7 @@ const EmployeePreview: React.FC = () => {
            }))
          : [];
 
-       console.log("occ in employee", occ);
+      //  console.log("occ in employee", occ);
        
        
        setOccurrences(occ);
