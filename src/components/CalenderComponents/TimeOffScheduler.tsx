@@ -120,16 +120,42 @@ const TimeOffScheduler: React.FC<Props> = ({
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
   const OPEN_MAX_PX = 260;
   const localScrollRef = React.useRef<HTMLDivElement>(null);
+  const isSyncingScroll = React.useRef<null | "main" | "footer">(null);
   
     React.useEffect(() => {
       const gridEl = scrollRef.current;
       const footerEl = localScrollRef.current;
       if (!gridEl || !footerEl) return;
 
-      const sync = () => (footerEl.scrollLeft = gridEl.scrollLeft);
-      gridEl.addEventListener("scroll", sync);
-      return () => gridEl.removeEventListener("scroll", sync);
+      const handleMainScroll = () => {
+        if (isSyncingScroll.current === "footer") return;
+        isSyncingScroll.current = "main";
+        footerEl.scrollLeft = gridEl.scrollLeft;
+        // Wait for browser to process, then release lock
+        setTimeout(() => {
+          isSyncingScroll.current = null;
+        }, 0);
+      };
+
+      const handleFooterScroll = () => {
+        if (isSyncingScroll.current === "main") return;
+        isSyncingScroll.current = "footer";
+        gridEl.scrollLeft = footerEl.scrollLeft;
+        setTimeout(() => {
+          isSyncingScroll.current = null;
+        }, 0);
+      };
+
+      gridEl.addEventListener("scroll", handleMainScroll);
+      footerEl.addEventListener("scroll", handleFooterScroll);
+
+      // Cleanup
+      return () => {
+        gridEl.removeEventListener("scroll", handleMainScroll);
+        footerEl.removeEventListener("scroll", handleFooterScroll);
+      };
     }, [scrollRef]);
+
 
   const CELL_MIN_WIDTH = 180; // or whatever your cell width is
 
