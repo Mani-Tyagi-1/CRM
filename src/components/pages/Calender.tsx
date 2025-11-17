@@ -226,7 +226,6 @@ const Calender: React.FC = () => {
     >
   >({});
 
-
   const toDateKey = (date: Date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -699,6 +698,37 @@ const Calender: React.FC = () => {
   /* ------------------------------------------------------------------ */
 
   /** Return all consecutive dates on which the resource occurs */
+
+  /** Return all consecutive dates (same section) where the resource occurs */
+ function getContiguousTimeOffDates(
+   section: any,
+   resourceName: string,
+   anchorDateIso: any,
+   days: any[],
+   timeOffData: TimeOffData
+ ) {
+   // Find the index of the anchor day
+   const idx = days.findIndex((d) => d.key === anchorDateIso);
+   if (idx === -1) return [];
+
+   // Checks if the resource is present on a given day/section
+   const present = (i: number) =>
+     (timeOffData[`${section}-${days[i].key}`] || []).some(
+       (item) => item.name === resourceName
+     );
+
+   let start = idx;
+   let end = idx;
+
+   // Go left
+   while (start > 0 && present(start - 1)) start--;
+   // Go right
+   while (end < days.length - 1 && present(end + 1)) end++;
+
+   return days.slice(start, end + 1).map((d) => d.key); // returns array of ISO dates
+ }
+
+
   const collectContiguousDates = (
     soId: string,
     resourceName: string,
@@ -1064,39 +1094,61 @@ const Calender: React.FC = () => {
       }
     }
 
-    if (
-      dragged &&
-      dragged.source &&
-      dragged.source.zone === "timeoff" &&
-      target.zone === "sidebar"
-    ) {
-      // Find the full item from state BEFORE updating it!
-      const items = timeOffData[dragged.source.id] || [];
-      const fullItem = items.find(
-        (it) => it.name === dragged.name && it.type === dragged.type
+    if (dragged.source.zone === "timeoff" && target.zone === "sidebar") {
+      // Extract section and date from cellKey
+      const match = dragged.source.id.match(
+        /^(vacation|sick|service)-(\d{4}-\d{2}-\d{2})$/
+      );
+      if (!match) {
+        // Handle error or ignore drop (optional: throw, toast, etc)
+        return;
+      }
+      const [, section, dateIso] = match;
+
+
+      // Find all contiguous dates with this resource
+      const span = getContiguousTimeOffDates(
+        section,
+        dragged.name,
+        dateIso,
+        timelineDays,
+        timeOffData
       );
 
+      // Optimistically update UI state
       setTimeOffData((prev) => {
-        const updated = { ...prev };
-        if (!updated[dragged.source.id]) return prev;
-        updated[dragged.source.id] = updated[dragged.source.id].filter(
-          (it) => !(it.name === dragged.name && it.type === dragged.type)
-        );
-        if (updated[dragged.source.id].length === 0)
-          delete updated[dragged.source.id];
-        return updated;
+        const next = { ...prev };
+        span.forEach((iso) => {
+          const key = `${section}-${iso}`;
+          next[key] = (next[key] || []).filter(
+            (item) => item.name !== dragged.name
+          );
+          if (!next[key].length) delete next[key];
+        });
+        return next;
       });
 
-      if (uid && fullItem) {
-        await removeResourceFromTimeoffCell(
-          db,
-          uid,
-          dragged.source.id,
-          fullItem
+      // Remove from Firestore for each day in the span
+      if (uid) {
+        await Promise.all(
+          span.map((iso) => {
+            const key = `${section}-${iso}`;
+            // Find the full resource object as stored in timeOffData
+            const resourceArray = timeOffData[key] || [];
+            // Match ALL keys (name, type, color, startDate, etc)
+            const toRemove = resourceArray.find(
+              (item) => item.name === dragged.name && item.type === dragged.type
+            );
+            if (!toRemove) return Promise.resolve();
+            return removeResourceFromTimeoffCell(
+              db,
+              uid,
+              key,
+              toRemove // <---- pass the full object as stored!
+            );
+          })
         );
-        console.log("removed from timeoff from firebase");
-      } else {
-        console.warn("No full item to remove from Firestore");
+
       }
       setDragged(null);
       return;

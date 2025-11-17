@@ -47,6 +47,7 @@ export async function removeResourceFromTimeoffCell(
   resource: any
 ) {
   const ref = doc(db, "companies", uid, "timeoff", cellKey);
+console.log("Removing from Firestore:", cellKey, resource);
 
   // 1. Remove the resource from the array
   await updateDoc(ref, { items: arrayRemove(resource) });
