@@ -44,7 +44,6 @@ interface Props {
 //   type: ItemType
 // ) => !!arr?.some((i) => i.name === name && i.type === type);
 
-
 // ---- Helper: collect all unavailable resource names ----
 export function getAllUnavailableResourceNames(data: CalendarData): string[] {
   const names = new Set<string>();
@@ -100,7 +99,6 @@ function findSpans(
   return spans;
 }
 
-
 const TimeOffScheduler: React.FC<Props> = ({
   weekDays,
   scrollRef,
@@ -121,41 +119,40 @@ const TimeOffScheduler: React.FC<Props> = ({
   const OPEN_MAX_PX = 260;
   const localScrollRef = React.useRef<HTMLDivElement>(null);
   const isSyncingScroll = React.useRef<null | "main" | "footer">(null);
-  
-    React.useEffect(() => {
-      const gridEl = scrollRef.current;
-      const footerEl = localScrollRef.current;
-      if (!gridEl || !footerEl) return;
 
-      const handleMainScroll = () => {
-        if (isSyncingScroll.current === "footer") return;
-        isSyncingScroll.current = "main";
-        footerEl.scrollLeft = gridEl.scrollLeft;
-        // Wait for browser to process, then release lock
-        setTimeout(() => {
-          isSyncingScroll.current = null;
-        }, 0);
-      };
+  React.useEffect(() => {
+    const gridEl = scrollRef.current;
+    const footerEl = localScrollRef.current;
+    if (!gridEl || !footerEl) return;
 
-      const handleFooterScroll = () => {
-        if (isSyncingScroll.current === "main") return;
-        isSyncingScroll.current = "footer";
-        gridEl.scrollLeft = footerEl.scrollLeft;
-        setTimeout(() => {
-          isSyncingScroll.current = null;
-        }, 0);
-      };
+    const handleMainScroll = () => {
+      if (isSyncingScroll.current === "footer") return;
+      isSyncingScroll.current = "main";
+      footerEl.scrollLeft = gridEl.scrollLeft;
+      // Wait for browser to process, then release lock
+      setTimeout(() => {
+        isSyncingScroll.current = null;
+      }, 0);
+    };
 
-      gridEl.addEventListener("scroll", handleMainScroll);
-      footerEl.addEventListener("scroll", handleFooterScroll);
+    const handleFooterScroll = () => {
+      if (isSyncingScroll.current === "main") return;
+      isSyncingScroll.current = "footer";
+      gridEl.scrollLeft = footerEl.scrollLeft;
+      setTimeout(() => {
+        isSyncingScroll.current = null;
+      }, 0);
+    };
 
-      // Cleanup
-      return () => {
-        gridEl.removeEventListener("scroll", handleMainScroll);
-        footerEl.removeEventListener("scroll", handleFooterScroll);
-      };
-    }, [scrollRef]);
+    gridEl.addEventListener("scroll", handleMainScroll);
+    footerEl.addEventListener("scroll", handleFooterScroll);
 
+    // Cleanup
+    return () => {
+      gridEl.removeEventListener("scroll", handleMainScroll);
+      footerEl.removeEventListener("scroll", handleFooterScroll);
+    };
+  }, [scrollRef]);
 
   const CELL_MIN_WIDTH = 180; // or whatever your cell width is
 
@@ -164,7 +161,6 @@ const TimeOffScheduler: React.FC<Props> = ({
     const end = Number(chip.style.gridColumnEnd || 0);
     return end > start ? end - start : 1;
   }
-
 
   function startResize(
     e: React.MouseEvent<HTMLDivElement>,
@@ -228,7 +224,6 @@ const TimeOffScheduler: React.FC<Props> = ({
     );
   }
 
-
   // const unavailableCount = React.useMemo(() => {
   //   return getAllUnavailableResourceNames(data).length;
   // }, [data]);
@@ -266,7 +261,7 @@ const TimeOffScheduler: React.FC<Props> = ({
         break;
       }
     }
-    if (!droppedItem) return; 
+    if (!droppedItem) return;
 
     // Save to Firebase
     if (uid) {
@@ -397,7 +392,6 @@ const TimeOffScheduler: React.FC<Props> = ({
       }
     }
 
-
     if (
       itemType !== "machine" &&
       itemType !== "tool" &&
@@ -429,18 +423,17 @@ const TimeOffScheduler: React.FC<Props> = ({
     onDragStart(itemName, sourceKey, itemType);
   };
 
-// async function handleRemoveTimeOffResource(cellKeyL: any, item: any) {
-//   onRemoveResource(cellKeyL, item);
+  // async function handleRemoveTimeOffResource(cellKeyL: any, item: any) {
+  //   onRemoveResource(cellKeyL, item);
 
-//   if (!uid) return;
-//   try {
-//     console.log("Removing from Firebase:", cellKeyL, item);
-//     await removeResourceFromTimeoffCell(db, uid, cellKeyL, item);
-//   } catch (err) {
-//     console.error("Failed to remove resource from Firebase:", err);
-//   }
-// }
-
+  //   if (!uid) return;
+  //   try {
+  //     console.log("Removing from Firebase:", cellKeyL, item);
+  //     await removeResourceFromTimeoffCell(db, uid, cellKeyL, item);
+  //   } catch (err) {
+  //     console.error("Failed to remove resource from Firebase:", err);
+  //   }
+  // }
 
   // ---- Row: accepts an optional customDropHandler for Service ----
   const Row = ({
@@ -483,7 +476,8 @@ const TimeOffScheduler: React.FC<Props> = ({
           style={{
             gridTemplateColumns: `repeat(${weekDays.length},
           minmax(${CELL_MIN_WIDTH}px,1fr))`,
-            minHeight: 90, // space for chips
+            minHeight: 60, // space for chips
+            gridAutoRows: "minmax(32px, auto)",
           }}
         >
           {weekDays.map(({ key }) => {
@@ -492,7 +486,7 @@ const TimeOffScheduler: React.FC<Props> = ({
               <div
                 key={cellKey}
                 className="border border-transparent hover:border-dashed
-                       hover:border-gray-300 hover:bg-gray-25 p-2"
+                       hover:border-gray-300 hover:bg-gray-25 p-2 mb-1"
                 onDragOver={handleDragOver}
                 onDrop={(e) =>
                   (customDropHandler ?? handleDropHere)(e, cellKey)
@@ -574,7 +568,12 @@ const TimeOffScheduler: React.FC<Props> = ({
             {/* Horizontal scroll container (sync’ed) */}
             <div
               ref={localScrollRef}
-              className="overflow-x-auto scrollbar-hide"
+              className="overflow-x-auto scrollbar-hide "
+              style={{
+                overflowX: "auto",
+                scrollbarWidth: "none", // Firefox
+                msOverflowStyle: "none", // IE 10+
+              }}
             >
               <div className="px-3 pb-0 min-w-max">
                 <div className="rounded-xl bg-rose-50 ring-1 ring-rose-200/60 px-3 py-2">
@@ -631,3 +630,5 @@ const TimeOffScheduler: React.FC<Props> = ({
 };
 
 export default TimeOffScheduler;
+
+// the hight issue is resolved one more issue is that the dropping in not happening in the row where a resoource is added
