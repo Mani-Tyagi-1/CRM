@@ -227,7 +227,7 @@ const ContractScheduler: React.FC<Props> = ({
   onResize,
   // onMachineInfo,
   unavailableResourceNames ,
-  onUnavailableDrop,
+  // onUnavailableDrop,
   timelineDays = [],
   scheduledStartISO,
   scheduledEndISO,
