@@ -6,6 +6,7 @@ import {
 } from "../components/CalenderComponents/ContractScheduler";
 
 import { TimelineContract } from "../components/CalenderComponents/CalenderMainContent";
+import { fetchAllContracts } from "../services/fetchAllContracts";
 
 type ResourceAssignment = {
   resourceId: string; // "Employee test"
@@ -168,3 +169,25 @@ export function collectResourceAssignments(
   }));
 }
 
+
+
+export const getActiveResources = async (): Promise<string[]> => {
+  const contracts = await fetchAllContracts();
+
+  const activeResources: Set<string> = new Set();
+
+  // Extract resource names from each contract and their SOs
+  contracts.forEach((contract) => {
+    contract.so.forEach((so) => {
+      so.resources.forEach((resource) => {
+        activeResources.add(resource.name);
+        // Include nested resources
+        resource.nestedResources.forEach((nestedResource) => {
+          activeResources.add(nestedResource.name);
+        });
+      });
+    });
+  });
+
+  return Array.from(activeResources);
+};

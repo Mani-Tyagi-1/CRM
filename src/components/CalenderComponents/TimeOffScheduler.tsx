@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import {
   addResourceToTimeoffCell,
   // removeResourceFromTimeoffCell,
 } from "../../services/timeoffschedular";
 import { db } from "../../lib/firebase";
+import { getActiveResources } from "../../utils/parsedContracts";
 
 export type ItemType = "person" | "machine" | "tool";
 export type CalendarItem = {
@@ -119,6 +120,22 @@ const TimeOffScheduler: React.FC<Props> = ({
   const OPEN_MAX_PX = 260;
   const localScrollRef = React.useRef<HTMLDivElement>(null);
   const isSyncingScroll = React.useRef<null | "main" | "footer">(null);
+  const [activeResources, setActiveResources] = useState<string[]>([]);
+
+    useEffect(() => {
+      // Fetch active resources when the component mounts
+      const fetchActiveResources = async () => {
+        const resources = await getActiveResources();
+        setActiveResources(resources);
+      };
+
+      fetchActiveResources();
+    }, []);
+
+    // Function to check if the resource is active
+    const isResourceActive = (resourceName: string) => {
+      return activeResources.includes(resourceName);
+    };
 
   React.useEffect(() => {
     const gridEl = scrollRef.current;
@@ -280,14 +297,12 @@ const TimeOffScheduler: React.FC<Props> = ({
       e.dataTransfer.getData("application/x-item-type") ||
       e.dataTransfer.getData("text/item-type");
     const draggedName = e.dataTransfer.getData("text/plain");
-    let droppedItem: CalendarItem | undefined;
 
     if (!itemType) {
       for (const items of Object.values(data)) {
         const found = items.find((it) => it.name === draggedName);
         if (found) {
           itemType = found.type;
-          droppedItem = found;
           break;
         }
       }
@@ -295,7 +310,6 @@ const TimeOffScheduler: React.FC<Props> = ({
       for (const items of Object.values(data)) {
         const found = items.find((it) => it.name === draggedName);
         if (found) {
-          droppedItem = found;
           break;
         }
       }
@@ -306,10 +320,30 @@ const TimeOffScheduler: React.FC<Props> = ({
       return;
     }
 
-    onDrop(targetKey);
-    if (uid && droppedItem) {
-      await addResourceToTimeoffCell(db, uid, targetKey, droppedItem);
-    }
+      //  const draggedName = e.dataTransfer.getData("text/plain");
+
+       if (isResourceActive(draggedName)) {
+         setErrorMsg(
+           `Resource ${draggedName} is currently active in a contract and cannot be added to Vacation.`
+         );
+         return;
+       }
+
+       onDrop(targetKey); // local state update
+
+       if (uid) {
+         const droppedItem = data[targetKey].find(
+           (item) => item.name === draggedName
+         );
+         if (droppedItem) {
+           await addResourceToTimeoffCell(db, uid, targetKey, droppedItem);
+         }
+       }
+
+    // onDrop(targetKey);
+    // if (uid && droppedItem) {
+    //   await addResourceToTimeoffCell(db, uid, targetKey, droppedItem);
+    // }
   };
 
   // --- NEW: Only allow person in Sick section ---
@@ -323,14 +357,12 @@ const TimeOffScheduler: React.FC<Props> = ({
       e.dataTransfer.getData("application/x-item-type") ||
       e.dataTransfer.getData("text/item-type");
     const draggedName = e.dataTransfer.getData("text/plain");
-    let droppedItem: CalendarItem | undefined;
 
     if (!itemType) {
       for (const items of Object.values(data)) {
         const found = items.find((it) => it.name === draggedName);
         if (found) {
           itemType = found.type;
-          droppedItem = found;
           break;
         }
       }
@@ -338,7 +370,6 @@ const TimeOffScheduler: React.FC<Props> = ({
       for (const items of Object.values(data)) {
         const found = items.find((it) => it.name === draggedName);
         if (found) {
-          droppedItem = found;
           break;
         }
       }
@@ -349,10 +380,28 @@ const TimeOffScheduler: React.FC<Props> = ({
       return;
     }
 
-    onDrop(targetKey);
-    if (uid && droppedItem) {
-      await addResourceToTimeoffCell(db, uid, targetKey, droppedItem);
-    }
+     if (isResourceActive(draggedName)) {
+       setErrorMsg(
+         `Resource ${draggedName} is currently active in a contract and cannot be added to Sick.`
+       );
+       return;
+     }
+
+     onDrop(targetKey); // local state update
+
+     if (uid) {
+       const droppedItem = data[targetKey].find(
+         (item) => item.name === draggedName
+       );
+       if (droppedItem) {
+         await addResourceToTimeoffCell(db, uid, targetKey, droppedItem);
+       }
+     }
+
+    // onDrop(targetKey);
+    // if (uid && droppedItem) {
+    //   await addResourceToTimeoffCell(db, uid, targetKey, droppedItem);
+    // }
   };
 
   // This handles the drop for service (machines only) and supports drags from contract cells!
@@ -369,7 +418,6 @@ const TimeOffScheduler: React.FC<Props> = ({
 
     // Get the resource name
     const draggedName = e.dataTransfer.getData("text/plain");
-    let droppedItem: CalendarItem | undefined;
 
     // 2. If not found, get name and look up type from data
     if (!itemType) {
@@ -377,7 +425,6 @@ const TimeOffScheduler: React.FC<Props> = ({
         const found = items.find((it) => it.name === draggedName);
         if (found) {
           itemType = found.type;
-          droppedItem = found;
           break;
         }
       }
@@ -386,7 +433,6 @@ const TimeOffScheduler: React.FC<Props> = ({
       for (const items of Object.values(data)) {
         const found = items.find((it) => it.name === draggedName);
         if (found) {
-          droppedItem = found;
           break;
         }
       }
@@ -401,12 +447,31 @@ const TimeOffScheduler: React.FC<Props> = ({
       return;
     }
 
+    
+    if (isResourceActive(draggedName)) {
+      setErrorMsg(
+        `Resource ${draggedName} is currently active in a contract and cannot be added to Service.`
+      );
+      return;
+    }
+
     onDrop(targetKey); // local state update
 
-    // Save to Firebase
-    if (uid && droppedItem) {
-      await addResourceToTimeoffCell(db, uid, targetKey, droppedItem);
+    if (uid) {
+      const droppedItem = data[targetKey].find(
+        (item) => item.name === draggedName
+      );
+      if (droppedItem) {
+        await addResourceToTimeoffCell(db, uid, targetKey, droppedItem);
+      }
     }
+
+    // onDrop(targetKey); // local state update
+
+    // // Save to Firebase
+    // if (uid && droppedItem) {
+    //   await addResourceToTimeoffCell(db, uid, targetKey, droppedItem);
+    // }
   };
 
   const handleItemDragStart = (
@@ -542,6 +607,13 @@ const TimeOffScheduler: React.FC<Props> = ({
 
   return (
     <>
+      {errorMsg && (
+        <div className="fixed left-1/2 -translate-x-1/2 bottom-16 z-50">
+          <div className="px-4 py-2 bg-red-600 text-white rounded-xl shadow-lg text-sm font-semibold">
+            {errorMsg}
+          </div>
+        </div>
+      )}
       <div className={open ? "h-36" : "h-14"} />
       {/* ═════ Fixed footer bar ═════ */}
       <div className="fixed left-64 right-0 bottom-4 z-40">
