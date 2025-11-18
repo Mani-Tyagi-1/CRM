@@ -226,7 +226,7 @@ const ContractScheduler: React.FC<Props> = ({
   onDropToMachine,
   onResize,
   // onMachineInfo,
-  unavailableResourceNames = [],
+  unavailableResourceNames ,
   onUnavailableDrop,
   timelineDays = [],
   scheduledStartISO,
@@ -239,7 +239,12 @@ const ContractScheduler: React.FC<Props> = ({
     [globalResourceCounts]
   );
 
+  console.log("one leave resource",unavailableResourceNames);
+
   const navigate = useNavigate();
+
+   const [showErrorModal, setShowErrorModal] = useState(false);
+   const [errorMessage, setErrorMessage] = useState("");
 
   // notes
   const [hoveredResource, setHoveredResource] = React.useState<{
@@ -410,14 +415,11 @@ const ContractScheduler: React.FC<Props> = ({
     try {
       draggedName = e.dataTransfer.getData("text/plain");
     } catch {}
-    if (
-      draggedName &&
-      unavailableResourceNames.includes(draggedName) &&
-      onUnavailableDrop
-    ) {
-      onUnavailableDrop(draggedName);
-      return;
-    }
+      if (unavailableResourceNames?.includes(draggedName)) {
+        setErrorMessage(`${draggedName} is unavailable.`);
+        setShowErrorModal(true); // Show the error modal
+        return;
+      }
     onDrop(targetKey);
   };
 
@@ -432,16 +434,42 @@ const ContractScheduler: React.FC<Props> = ({
     try {
       draggedName = e.dataTransfer.getData("text/plain");
     } catch {}
-    if (
-      draggedName &&
-      unavailableResourceNames.includes(draggedName) &&
-      onUnavailableDrop
-    ) {
-      onUnavailableDrop(draggedName);
-      return;
-    }
+      if (unavailableResourceNames?.includes(draggedName)) {
+        setErrorMessage(`${draggedName} is unavailable.`);
+        setShowErrorModal(true); // Show the error modal
+        return;
+      }
     onDropToMachine(targetKey, machineName);
   };
+
+
+  const closeErrorModal = () => {
+    setShowErrorModal(false);
+    setErrorMessage(""); // Reset the error message
+  };
+
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        // Check if the click is outside the modal content
+        const modalContent = document.getElementById("errorModalContent");
+        if (modalContent && !modalContent.contains(event.target as Node)) {
+          closeErrorModal();
+        }
+      };
+
+      if (showErrorModal) {
+        // Add event listener when the modal is shown
+        document.addEventListener("mousedown", handleClickOutside);
+      } else {
+        // Remove the event listener when the modal is closed
+        document.removeEventListener("mousedown", handleClickOutside);
+      }
+
+      // Cleanup on component unmount
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }, [showErrorModal]);
 
   /** Invoked by every Info icon in a chip */
   const handleResourceInfo = (resourceName: string) => {
@@ -960,133 +988,162 @@ const ContractScheduler: React.FC<Props> = ({
   const visibleDays = weekDays.slice(startIdx, endIdx + 1);
 
   return (
-    <div
-      className=" absolute bg-white border border-gray-200 rounded-lg shadow-sm min-h-[200px]"
-      style={{
-        width: containerWidthPx,
-        left: offsetPx,
-        top: 0,
-      }}
-    >
-      {/* Show contract name at top from prop */}
-      <div className="flex items-center justify-between text-lg font-semibold px-3 py-2 border-b border-gray-200">
-        <span>{contractName}</span>
-        <button
-          type="button"
-          aria-label="Contract info"
-          className="ml-2 text-slate-400 hover:text-slate-700 rounded-full p-1 transition"
-          onClick={() => setEditingContractId(contractId)}
-          title="Contract details"
-        >
-          <Info className="w-5 h-5" />
-        </button>
-      </div>
-
-      <div className="p-2">
-        {weekDays.length > 0 ? (
-          sosToRender.map((so, soIdx) => (
-            <div
-              key={`${so.id}-so-${soIdx}`}
-              className=" border-b border-gray-100 last:border-b-0 py-2"
-            >
-              {renderSORow(so.id, so.soNumber)}
-            </div>
-          ))
-        ) : (
-          <div className="text-sm text-gray-500 italic px-3 py-4 text-center">
-            {scheduledStartISO && scheduledEndISO
-              ? "No days in the scheduled range"
-              : "Please select a date range for this contract"}
-          </div>
-        )}
-
-        {/* Show loading state if no SOs and still fetching */}
-        {soList.length === 0 && contractId && weekDays.length > 0 && (
-          <div className="text-sm text-gray-500 italic px-3 py-2 text-center">
-            Loading SOs...
-          </div>
-        )}
-      </div>
-
-      {showNoteModal && hoveredResource && (
+    <>
+      {/* Error Modal */}
+      {showErrorModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="bg-gray-50  border border-gray-200 rounded-xl shadow-2xl w-full max-w-sm px-6 py-5 animate-fade-in">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-base font-semibold text-gray-700 flex items-center gap-2">
-                <File className="w-5 h-5 text-blue-500" />
-                Note for{" "}
-                <span className="ml-1 font-bold text-blue-800">
-                  {hoveredResource.name}
-                </span>
-              </div>
+          <div
+            id="errorModalContent"
+            className="bg-red-50 p-6 rounded-xl shadow-xl w-96 max-w-sm"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-lg font-semibold text-red-600">Error</div>
               <button
-                className="rounded-full p-1 hover:bg-gray-100 text-gray-500 hover:text-blue-600 transition"
-                onClick={() => {
-                  setShowNoteModal(false);
-                  setHoveredResource(null);
-                  setNoteInput("");
-                }}
-                aria-label="Close"
+                className="text-lg text-red-600"
+                onClick={closeErrorModal}
+                aria-label="Close error modal"
               >
-                <svg width="18" height="18" fill="none" viewBox="0 0 18 18">
-                  <path
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    d="M5 5l8 8M13 5l-8 8"
-                  />
-                </svg>
+                ×
               </button>
             </div>
-            <textarea
-              className="w-full min-h-[80px] max-h-40 resize-none rounded-md border border-gray-200 bg-white p-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 transition placeholder-gray-400"
-              rows={4}
-              placeholder="Write a quick note for this employee..."
-              value={noteInput}
-              onChange={(e) => setNoteInput(e.target.value)}
-              autoFocus
-            />
-            <div className="flex justify-end mt-5 gap-2">
-              <button
-                onClick={() => {
-                  setShowNoteModal(false);
-                  setHoveredResource(null);
-                  setNoteInput("");
-                }}
-                className="px-3 py-1 rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 text-sm font-medium transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveNote}
-                className="px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 text-sm font-semibold shadow-sm transition"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {editingContractId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl border p-0 w-full max-w-4xl flex flex-col relative">
+            <div className="text-red-800 text-sm mb-4">{errorMessage}</div>
             <button
-              className="absolute right-3 top-2 text-lg hover:bg-gray-100 rounded-full px-2 py-1 transition"
-              onClick={() => setEditingContractId(null)}
-              tabIndex={0}
+              onClick={closeErrorModal}
+              className="w-full px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
             >
-              ×
+              Close
             </button>
-            <EditContractForm
-              companyId={uid!}
-              contractId={editingContractId}
-              onUpdated={() => setEditingContractId(null)}
-            />
           </div>
         </div>
       )}
-    </div>
+      <div
+        className=" absolute bg-white border border-gray-200 rounded-lg shadow-sm min-h-[200px]"
+        style={{
+          width: containerWidthPx,
+          left: offsetPx,
+          top: 0,
+        }}
+      >
+        {/* Show contract name at top from prop */}
+        <div className="flex items-center justify-between text-lg font-semibold px-3 py-2 border-b border-gray-200">
+          <span>{contractName}</span>
+          <button
+            type="button"
+            aria-label="Contract info"
+            className="ml-2 text-slate-400 hover:text-slate-700 rounded-full p-1 transition"
+            onClick={() => setEditingContractId(contractId)}
+            title="Contract details"
+          >
+            <Info className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-2">
+          {weekDays.length > 0 ? (
+            sosToRender.map((so, soIdx) => (
+              <div
+                key={`${so.id}-so-${soIdx}`}
+                className=" border-b border-gray-100 last:border-b-0 py-2"
+              >
+                {renderSORow(so.id, so.soNumber)}
+              </div>
+            ))
+          ) : (
+            <div className="text-sm text-gray-500 italic px-3 py-4 text-center">
+              {scheduledStartISO && scheduledEndISO
+                ? "No days in the scheduled range"
+                : "Please select a date range for this contract"}
+            </div>
+          )}
+
+          {/* Show loading state if no SOs and still fetching */}
+          {soList.length === 0 && contractId && weekDays.length > 0 && (
+            <div className="text-sm text-gray-500 italic px-3 py-2 text-center">
+              Loading SOs...
+            </div>
+          )}
+        </div>
+
+        {showNoteModal && hoveredResource && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+            <div className="bg-gray-50  border border-gray-200 rounded-xl shadow-2xl w-full max-w-sm px-6 py-5 animate-fade-in">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-base font-semibold text-gray-700 flex items-center gap-2">
+                  <File className="w-5 h-5 text-blue-500" />
+                  Note for{" "}
+                  <span className="ml-1 font-bold text-blue-800">
+                    {hoveredResource.name}
+                  </span>
+                </div>
+                <button
+                  className="rounded-full p-1 hover:bg-gray-100 text-gray-500 hover:text-blue-600 transition"
+                  onClick={() => {
+                    setShowNoteModal(false);
+                    setHoveredResource(null);
+                    setNoteInput("");
+                  }}
+                  aria-label="Close"
+                >
+                  <svg width="18" height="18" fill="none" viewBox="0 0 18 18">
+                    <path
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      d="M5 5l8 8M13 5l-8 8"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <textarea
+                className="w-full min-h-[80px] max-h-40 resize-none rounded-md border border-gray-200 bg-white p-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 transition placeholder-gray-400"
+                rows={4}
+                placeholder="Write a quick note for this employee..."
+                value={noteInput}
+                onChange={(e) => setNoteInput(e.target.value)}
+                autoFocus
+              />
+              <div className="flex justify-end mt-5 gap-2">
+                <button
+                  onClick={() => {
+                    setShowNoteModal(false);
+                    setHoveredResource(null);
+                    setNoteInput("");
+                  }}
+                  className="px-3 py-1 rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 text-sm font-medium transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveNote}
+                  className="px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 text-sm font-semibold shadow-sm transition"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {editingContractId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-2xl border p-0 w-full max-w-4xl flex flex-col relative">
+              <button
+                className="absolute right-3 top-2 text-lg hover:bg-gray-100 rounded-full px-2 py-1 transition"
+                onClick={() => setEditingContractId(null)}
+                tabIndex={0}
+              >
+                ×
+              </button>
+              <EditContractForm
+                companyId={uid!}
+                contractId={editingContractId}
+                onUpdated={() => setEditingContractId(null)}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </>
   );
 };
 
