@@ -241,7 +241,6 @@ export default function ResourceManagementBoard() {
   } | null>(null);
   const [addSOModalValue, setAddSOModalValue] = useState("");
 
-
   const [modal, setModal] = useState<ModalState>({ open: false });
   const [deleteModal, setDeleteModal] = useState<DeleteModalState>({
     open: false,
@@ -255,7 +254,6 @@ export default function ResourceManagementBoard() {
   const [editingContractId, setEditingContractId] = useState<string | null>(
     null
   );
-
 
   /* Which tab is active? */
   type TabType = "employees" | "machines" | "contracts";
@@ -362,6 +360,54 @@ export default function ResourceManagementBoard() {
       machUnsubs.forEach((fn) => fn());
     };
   }, []);
+
+  // Employees: Listen to changes in each category
+  useEffect(() => {
+    if (!uid || employeeCategories.length === 0) return;
+    const unsubs = employeeCategories.map((cat) => {
+      const col = collection(
+        db,
+        "companies",
+        uid,
+        "resources",
+        "employees",
+        cat
+      );
+      return onSnapshot(col, (snap) => {
+        setEmployees((prev) => ({
+          ...prev,
+          [cat]: snap.docs.map((d) => ({ id: d.id, ...d.data() })),
+        }));
+      });
+    });
+    return () => {
+      unsubs.forEach((fn) => fn());
+    };
+  }, [uid, employeeCategories]);
+
+  // Machines: Listen to changes in each category
+  useEffect(() => {
+    if (!uid || machineCategories.length === 0) return;
+    const unsubs = machineCategories.map((cat) => {
+      const col = collection(
+        db,
+        "companies",
+        uid,
+        "resources",
+        "machines",
+        cat
+      );
+      return onSnapshot(col, (snap) => {
+        setMachines((prev) => ({
+          ...prev,
+          [cat]: snap.docs.map((d) => ({ id: d.id, ...d.data() })),
+        }));
+      });
+    });
+    return () => {
+      unsubs.forEach((fn) => fn());
+    };
+  }, [uid, machineCategories]);
 
   /* ---------- contracts ---------- */
   useEffect(() => {
@@ -617,27 +663,25 @@ export default function ResourceManagementBoard() {
       return;
     }
 
-
-      if (
-        deleteModal.type === "contract-so" &&
-        deleteModal.contractId &&
-        deleteModal.soId
-      ) {
-        await deleteDoc(
-          doc(
-            db,
-            "companies",
-            uid,
-            "contracts",
-            deleteModal.contractId,
-            "so",
-            deleteModal.soId
-          )
-        );
-        setDeleteModal({ open: false });
-        return;
-      }
-
+    if (
+      deleteModal.type === "contract-so" &&
+      deleteModal.contractId &&
+      deleteModal.soId
+    ) {
+      await deleteDoc(
+        doc(
+          db,
+          "companies",
+          uid,
+          "contracts",
+          deleteModal.contractId,
+          "so",
+          deleteModal.soId
+        )
+      );
+      setDeleteModal({ open: false });
+      return;
+    }
 
     /* deleting an entire category */
     if (deleteModal.isCategory && deleteModal.category) {
@@ -692,7 +736,6 @@ export default function ResourceManagementBoard() {
     /* deleting a single resource */
     if (!deleteModal.type || !deleteModal.category || !deleteModal.id) return;
 
-
     const docPath = [
       "companies",
       uid,
@@ -704,8 +747,6 @@ export default function ResourceManagementBoard() {
 
     await deleteDoc(doc(db, ...docPath));
     setDeleteModal({ open: false });
-
-    
   }
 
   /* pick the data based on active tab */
