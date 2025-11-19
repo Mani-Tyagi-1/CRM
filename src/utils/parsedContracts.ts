@@ -189,12 +189,21 @@ export const getActiveResources = async (): Promise<string[]> => {
 
 // utils/resourceAvailability.ts
 
+
+
 export function getResourceAvailability(
   assignedDates: string[],
   range: { from: Date; to: Date }
 ): { percentage: number; freeDays: number; totalDays: number } {
-  // Build all dates in the range as strings
-  console.log("CHECK availability", { assignedDates, range });
+  // Build all dates in the range as local YYYY-MM-DD
+  const formatLocalDate = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  // console.log("CHECK availability", { assignedDates, range });
 
   const dayMs = 24 * 60 * 60 * 1000;
   const allRangeDays: string[] = [];
@@ -203,8 +212,7 @@ export function getResourceAvailability(
   const end = new Date(range.to);
   end.setHours(0, 0, 0, 0);
   while (cur <= end) {
-    // Convert to ISO string, slice for "YYYY-MM-DD"
-    allRangeDays.push(cur.toISOString().slice(0, 10));
+    allRangeDays.push(formatLocalDate(cur)); // LOCAL DATE!
     cur = new Date(cur.getTime() + dayMs);
   }
 
@@ -216,8 +224,10 @@ export function getResourceAvailability(
   const totalDays = allRangeDays.length;
   const percentage =
     totalDays > 0 ? Math.round((freeDays / totalDays) * 100) : 0;
-console.log("Range days", allRangeDays);
-console.log("Assigned set", assignedSet);
+
+  // console.log("Range days", allRangeDays);
+  // console.log("Assigned set", assignedSet);
 
   return { percentage, freeDays, totalDays };
 }
+

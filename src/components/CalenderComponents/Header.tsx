@@ -3,34 +3,28 @@ import { CalendarIcon } from "lucide-react";
 // import { addDays, format } from "date-fns";
 import { cn } from "../../lib/utils"; // if you use shadcn's cn utility, else remove
 import { Button } from "../ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "../ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { Calendar } from "../ui/calendar"; // shadcn Calendar
 import type { DateRange } from "react-day-picker"; // type is the same as shadcn
 
 // Optional: override shadcn calendar styles for gray color scheme
 const CalendarGrayOverride = () => (
   <style>{`
-    /* Main selected day, start/end of dateRange: gray-200, text gray-900 */
     .rdp-day_selected,
     .rdp-day_selected:hover,
     .rdp-day_selected:focus-visible,
     .rdp-day_range_start,
     .rdp-day_range_end {
-      background-color: #e5e7eb !important; /* gray-200 */
-      color: #111827 !important;            /* gray-900 */
+      background-color: #e5e7eb !important;
+      color: #111827 !important;
     }
     .rdp-day_range_middle {
-      background-color: #f3f4f6 !important; /* gray-100 */
+      background-color: #f3f4f6 !important;
       color: #111827 !important;
     }
     .rdp-day_today:not(.rdp-day_selected) {
-      border: 1px solid #6b7280 !important; /* gray-500 for today */
+      border: 1px solid #6b7280 !important;
     }
-    /* accent for focus/navigation */
     .rdp {
       --rdp-accent-color: #6b7280;
       --rdp-background-color: #e5e7eb;
@@ -43,33 +37,58 @@ type HeaderProps = {
   setDateRange: (dateRange: DateRange | undefined) => void;
 };
 
+const formatDateForApi = (date?: Date) => {
+  if (!date) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 const Header: React.FC<HeaderProps> = ({ dateRange, setDateRange }) => {
   const [open, setOpen] = React.useState(false);
-  // const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const btnRef = React.useRef<HTMLButtonElement>(null);
 
-  // Compose the label
-const label = React.useMemo(() => {
-  const fmt = (d?: Date) => {
-    if (!d) return "";
-    return `${d.getDate()}.${d.getMonth() + 1}.`;
-  };
+  // Label for button display
+  const label = React.useMemo(() => {
+    const fmt = (d?: Date) => {
+      if (!d) return "";
+      return d.toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+    };
 
-  if (dateRange?.from && dateRange?.to) {
-    return `${fmt(dateRange.from)} - ${fmt(dateRange.to)}`;
-  }
+    if (dateRange?.from && dateRange?.to) {
+      return `${fmt(dateRange.from)} - ${fmt(dateRange.to)}`;
+    }
+    if (dateRange?.from) {
+      return `${fmt(dateRange.from)} - …`;
+    }
+    return "Select dates";
+  }, [dateRange]);
 
-  if (dateRange?.from) {
-    return `${fmt(dateRange.from)} - …`;
-  }
+  // If you need to send or store dates as strings:
+  const formattedRange = React.useMemo(
+    () => ({
+      from: formatDateForApi(dateRange?.from),
+      to: formatDateForApi(dateRange?.to),
+    }),
+    [dateRange]
+  );
 
-  return "Select dates";
-}, [dateRange]);
-
+  // Example: console.log or send to API on date change
+  React.useEffect(() => {
+    if (dateRange?.from && dateRange?.to) {
+      // Now both formattedRange.from and formattedRange.to will be correct, e.g., "2026-01-01"
+      console.log("Date range (safe for API):", formattedRange);
+    }
+  }, [formattedRange, dateRange]);
 
   return (
-    <div className="w-full space-y-2">
-      <div className="relative">
+    <div className="w-full space-y-2 z-50">
+      <div className="relative z-50">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button
@@ -100,7 +119,6 @@ const label = React.useMemo(() => {
                   setDateRange(r);
                   setOpen(false);
                 } else {
-                  // If only one date picked, keep from, but set to undefined to force single-date mode
                   setDateRange(
                     r?.from ? { from: r.from, to: undefined } : undefined
                   );
@@ -115,7 +133,6 @@ const label = React.useMemo(() => {
       </div>
     </div>
   );
-}
-
+};
 
 export default Header;

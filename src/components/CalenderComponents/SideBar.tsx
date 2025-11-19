@@ -498,23 +498,28 @@ const Sidebar: React.FC<Props> = ({
                                 {/* Avail border */}
                                 {showUnderline && (
                                   <>
-                                    <div
-                                      className="absolute left-0 bottom-0 h-0.5 bg-red-400 z-0 rounded"
-                                      style={{
-                                        width: "100%",
-                                        maxWidth: "100%",
-                                        transition: "width 0.3s",
-                                      }}
-                                    />
-                                    <div
-                                      className="absolute left-0 bottom-0 h-0.5 bg-green-400 z-10 rounded"
-                                      style={{
-                                        width: `${emp.availability}%`,
-                                        minWidth: "4px",
-                                        maxWidth: "100%",
-                                        transition: "width 0.3s",
-                                      }}
-                                    />
+                                    {emp.availability === 0 ? (
+                                      // Show a full-width red border for 0% availability
+                                      <div
+                                        className="absolute left-0 bottom-0 h-0.5 bg-red-400 z-1 rounded"
+                                        style={{
+                                          width: "100%",
+                                          maxWidth: "100%",
+                                          transition: "width 0.3s",
+                                        }}
+                                      />
+                                    ) : (
+                                      // Otherwise, show a green border by percentage
+                                      <div
+                                        className="absolute left-0 bottom-0 h-0.5 bg-green-400 z-1 rounded"
+                                        style={{
+                                          width: `${emp.availability}%`,
+                                          minWidth: "4px",
+                                          maxWidth: "100%",
+                                          transition: "width 0.3s",
+                                        }}
+                                      />
+                                    )}
                                   </>
                                 )}
                               </div>
@@ -713,23 +718,28 @@ const Sidebar: React.FC<Props> = ({
                               {/* Red and green border bar */}
                               {showUnderline && (
                                 <>
-                                  <div
-                                    className="absolute left-0 bottom-0 h-0.5 bg-red-400 z-0 rounded"
-                                    style={{
-                                      width: "100%",
-                                      maxWidth: "100%",
-                                      transition: "width 0.3s",
-                                    }}
-                                  />
-                                  <div
-                                    className="absolute left-0 bottom-0 h-0.5 bg-green-400 z-10 rounded"
-                                    style={{
-                                      width: `${machine.availability}%`,
-                                      minWidth: "4px",
-                                      maxWidth: "100%",
-                                      transition: "width 0.3s",
-                                    }}
-                                  />
+                                  {machine.availability === 0 ? (
+                                    // Show a full-width red border for 0% availability
+                                    <div
+                                      className="absolute left-0 bottom-0 h-0.5 bg-red-400 z-10 rounded"
+                                      style={{
+                                        width: "100%",
+                                        maxWidth: "100%",
+                                        transition: "width 0.3s",
+                                      }}
+                                    />
+                                  ) : (
+                                    // Otherwise, show a green border by percentage
+                                    <div
+                                      className="absolute left-0 bottom-0 h-0.5 bg-green-400 z-10 rounded"
+                                      style={{
+                                        width: `${machine.availability}%`,
+                                        minWidth: "4px",
+                                        maxWidth: "100%",
+                                        transition: "width 0.3s",
+                                      }}
+                                    />
+                                  )}
                                 </>
                               )}
                             </div>
