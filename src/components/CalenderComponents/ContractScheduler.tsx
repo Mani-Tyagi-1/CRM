@@ -239,7 +239,6 @@ const ContractScheduler: React.FC<Props> = ({
     [globalResourceCounts]
   );
 
-  console.log("one leave resource",unavailableResourceNames);
 
   const navigate = useNavigate();
 

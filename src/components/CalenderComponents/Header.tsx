@@ -14,7 +14,7 @@ import type { DateRange } from "react-day-picker"; // type is the same as shadcn
 // Optional: override shadcn calendar styles for gray color scheme
 const CalendarGrayOverride = () => (
   <style>{`
-    /* Main selected day, start/end of range: gray-200, text gray-900 */
+    /* Main selected day, start/end of dateRange: gray-200, text gray-900 */
     .rdp-day_selected,
     .rdp-day_selected:hover,
     .rdp-day_selected:focus-visible,
@@ -38,19 +38,34 @@ const CalendarGrayOverride = () => (
   `}</style>
 );
 
-export default function SearchWithDates() {
+type HeaderProps = {
+  dateRange: DateRange | undefined;
+  setDateRange: (dateRange: DateRange | undefined) => void;
+};
+
+const Header: React.FC<HeaderProps> = ({ dateRange, setDateRange }) => {
   const [open, setOpen] = React.useState(false);
-  const [range, setRange] = React.useState<DateRange | undefined>();
+  // const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const btnRef = React.useRef<HTMLButtonElement>(null);
 
   // Compose the label
-  const label = React.useMemo(() => {
-    const fmt = (d?: Date) => (d ? `${d.getDate()}. ${d.getMonth() + 1}.` : "");
-    if (range?.from && range?.to)
-      return `${fmt(range.from)} - ${fmt(range.to)}`;
-    if (range?.from) return `${fmt(range.from)} - …`;
-    return "Select dates";
-  }, [range]);
+const label = React.useMemo(() => {
+  const fmt = (d?: Date) => {
+    if (!d) return "";
+    return `${d.getDate()}.${d.getMonth() + 1}.`;
+  };
+
+  if (dateRange?.from && dateRange?.to) {
+    return `${fmt(dateRange.from)} - ${fmt(dateRange.to)}`;
+  }
+
+  if (dateRange?.from) {
+    return `${fmt(dateRange.from)} - …`;
+  }
+
+  return "Select dates";
+}, [dateRange]);
+
 
   return (
     <div className="w-full space-y-2">
@@ -79,14 +94,21 @@ export default function SearchWithDates() {
             <CalendarGrayOverride />
             <Calendar
               mode="range"
-              selected={range}
+              selected={dateRange}
               onSelect={(r: DateRange | undefined) => {
-                setRange(r);
-                if (r?.from && r?.to) setOpen(false);
+                if (r?.from && r?.to && r.from.getTime() !== r.to.getTime()) {
+                  setDateRange(r);
+                  setOpen(false);
+                } else {
+                  // If only one date picked, keep from, but set to undefined to force single-date mode
+                  setDateRange(
+                    r?.from ? { from: r.from, to: undefined } : undefined
+                  );
+                }
               }}
               numberOfMonths={1}
               pagedNavigation
-              disabled={{ before: new Date() }} 
+              disabled={{ before: new Date() }}
             />
           </PopoverContent>
         </Popover>
@@ -94,3 +116,6 @@ export default function SearchWithDates() {
     </div>
   );
 }
+
+
+export default Header;

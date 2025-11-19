@@ -34,10 +34,6 @@ const pushItem = (
   store[key]!.push(base as CalendarItem);
 };
 
-/** Turn the raw Firestore contracts array into the three state slices that
- *  CalendarMainContent already expects + a fourth one: the global
- *  `resourceSOCountByDate` map.
- */
 export const parseContracts = (raw: any[]): Parsed => {
   const contracts: TimelineContract[] = [];
   const contractData: CalendarData = {};
@@ -169,8 +165,6 @@ export function collectResourceAssignments(
   }));
 }
 
-
-
 export const getActiveResources = async (): Promise<string[]> => {
   const contracts = await fetchAllContracts();
 
@@ -191,3 +185,39 @@ export const getActiveResources = async (): Promise<string[]> => {
 
   return Array.from(activeResources);
 };
+
+
+// utils/resourceAvailability.ts
+
+export function getResourceAvailability(
+  assignedDates: string[],
+  range: { from: Date; to: Date }
+): { percentage: number; freeDays: number; totalDays: number } {
+  // Build all dates in the range as strings
+  console.log("CHECK availability", { assignedDates, range });
+
+  const dayMs = 24 * 60 * 60 * 1000;
+  const allRangeDays: string[] = [];
+  let cur = new Date(range.from);
+  cur.setHours(0, 0, 0, 0);
+  const end = new Date(range.to);
+  end.setHours(0, 0, 0, 0);
+  while (cur <= end) {
+    // Convert to ISO string, slice for "YYYY-MM-DD"
+    allRangeDays.push(cur.toISOString().slice(0, 10));
+    cur = new Date(cur.getTime() + dayMs);
+  }
+
+  // Count days in range NOT present in assignedDates
+  const assignedSet = new Set(assignedDates); // For O(1) lookup
+  const freeDays = allRangeDays.filter(
+    (dateStr) => !assignedSet.has(dateStr)
+  ).length;
+  const totalDays = allRangeDays.length;
+  const percentage =
+    totalDays > 0 ? Math.round((freeDays / totalDays) * 100) : 0;
+console.log("Range days", allRangeDays);
+console.log("Assigned set", assignedSet);
+
+  return { percentage, freeDays, totalDays };
+}

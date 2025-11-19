@@ -15,13 +15,30 @@ import { useNavigate } from "react-router-dom";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { collection, getDocs } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
+import { fetchAllContracts } from "../../services/fetchAllContracts";
+import {
+  collectResourceAssignments,
+  getResourceAvailability,
+} from "../../utils/parsedContracts";
+import { DateRange } from "react-day-picker";
 
 // ---------------- Types ----------------
 
 type ResourceItem = {
+  availability: any;
+  colour: string;
+  totalDays: number;
+  freeDays: any;
   workingRelation: string;
   id: string;
   display: string;
+};
+
+type ResourceItemWithAvailability = ResourceItem & {
+  availability?: number;
+  freeDays?: number;
+  totalDays?: number;
+  colour?: string;
 };
 
 type CategoryMap = { [cat: string]: ResourceItem[] };
@@ -49,12 +66,12 @@ type Props = {
     soList: { id: string; soNumber?: string }[];
   }) => void;
   onContractDragEnd?: () => void;
-   onResourceIndexChange?: (
-   idx: Record<
-     string,
-     { category: string; id: string; type: "employee" | "machine" }
-   >
- ) => void;
+  onResourceIndexChange?: (
+    idx: Record<
+      string,
+      { category: string; id: string; type: "employee" | "machine" }
+    >
+  ) => void;
 };
 
 // ---------------- Component ----------------
@@ -78,6 +95,10 @@ const Sidebar: React.FC<Props> = ({
   const [machineCategories, setMachineCategories] = useState<string[]>([]);
   const [sidebarEmployees, setSidebarEmployees] = useState<CategoryMap>({});
   const [sidebarMachines, setSidebarMachines] = useState<CategoryMap>({});
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [resourceAssignmentsMap, setResourceAssignmentsMap] = useState<{
+    [id: string]: { assignedDates: string[] };
+  }>({});
 
   const navigate = useNavigate();
 
@@ -95,7 +116,6 @@ const Sidebar: React.FC<Props> = ({
         return "bg-gray-100 border-gray-400 text-gray-600";
     }
   };
-
 
   const buildDisplayName = (data: any): string => {
     if (data.name || data.surname) {
@@ -155,8 +175,12 @@ const Sidebar: React.FC<Props> = ({
                   return {
                     id: doc.id,
                     display: buildDisplayName(data),
-                    workingRelation: data.workingRelation, // Ensure the workingRelation field is added
-                  };
+                    workingRelation: data.workingRelation,
+                    availability: undefined,
+                    colour: "",
+                    totalDays: 0,
+                    freeDays: undefined,
+                  } satisfies ResourceItem;
                 })
               : [];
         })
@@ -191,11 +215,18 @@ const Sidebar: React.FC<Props> = ({
 
           machObj[cat] =
             resSnap && !resSnap.empty
-              ? resSnap.docs.map((doc) => ({
-                  id: doc.id,
-                  display: buildDisplayName(doc.data()),
-                  workingRelation: doc.data().workingRelation,
-                }))
+              ? resSnap.docs.map((doc) => {
+                  const data = doc.data();
+                  return {
+                    id: doc.id,
+                    display: buildDisplayName(data),
+                    workingRelation: data.workingRelation,
+                    colour: data.colour,
+                    availability: undefined,
+                    totalDays: 0,
+                    freeDays: undefined,
+                  } satisfies ResourceItem;
+                })
               : [];
         })
       );
@@ -204,14 +235,20 @@ const Sidebar: React.FC<Props> = ({
       // Expand new categories by default
       setExpandedSections((prev) => {
         const out: ExpandedSections = { ...prev };
-        fetchedEmpCats.forEach((k) => {
-          if (!(k in out)) out[k] = true;
+
+        // For employees: open only those with resources
+        fetchedEmpCats.forEach((cat) => {
+          out[cat] = empObj[cat] && empObj[cat].length > 0 ? true : false;
         });
-        fetchedMachCats.forEach((k) => {
-          if (!(k in out)) out[k] = true;
+
+        // For machines: open only those with resources
+        fetchedMachCats.forEach((cat) => {
+          out[cat] = machObj[cat] && machObj[cat].length > 0 ? true : false;
         });
+
         return out;
       });
+
 
       const idx: Record<
         string,
@@ -223,7 +260,6 @@ const Sidebar: React.FC<Props> = ({
         }
       > = {};
 
-      
       fetchedEmpCats.forEach((cat) => {
         empObj[cat].forEach((employee) => {
           idx[employee.display] = {
@@ -244,15 +280,47 @@ const Sidebar: React.FC<Props> = ({
       onResourceIndexChange?.(idx);
     });
 
-
-
     return () => {
       if (unsubAuth) unsubAuth();
     };
   }, [setExpandedSections]);
 
-  // ---------------- UI ----------------
+  //  React.useEffect(() => {
+  //     loadContracts();
+  //   }, []);
 
+  //    const loadContracts = async () => {
+  //      try {
+  //        const raw = await fetchAllContracts();
+  //        const parsed = parseContracts(raw); // ← NEW
+  //        console.log(parsed)
+  //       //  setContractss(parsed.contracts);
+  //       //  setContractDataa(parsed.contractData);
+  //       //  setSoToContractMapp(parsed.soToContractMap);
+  //       //  setResourceCounts(parsed.resourceSOCountByDate); // ← NEW
+  //      } catch (err) {
+  //        console.error(err);
+  //      }
+  //    };
+
+  useEffect(() => {
+    async function loadContracts() {
+      const raw = await fetchAllContracts();
+      const assignments = collectResourceAssignments(raw);
+      const map: { [id: string]: { assignedDates: string[] } } = {};
+      assignments.forEach((r) => {
+        map[r.resourceId] = { assignedDates: r.assignedDates };
+      });
+
+      console.log("Map", map);
+
+      setResourceAssignmentsMap(map);
+      // ...rest of your parsing
+    }
+    loadContracts();
+  }, []);
+
+  // ---------------- UI ----------------
   return (
     <div className="w-64 shrink-0 bg-white border-r border-gray-200 overflow-y-auto">
       {/* Header */}
@@ -279,7 +347,7 @@ const Sidebar: React.FC<Props> = ({
             className="w-full pl-8 pr-3 py-1.5 bg-gray-100 rounded-md text-sm outline-none"
           />
         </div>
-        <Header />
+        <Header dateRange={dateRange} setDateRange={setDateRange} />
       </div>
 
       {/* ---------------- Employees ---------------- */}
@@ -315,21 +383,87 @@ const Sidebar: React.FC<Props> = ({
                   {/* Resources */}
                   {expandedSections[catKey] && (
                     <div
-                      className="relative ml-[-7px] pl-4 pb-2 h-min  before:absolute before:left-0 before:top-[-14px] before:bottom-0 before:w-px before:bg-gray-300"
+                      className="relative ml-[-7px] pl-4 pb-2 h-min before:absolute before:left-0 before:top-[-14px] before:bottom-0 before:w-px before:bg-gray-300"
                       onDragOver={allowDrop}
                       onDrop={() => onDropToEmployeeSection(catKey)}
                     >
-                      {filterBySearch(sidebarEmployees[catKey] || []).length ===
-                      0 ? (
-                        <div className="text-xs text-gray-400 italic px-2" />
-                      ) : (
-                        filterBySearch(sidebarEmployees[catKey] || []).map(
-                          (emp, _idx) => (
+                      {(() => {
+                        let resourceList: ResourceItemWithAvailability[] =
+                          filterBySearch(sidebarEmployees[catKey] || []);
+
+                        if (dateRange?.from && dateRange?.to) {
+                          resourceList = resourceList.map((emp) => {
+                            const assignments = resourceAssignmentsMap[
+                              emp.display
+                            ] || { assignedDates: [] };
+                            const assignedDates =
+                              assignments.assignedDates || [];
+                            let availability = 0,
+                              freeDays = 0,
+                              totalDays = 0;
+                            if (dateRange?.from && dateRange?.to) {
+                              const avail = getResourceAvailability(
+                                assignedDates,
+                                {
+                                  from: dateRange.from, // these are both guaranteed to be Date now
+                                  to: dateRange.to,
+                                }
+                              );
+                              // use avail...
+                              availability = avail.percentage;
+                              freeDays = avail.freeDays;
+                              totalDays = avail.totalDays;
+                            }
+                            return {
+                              ...emp,
+                              availability,
+                              freeDays,
+                              totalDays,
+                            };
+                          });
+                          resourceList.sort((a, b) => {
+                            if ((b.availability ?? 0) !== (a.availability ?? 0))
+                              return (
+                                (b.availability ?? 0) - (a.availability ?? 0)
+                              );
+                            return a.display.localeCompare(b.display);
+                          });
+                        }
+
+                        if (resourceList.length === 0) {
+                          return (
+                            <div className="text-xs text-gray-400 italic px-2">
+                              {/* No resources */}
+                            </div>
+                          );
+                        }
+
+                        return resourceList.map((emp) => {
+                          
+                          // const borderColor = emp.colour || "#cbd5e1";
+                          // const borderStyle = { borderColor };
+                          const showUnderline =
+                            dateRange?.from &&
+                            dateRange?.to &&
+                            typeof emp.availability === "number" &&
+                            emp.totalDays > 0;
+                          return (
                             <div
                               key={`${catKey}-${emp.id}`}
                               className="relative before:absolute before:left-[-1rem] before:top-1/2 before:-translate-y-1/2 before:w-4 before:h-px before:bg-gray-300"
                             >
                               <div
+                                // style={borderStyle}
+                                className={[
+                                  "flex items-center justify-between gap-1 px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold shadow-sm cursor-pointer mb-2 relative overflow-hidden",
+                                  getEmployeeChipColor(emp.workingRelation),
+                                  !showUnderline ? "border-b-2" : "", // Only border when range is not selected
+                                ].join(" ")}
+                                onClick={() =>
+                                  navigate(
+                                    `/employee-preview/${catKey}/${emp.id}`
+                                  )
+                                }
                                 draggable
                                 data-resource-name={emp.display}
                                 onDragStart={(e) =>
@@ -340,19 +474,18 @@ const Sidebar: React.FC<Props> = ({
                                     catKey
                                   )
                                 }
-                                onClick={() =>
-                                  navigate(
-                                    `/employee-preview/${catKey}/${emp.id}`
-                                  )
-                                }
-                                className={[
-                                  "flex items-center justify-between gap-1 px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold shadow-sm cursor-pointer border-b-[2px]",
-                                  getEmployeeChipColor(emp.workingRelation), // Apply color based on workingRelation
-                                ].join(" ")}
                               >
                                 <span className="truncate flex-1">
                                   {emp.display}
                                 </span>
+                                {/* {showUnderline && (
+                                  <span
+                                    className="ml-2 text-xs font-normal text-green-700"
+                                    title={`Free: ${emp.freeDays}/${emp.totalDays} days`}
+                                  >
+                                    {emp.availability}% Free
+                                  </span>
+                                )} */}
                                 <Info
                                   className="h-3 w-3 shrink-0 text-gray-600 hover:text-black"
                                   onClick={(e) => {
@@ -362,11 +495,33 @@ const Sidebar: React.FC<Props> = ({
                                     );
                                   }}
                                 />
+                                {/* Avail border */}
+                                {showUnderline && (
+                                  <>
+                                    <div
+                                      className="absolute left-0 bottom-0 h-0.5 bg-red-400 z-0 rounded"
+                                      style={{
+                                        width: "100%",
+                                        maxWidth: "100%",
+                                        transition: "width 0.3s",
+                                      }}
+                                    />
+                                    <div
+                                      className="absolute left-0 bottom-0 h-0.5 bg-green-400 z-10 rounded"
+                                      style={{
+                                        width: `${emp.availability}%`,
+                                        minWidth: "4px",
+                                        maxWidth: "100%",
+                                        transition: "width 0.3s",
+                                      }}
+                                    />
+                                  </>
+                                )}
                               </div>
                             </div>
-                          )
-                        )
-                      )}
+                          );
+                        });
+                      })()}
                     </div>
                   )}
                 </div>
@@ -409,21 +564,120 @@ const Sidebar: React.FC<Props> = ({
                 {/* Resources */}
                 {expandedSections[catKey] && (
                   <div
-                    className="relative ml-[-7px] pl-4 pb-2 h-min  before:absolute before:left-0 before:top-[-14px] before:bottom-0 before:w-px before:bg-gray-300"
+                    className="relative ml-[-7px] pl-4 pb-2 h-min before:absolute before:left-0 before:top-[-14px] before:bottom-0 before:w-px before:bg-gray-300"
                     onDragOver={allowDrop}
                     onDrop={() => onDropToMachineSection(catKey)}
                   >
-                    {filterBySearch(sidebarMachines[catKey] || []).length ===
-                    0 ? (
-                      <div className="text-xs text-gray-400 italic px-2" />
-                    ) : (
-                      filterBySearch(sidebarMachines[catKey] || []).map(
-                        (machine, idx) => (
+                    {(() => {
+                      let resourceList: ResourceItemWithAvailability[] =
+                        filterBySearch(sidebarMachines[catKey] || []);
+
+                      if (dateRange?.from && dateRange?.to) {
+                        resourceList = resourceList.map((machine) => {
+                          const assignments = resourceAssignmentsMap[
+                            machine.display
+                          ] || { assignedDates: [] };
+                          const assignedDates = assignments.assignedDates || [];
+                          let availability = 0,
+                            freeDays = 0,
+                            totalDays = 0;
+                          if (dateRange?.from && dateRange?.to) {
+                            const avail = getResourceAvailability(
+                              assignedDates,
+                              {
+                                from: dateRange.from, // these are both guaranteed to be Date now
+                                to: dateRange.to,
+                              }
+                            );
+                            availability = avail.percentage;
+                            freeDays = avail.freeDays;
+                            totalDays = avail.totalDays;
+                          }
+                          return {
+                            ...machine,
+                            availability,
+                            freeDays,
+                            totalDays,
+                          };
+                        });
+                        resourceList.sort((a, b) => {
+                          if ((b.availability ?? 0) !== (a.availability ?? 0))
+                            return (
+                              (b.availability ?? 0) - (a.availability ?? 0)
+                            );
+                          return a.display.localeCompare(b.display);
+                        });
+                      }
+
+                      if (resourceList.length === 0) {
+                        return (
+                          <div className="text-xs text-gray-400 italic px-2">
+                            {/* No resources */}
+                          </div>
+                        );
+                      }
+
+                      return resourceList.map((machine, idx) => {
+                        const showUnderline =
+                          dateRange?.from &&
+                          dateRange?.to &&
+                          typeof machine.availability === "number" &&
+                          machine.totalDays > 0;
+
+                        // const chipColorClass =
+                        //   idx === 0
+                        //     ? "bg-yellow-50 border-yellow-200"
+                        //     : idx === 1
+                        //     ? "bg-amber-50 border-amber-200"
+                        //     : idx === 2
+                        //     ? "bg-teal-50 border-teal-200"
+                        //     : "bg-orange-100 border-orange-200";
+
+                        // If showing the green underline, override the border color
+                        // const chipBorderClass = showUnderline
+                        //   ? "border-b-2 border-b-green-400"
+                        //   : "border-b-2 " + chipColorClass.split(" ")[1];
+
+                        // const machineChipClass = [
+                        //   "flex items-center justify-between gap-1 relative px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold text-slate-700 shadow-sm cursor-pointer transition-colors duration-200",
+                        //   chipColorClass.split(" ")[0], // bg-...
+                        //   chipBorderClass,
+                        // ].join(" ");
+
+                        return (
                           <div
                             key={`${catKey}-${machine.id}`}
-                            className="relative before:absolute before:left-[-1rem] before:top-1/2 before:-translate-y-1/2 before:w-4 before:h-px before:bg-gray-300"
+                            className="relative before:absolute before:left-[-1rem] before:top-1/2 before:-translate-y-1/2 before:w-4 before:h-px before:bg-gray-300 mb-2"
                           >
                             <div
+                              className={[
+                                "flex items-center justify-between gap-1 relative px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold text-slate-700 shadow-sm cursor-pointer transition-colors duration-200",
+                                // Conditionally apply border only if no underline
+                                !showUnderline &&
+                                  (idx === 0
+                                    ? "border-b-2 bg-yellow-50 border-yellow-200"
+                                    : idx === 1
+                                    ? "border-b-2 bg-amber-50 border-amber-200"
+                                    : idx === 2
+                                    ? "border-b-2 bg-teal-50 border-teal-200"
+                                    : "border-b-2 bg-orange-100 border-orange-200"),
+                                // Always apply bg
+                                showUnderline &&
+                                  (idx === 0
+                                    ? "bg-yellow-50"
+                                    : idx === 1
+                                    ? "bg-amber-50"
+                                    : idx === 2
+                                    ? "bg-teal-50"
+                                    : "bg-orange-100"),
+                              ]
+                                .filter(Boolean)
+                                .join(" ")}
+                              onClick={() =>
+                                navigate(
+                                  `/machine-preview/${catKey}/${machine.id}`
+                                )
+                              }
                               draggable
                               data-resource-name={machine.display}
                               onDragStart={(e) =>
@@ -434,25 +688,19 @@ const Sidebar: React.FC<Props> = ({
                                   catKey
                                 )
                               }
-                              onClick={() =>
-                                navigate(
-                                  `/machine-preview/${catKey}/${machine.id}`
-                                )
-                              }
-                              className={[
-                                "flex items-center justify-between gap-1 relative px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold text-slate-700 shadow-sm cursor-pointer border-b-[2px]",
-                                idx === 0
-                                  ? "bg-yellow-50 border-yellow-200"
-                                  : idx === 1
-                                  ? "bg-amber-50 border-amber-200"
-                                  : idx === 2
-                                  ? "bg-teal-50 border-teal-200"
-                                  : "bg-orange-100 border-orange-200",
-                              ].join(" ")}
+                              style={{ overflow: "hidden" }}
                             >
                               <span className="truncate flex-1">
                                 {machine.display}
                               </span>
+                              {/* {showUnderline && (
+                                <span
+                                  className="ml-2 text-xs font-normal text-green-700"
+                                  title={`Free: ${machine.freeDays}/${machine.totalDays} days`}
+                                >
+                                  {machine.availability}% Free
+                                </span>
+                              )} */}
                               <Info
                                 className="h-3 w-3 shrink-0 text-gray-600 hover:text-black"
                                 onClick={(e) => {
@@ -462,11 +710,33 @@ const Sidebar: React.FC<Props> = ({
                                   );
                                 }}
                               />
+                              {/* Red and green border bar */}
+                              {showUnderline && (
+                                <>
+                                  <div
+                                    className="absolute left-0 bottom-0 h-0.5 bg-red-400 z-0 rounded"
+                                    style={{
+                                      width: "100%",
+                                      maxWidth: "100%",
+                                      transition: "width 0.3s",
+                                    }}
+                                  />
+                                  <div
+                                    className="absolute left-0 bottom-0 h-0.5 bg-green-400 z-10 rounded"
+                                    style={{
+                                      width: `${machine.availability}%`,
+                                      minWidth: "4px",
+                                      maxWidth: "100%",
+                                      transition: "width 0.3s",
+                                    }}
+                                  />
+                                </>
+                              )}
                             </div>
                           </div>
-                        )
-                      )
-                    )}
+                        );
+                      });
+                    })()}
                   </div>
                 )}
               </div>
