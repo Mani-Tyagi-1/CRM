@@ -23,6 +23,7 @@ export type Parsed = {
   contractData: CalendarData;
   soToContractMap: Record<string, string>;
   resourceSOCountByDate: Record<string, Record<string, number>>;
+  resourceMaxSimultaneous: Record<string, number>;
 };
 
 const pushItem = (
@@ -98,7 +99,83 @@ export const parseContracts = (raw: any[]): Parsed => {
     );
   });
 
-  return { contracts, contractData, soToContractMap, resourceSOCountByDate };
+  // Helper: Get all assignments as an array
+  // === REAL CHIP‑LEVEL ASSIGNMENT COLLECTION ===
+
+  type ChipAssignment = {
+    soId: string;
+    resourceName: string;
+    startDate: string;
+    endDate: string;
+  };
+
+  function collectChips(resArr: any[], soId: string, bucket: ChipAssignment[]) {
+    resArr.forEach((res: any) => {
+      if (res.assignedDates && res.assignedDates.length > 0) {
+        const dates = [...res.assignedDates].sort();
+        bucket.push({
+          soId,
+          resourceName: res.name,
+          startDate: dates[0].slice(0, 10),
+          endDate: dates[dates.length - 1].slice(0, 10),
+        });
+      }
+
+      if (res.nestedResources?.length) {
+        collectChips(res.nestedResources, soId, bucket);
+      }
+    });
+  }
+
+  const chipAssignments: ChipAssignment[] = [];
+  raw.forEach((contract) =>
+    contract.so.forEach((so: { resources: any[]; id: string; }) =>
+      collectChips(so.resources, so.id, chipAssignments)
+    )
+  );
+
+  // function dateRange(start: string, end: string) {
+  //   const arr: string[] = [];
+  //   let cur = new Date(start);
+  //   const endDate = new Date(end);
+  //   while (cur <= endDate) {
+  //     arr.push(cur.toISOString().slice(0, 10));
+  //     cur.setDate(cur.getDate() + 1);
+  //   }
+  //   return arr;
+  // }
+
+  /* --- 1 d.  max #simultaneous allocations for each chip -------------- */
+// key = `${soId}-${resourceName}`
+const resourceMaxSimultaneous: Record<string, number> = {};
+
+chipAssignments.forEach((assign) => {
+  // Grab every other assignment of *the same resource*
+  const sameResource = chipAssignments.filter(
+    (a) => a.resourceName === assign.resourceName
+  );
+
+  // Count how many of those intersect *this* chip’s date range
+  const overlapCount = sameResource.filter(
+    (a) => a.startDate <= assign.endDate && a.endDate >= assign.startDate
+  ).length;
+
+  // Keep the maximum for chips that share the same SO-ID + resource
+  const key = `${assign.soId}-${assign.resourceName}`;
+  resourceMaxSimultaneous[key] = Math.max(
+    resourceMaxSimultaneous[key] ?? 0,
+    overlapCount
+  );
+});
+
+
+  return {
+    contracts,
+    contractData,
+    soToContractMap,
+    resourceSOCountByDate,
+    resourceMaxSimultaneous, // <-- add this!
+  };
 };
 
 export function collectResourceAssignments(

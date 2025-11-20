@@ -105,9 +105,10 @@ const CalendarMainContent: React.FC<Props> = ({
   // const [soToContractMapp, setSoToContractMapp] = useState<
   //   Record<string, string>
   // >({});
-  const [resourceCounts, setResourceCounts] = useState<
-    Record<string, Record<string, number>>
-  >({});
+  const [resourceCounts, setResourceCounts] = useState<Record<string, number>>(
+    {}
+  );
+
 
   // date
   /* current local date *without* time component */
@@ -352,12 +353,18 @@ const CalendarMainContent: React.FC<Props> = ({
       //  setContractss(parsed.contracts);
       //  setContractDataa(parsed.contractData);
       //  setSoToContractMapp(parsed.soToContractMap);
-       setResourceCounts(parsed.resourceSOCountByDate); // ← NEW
+       setResourceCounts(parsed.resourceMaxSimultaneous); // ← NEW
      } catch (err) {
        console.error(err);
      }
    };
 
+/*************  ✨ Windsurf Command ⭐  *************/
+/**
+ * Prevents the default drag handling of dropping the element being
+ * dragged onto the area. Instead, sets the dropEffect to "move" so that
+
+/*******  244edb41-7b62-4630-b080-b88965149b76  *******/
   const handleAreaDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";

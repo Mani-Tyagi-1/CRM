@@ -75,7 +75,7 @@ interface Props {
       workingRelation?: string;
     }
   >;
-  globalResourceCounts: Record<string, Record<string, number>>;
+  globalResourceCounts: Record<string, number>;
 }
 
 /* ---------- Helpers ---------- */
@@ -239,6 +239,7 @@ const ContractScheduler: React.FC<Props> = ({
     [globalResourceCounts]
   );
 
+  console.log(resourceSOCountByDate);
 
   const navigate = useNavigate();
 
@@ -556,15 +557,26 @@ const ContractScheduler: React.FC<Props> = ({
     ];
 
     /** How many distinct SOs use <name> on *any* day inside this span? */
+    // const countAcrossSpan = (
+    //   span: { dayKeys: string[] },
+    //   resourceName: string
+    // ) => {
+    //   return span.dayKeys.reduce((max, iso) => {
+    //     const n = resourceSOCountByDate[iso]?.[resourceName] ?? 1;
+    //     return n > max ? n : max;
+    //   }, 1);
+    // };
+
     const countAcrossSpan = (
       span: { dayKeys: string[] },
+      soId: string,
       resourceName: string
     ) => {
-      return span.dayKeys.reduce((max, iso) => {
-        const n = resourceSOCountByDate[iso]?.[resourceName] ?? 1;
-        return n > max ? n : max;
-      }, 1);
+      const key = `${soId}-${resourceName}`;
+      console.log(span);
+      return resourceSOCountByDate[key] ?? 1;
     };
+
 
     // Helper for rendering chips (either normal or inside machines)
     function renderChip(
@@ -589,7 +601,7 @@ const ContractScheduler: React.FC<Props> = ({
 
         // Always use global count for this resource on the date
         // const dateKey = days[span.startIdx].key;
-        const maxCount  = countAcrossSpan(span, c.name);
+        const maxCount  = countAcrossSpan(span, soId, c.name);
         const showCount = maxCount > 1 ? maxCount : null;
 
         return (
@@ -673,7 +685,7 @@ const ContractScheduler: React.FC<Props> = ({
 
       // Machine chip: renders children grid inside itself
       if (isMachine) {
-        const machineCount = countAcrossSpan(span, resource.name);
+        const machineCount = countAcrossSpan(span, soId, resource.name);
 
         return (
           <div
@@ -771,7 +783,7 @@ const ContractScheduler: React.FC<Props> = ({
       // Regular chip (person or tool)
       const name = resource.name;
       // const dateKey = weekDays[span.startIdx].key;
-      const maxCount = countAcrossSpan(span, name);
+      const maxCount = countAcrossSpan(span, soId, name);
       const showCount = maxCount > 1 ? maxCount : null;
 
       return (
