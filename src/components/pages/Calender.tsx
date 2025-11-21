@@ -206,7 +206,7 @@ const Calender: React.FC = () => {
         //  console.log("Raw data",raw);
          const parsed = parseContracts(raw); // ← NEW
          setResourceCounts(parsed.resourceMaxSimultaneous); // ← NEW
-         console.log("Updated counts:", parsed.resourceMaxSimultaneous);
+        //  console.log("Updated counts:", parsed.resourceMaxSimultaneous);
        } catch (err) {
          console.error(err);
        }
