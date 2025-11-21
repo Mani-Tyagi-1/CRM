@@ -72,6 +72,8 @@ type Props = {
       { category: string; id: string; type: "employee" | "machine" }
     >
   ) => void;
+  dateRange: DateRange | undefined;
+  setDateRange: React.Dispatch<React.SetStateAction<DateRange | undefined>>;
 };
 
 // ---------------- Component ----------------
@@ -89,13 +91,15 @@ const Sidebar: React.FC<Props> = ({
   // onContractDragStart,
   // onContractDragEnd,
   onResourceIndexChange,
+  dateRange,
+  setDateRange,
 }) => {
   // Dynamic categories/resources
   const [employeeCategories, setEmployeeCategories] = useState<string[]>([]);
   const [machineCategories, setMachineCategories] = useState<string[]>([]);
   const [sidebarEmployees, setSidebarEmployees] = useState<CategoryMap>({});
   const [sidebarMachines, setSidebarMachines] = useState<CategoryMap>({});
-  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  // const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [resourceAssignmentsMap, setResourceAssignmentsMap] = useState<{
     [id: string]: { assignedDates: string[] };
   }>({});
@@ -285,24 +289,6 @@ const Sidebar: React.FC<Props> = ({
     };
   }, [setExpandedSections]);
 
-  //  React.useEffect(() => {
-  //     loadContracts();
-  //   }, []);
-
-  //    const loadContracts = async () => {
-  //      try {
-  //        const raw = await fetchAllContracts();
-  //        const parsed = parseContracts(raw); // ← NEW
-  //        console.log(parsed)
-  //       //  setContractss(parsed.contracts);
-  //       //  setContractDataa(parsed.contractData);
-  //       //  setSoToContractMapp(parsed.soToContractMap);
-  //       //  setResourceCounts(parsed.resourceSOCountByDate); // ← NEW
-  //      } catch (err) {
-  //        console.error(err);
-  //      }
-  //    };
-
   useEffect(() => {
     async function loadContracts() {
       const raw = await fetchAllContracts();
@@ -312,7 +298,7 @@ const Sidebar: React.FC<Props> = ({
         map[r.resourceId] = { assignedDates: r.assignedDates };
       });
 
-      console.log("Map", map);
+      // console.log("Map", map);
 
       setResourceAssignmentsMap(map);
       // ...rest of your parsing
@@ -629,25 +615,6 @@ const Sidebar: React.FC<Props> = ({
                           typeof machine.availability === "number" &&
                           machine.totalDays > 0;
 
-                        // const chipColorClass =
-                        //   idx === 0
-                        //     ? "bg-yellow-50 border-yellow-200"
-                        //     : idx === 1
-                        //     ? "bg-amber-50 border-amber-200"
-                        //     : idx === 2
-                        //     ? "bg-teal-50 border-teal-200"
-                        //     : "bg-orange-100 border-orange-200";
-
-                        // If showing the green underline, override the border color
-                        // const chipBorderClass = showUnderline
-                        //   ? "border-b-2 border-b-green-400"
-                        //   : "border-b-2 " + chipColorClass.split(" ")[1];
-
-                        // const machineChipClass = [
-                        //   "flex items-center justify-between gap-1 relative px-3 py-1.5 rounded-md text-[11px] leading-[14px] font-semibold text-slate-700 shadow-sm cursor-pointer transition-colors duration-200",
-                        //   chipColorClass.split(" ")[0], // bg-...
-                        //   chipBorderClass,
-                        // ].join(" ");
 
                         return (
                           <div

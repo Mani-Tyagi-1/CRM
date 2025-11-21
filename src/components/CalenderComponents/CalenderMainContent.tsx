@@ -8,6 +8,7 @@ import ContractScheduler, {
   ItemType as ContractItemType,
   CalendarItem as ContractCalendarItem,
 } from "../CalenderComponents/ContractScheduler";
+import { DateRange } from "react-day-picker";
 
 
 type SOItem = { id: string; soNumber: string };
@@ -70,6 +71,9 @@ type Props = {
     }
   >;
   resourceCounts: Record<string, number>;
+  setActiveDateRange: React.Dispatch<
+    React.SetStateAction<DateRange | undefined>
+  >;
 };
 
 const CalendarMainContent: React.FC<Props> = ({
@@ -93,6 +97,7 @@ const CalendarMainContent: React.FC<Props> = ({
   rangeWithinWeek,
   resourceIndex,
   resourceCounts,
+  setActiveDateRange,
 }) => {
   const CELL_MIN_WIDTH = 180;
   const rulerRef = React.useRef<HTMLDivElement>(null);
@@ -361,6 +366,7 @@ const CalendarMainContent: React.FC<Props> = ({
   const handleDayClick = (idx: number, date: Date) => {
     setSelectedDate(date);
     setStartOffsetDays(getOffsetForDate(date)); // keep offset in sync
+    setActiveDateRange({ from: date, to: date });
     // Center scroll
     const el = dayRefs.current[idx];
     const container = scrollRef.current;

@@ -35,6 +35,7 @@ import {
 } from "../../services/timeoffschedular";
 import { fetchAllContracts } from "../../services/fetchAllContracts";
 import { parseContracts } from "../../utils/parsedContracts";
+import { DateRange } from "react-day-picker";
 
 /* ------------------------------------------------------------------ */
 /* Firestore path helpers                                              */
@@ -189,6 +190,8 @@ const removeResourceFromDate = async ({
 
 const Calender: React.FC = () => {
   const DAYS_WINDOW = 2000; // large window to simulate infinite past/future
+
+  const [activeDateRange, setActiveDateRange] = useState<DateRange | undefined>();
 
   const scrollRef = useRef<HTMLDivElement>(null);
    const [resourceCounts, setResourceCounts] = useState<Record<string, number>>(
@@ -2141,6 +2144,8 @@ const Calender: React.FC = () => {
         onContractDragEnd={() => setDragged(null)}
         toggleSection={toggleSection}
         onResourceIndexChange={setResourceIndex}
+        dateRange={activeDateRange}
+        setDateRange={setActiveDateRange}
       />
 
       {/* ---------- MAIN CONTENT ---------- */}
@@ -2166,6 +2171,8 @@ const Calender: React.FC = () => {
         rangeWithinWeek={rangeWithinWeek}
         resourceIndex={resourceIndex}
         resourceCounts={resourceCounts}
+        // activeDateRange={activeDateRange}
+        setActiveDateRange={setActiveDateRange}
       />
 
       {/* ---------- Time-off footer ---------- */}

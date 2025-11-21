@@ -134,19 +134,9 @@ export const parseContracts = (raw: any[]): Parsed => {
     )
   );
 
-  // function dateRange(start: string, end: string) {
-  //   const arr: string[] = [];
-  //   let cur = new Date(start);
-  //   const endDate = new Date(end);
-  //   while (cur <= endDate) {
-  //     arr.push(cur.toISOString().slice(0, 10));
-  //     cur.setDate(cur.getDate() + 1);
-  //   }
-  //   return arr;
-  // }
+
 
   /* --- 1 d.  max #simultaneous allocations for each chip -------------- */
-// key = `${soId}-${resourceName}`
 const resourceMaxSimultaneous: Record<string, number> = {};
 
 chipAssignments.forEach((assign) => {
