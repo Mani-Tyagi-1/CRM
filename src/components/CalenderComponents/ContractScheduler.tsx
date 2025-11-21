@@ -239,7 +239,7 @@ const ContractScheduler: React.FC<Props> = ({
     [globalResourceCounts]
   );
 
-  console.log(resourceSOCountByDate);
+  // console.log(resourceSOCountByDate);
 
   const navigate = useNavigate();
 

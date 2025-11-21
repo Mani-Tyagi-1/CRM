@@ -8,8 +8,7 @@ import ContractScheduler, {
   ItemType as ContractItemType,
   CalendarItem as ContractCalendarItem,
 } from "../CalenderComponents/ContractScheduler";
-import { fetchAllContracts } from "../../services/fetchAllContracts";
-import { parseContracts } from "../../utils/parsedContracts";
+
 
 type SOItem = { id: string; soNumber: string };
 
@@ -70,6 +69,7 @@ type Props = {
       workingRelation?: string;
     }
   >;
+  resourceCounts: Record<string, number>;
 };
 
 const CalendarMainContent: React.FC<Props> = ({
@@ -92,12 +92,15 @@ const CalendarMainContent: React.FC<Props> = ({
   activeContractId,
   rangeWithinWeek,
   resourceIndex,
-
+  resourceCounts,
 }) => {
   const CELL_MIN_WIDTH = 180;
   const rulerRef = React.useRef<HTMLDivElement>(null);
   const dayRefs = useRef<(HTMLDivElement | null)[]>([]);
   const laneRef = useRef<HTMLDivElement>(null);
+
+  // console.log("contracts", contracts);
+  // console.log("contract data", contractData);
 
   /* CalendarMainContent.tsx ----------------------------------------------- */
   // const [contractss, setContractss] = useState<TimelineContract[]>([]);
@@ -105,10 +108,6 @@ const CalendarMainContent: React.FC<Props> = ({
   // const [soToContractMapp, setSoToContractMapp] = useState<
   //   Record<string, string>
   // >({});
-  const [resourceCounts, setResourceCounts] = useState<Record<string, number>>(
-    {}
-  );
-
 
   // date
   /* current local date *without* time component */
@@ -342,29 +341,6 @@ const CalendarMainContent: React.FC<Props> = ({
     }
   }, [selectedDate, timelineDays, scrollRef]);
 
-  React.useEffect(() => {
-    loadContracts();
-  }, []);
-
-   const loadContracts = async () => {
-     try {
-       const raw = await fetchAllContracts();
-       const parsed = parseContracts(raw); // ← NEW
-      //  setContractss(parsed.contracts);
-      //  setContractDataa(parsed.contractData);
-      //  setSoToContractMapp(parsed.soToContractMap);
-       setResourceCounts(parsed.resourceMaxSimultaneous); // ← NEW
-     } catch (err) {
-       console.error(err);
-     }
-   };
-
-/*************  ✨ Windsurf Command ⭐  *************/
-/**
- * Prevents the default drag handling of dropping the element being
- * dragged onto the area. Instead, sets the dropEffect to "move" so that
-
-/*******  244edb41-7b62-4630-b080-b88965149b76  *******/
   const handleAreaDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";

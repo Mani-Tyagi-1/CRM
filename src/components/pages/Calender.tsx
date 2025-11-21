@@ -33,6 +33,8 @@ import {
   addResourceToTimeoffCell,
   removeResourceFromTimeoffCell,
 } from "../../services/timeoffschedular";
+import { fetchAllContracts } from "../../services/fetchAllContracts";
+import { parseContracts } from "../../utils/parsedContracts";
 
 /* ------------------------------------------------------------------ */
 /* Firestore path helpers                                              */
@@ -189,6 +191,27 @@ const Calender: React.FC = () => {
   const DAYS_WINDOW = 2000; // large window to simulate infinite past/future
 
   const scrollRef = useRef<HTMLDivElement>(null);
+   const [resourceCounts, setResourceCounts] = useState<Record<string, number>>(
+      {}
+    );
+  
+  
+  React.useEffect(() => {
+      loadContracts();
+    }, []);
+  
+     const loadContracts = async () => {
+       try {
+         const raw = await fetchAllContracts();
+        //  console.log("Raw data",raw);
+         const parsed = parseContracts(raw); // ← NEW
+         setResourceCounts(parsed.resourceMaxSimultaneous); // ← NEW
+         console.log("Updated counts:", parsed.resourceMaxSimultaneous);
+       } catch (err) {
+         console.error(err);
+       }
+     };
+  
 
   /* ---------- date helpers ---------- */
   const startOfDay = (d: Date) => {
@@ -1038,6 +1061,7 @@ const Calender: React.FC = () => {
               { merge: true }
             );
 
+
             // If item originated from another contract cell, persist source cell
             if (draggedItem.source.zone === "contract") {
               const srcKey = draggedItem.source.id;
@@ -1052,6 +1076,7 @@ const Calender: React.FC = () => {
                 srcKey
               );
               await setDoc(srcRef, { items: srcItems } as any, { merge: true });
+
             }
           } catch (error) {
             console.error("Error updating Firebase:", error);
@@ -1089,6 +1114,7 @@ const Calender: React.FC = () => {
             resourceType: draggedItem.type,
             dateIso,
           });
+
         }
         setActiveContractId(resolvedContractId);
       }
@@ -1179,6 +1205,7 @@ const Calender: React.FC = () => {
         console.log("Time-off item added to Firestore");
       }
     }
+    loadContracts();
     setDragged(null);
   };
 
@@ -1659,6 +1686,8 @@ const Calender: React.FC = () => {
 
     // anything else (e.g. whole-contract rows) keeps the old behaviour
     moveTo({ zone: "contract", id: targetKey, contractId });
+    loadContracts();
+    
   };
 
   const onContractDropToMachine = (
@@ -1969,6 +1998,7 @@ const Calender: React.FC = () => {
           },
           { merge: true }
         );
+        loadContracts();
       }
     } else if (
       /* ───────────── 2 B. resource dropped INSIDE A MACHINE ───────────── */
@@ -2028,7 +2058,8 @@ const Calender: React.FC = () => {
             assignedDates, // <-- full range array
           },
           { merge: true }
-        ).catch(() => {});
+        ).catch(() => { });
+        loadContracts();
       }
     } else if (
       pendingTarget?.kind === "timeoff-cell" &&
@@ -2134,6 +2165,7 @@ const Calender: React.FC = () => {
         activeContractId={activeContractId}
         rangeWithinWeek={rangeWithinWeek}
         resourceIndex={resourceIndex}
+        resourceCounts={resourceCounts}
       />
 
       {/* ---------- Time-off footer ---------- */}
