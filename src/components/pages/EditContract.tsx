@@ -86,69 +86,84 @@ const EditContractForm: React.FC<Props> = ({
   }, [companyId, contractId]);
 
   // Update contract
-  const handleUpdate = async () => {
-    setErr(null);
+ const handleUpdate = async () => {
+   setErr(null);
 
-    if (!contractName || !typeOfWork) {
-      setErr("Please fill all required fields (*).");
-      return;
-    }
-    if (!startDate || !endDate) {
-      setErr("Please select both start and end date.");
-      return;
-    }
-    if (new Date(endDate) < new Date(startDate)) {
-      setErr("End date must be after start date.");
-      return;
-    }
+   if (!contractName || !typeOfWork) {
+     setErr("Please fill all required fields (*).");
+     return;
+   }
+   if (!startDate || !endDate) {
+     setErr("Please select both start and end date.");
+     return;
+   }
+   if (new Date(endDate) < new Date(startDate)) {
+     setErr("End date must be after start date.");
+     return;
+   }
 
-    const trimmedSOList = soList.map((so) => so.trim()).filter(Boolean);
-    const soNumbers = trimmedSOList.length ? trimmedSOList : ["Default SO"];
-    const contractRef = doc(
-      db,
-      "companies",
-      companyId,
-      "contracts",
-      contractId
-    );
+   const trimmedSOList = soList.map((so) => so.trim()).filter(Boolean);
+   const soNumbers = trimmedSOList.length ? trimmedSOList : ["Default SO"];
 
-    setSaving(true);
-    try {
-      // 1. Update contract doc
-      await updateDoc(contractRef, {
-        name: contractName,
-        workType: typeOfWork,
-        agreementId: offerNumber || null,
-        contractId: contractNumber || null,
-        workPrice: workPrice || null,
-        unit: unit || null,
-        startDate: startDate,
-        endDate: endDate,
-        soNumbers,
-        updatedAt: new Date(),
-      });
+   const contractRef = doc(db, "companies", companyId, "contracts", contractId);
+   const soCol = collection(contractRef, "so");
 
-      // 2. Update SO subcollection (remove all, then re-add)
-      const soCol = collection(contractRef, "so");
-      const prevSO = await getDocs(soCol);
-      for (const d of prevSO.docs) {
-        await deleteDoc(d.ref);
-      }
-      for (const soNumber of soNumbers) {
-        const soDoc = doc(soCol);
-        await setDoc(soDoc, {
-          soNumber,
-          updatedAt: new Date(),
-        });
-      }
+   setSaving(true);
+   try {
+     // 1. Update contract fields
+     await updateDoc(contractRef, {
+       name: contractName,
+       workType: typeOfWork,
+       agreementId: offerNumber || null,
+       contractId: contractNumber || null,
+       workPrice: workPrice || null,
+       unit: unit || null,
+       startDate,
+       endDate,
+       soNumbers, // keep stored SO numbers for display
+       updatedAt: new Date(),
+     });
 
-      if (onUpdated) onUpdated();
-    } catch (e: any) {
-      setErr(e?.message || "Failed to update contract.");
-    } finally {
-      setSaving(false);
-    }
-  };
+     // 2. READ existing SO documents
+     const prevSO = await getDocs(soCol);
+
+     // Map: soNumber → document ID
+     const existing = new Map(
+       prevSO.docs.map((d) => [d.data().soNumber, d.id])
+     );
+
+     // --- UPDATE / CREATE SO docs ---
+     for (const soNumber of soNumbers) {
+       if (existing.has(soNumber)) {
+         // Update existing SO
+         const soId = existing.get(soNumber);
+         await updateDoc(doc(soCol, soId), {
+           soNumber,
+           updatedAt: new Date(),
+         });
+         existing.delete(soNumber); // mark as handled
+       } else {
+         // Create new SO with stable ID = soNumber
+         const soId = soNumber.replace(/\s+/g, "_").toLowerCase();
+         await setDoc(doc(soCol, soId), {
+           soNumber,
+           updatedAt: new Date(),
+         });
+       }
+     }
+
+     // --- DELETE removed SO docs ---
+     for (const [, id] of existing) {
+       await deleteDoc(doc(soCol, id));
+     }
+
+     if (onUpdated) onUpdated();
+   } catch (e: any) {
+     setErr(e?.message || "Failed to update contract.");
+   } finally {
+     setSaving(false);
+   }
+ };
 
   return (
     <div className="flex flex-col max-h-screen items-center justify-center p-1">

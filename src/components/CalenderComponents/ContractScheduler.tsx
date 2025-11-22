@@ -78,42 +78,6 @@ interface Props {
   globalResourceCounts: Record<string, number>;
 }
 
-/* ---------- Helpers ---------- */
-// const itemExists = (
-//   arr: CalendarItem[] | undefined,
-//   name: string,
-//   type: ItemType
-// ) => !!arr?.some((i) => i.name === name && i.type === type);
-
-/* ---------- Helpers ---------- */
-// const getResourceSOCountByDate = (
-//   soList: any[],
-//   data: Record<string, CalendarItem[]>
-// ) => {
-//   const countMap: Record<string, Record<string, number>> = {}; // { dateKey: { resourceName: count } }
-
-//   soList.forEach(({ id: soId }) => {
-//     Object.keys(data).forEach((cellKey) => {
-//       // Only check keys that belong to this SO
-//       if (cellKey.startsWith(soId + "-")) {
-//         const [, dateKey] = cellKey.split(`${soId}-`);
-//         const items = data[cellKey] || [];
-//         items.forEach((item) => {
-//           if (item.type === "person" || item.type === "machine") {
-//             countMap[dateKey] = countMap[dateKey] || {};
-//             countMap[dateKey][item.name] =
-//               (countMap[dateKey][item.name] || 0) + 1;
-//           }
-//         });
-//       }
-//     });
-//   });
-
-//   return countMap;
-// };
-
-// New: Find spans of each resource across consecutive days
-
 type ResourceSpan = {
   item: CalendarItem;
   type: ItemType;
@@ -568,12 +532,12 @@ const ContractScheduler: React.FC<Props> = ({
     // };
 
     const countAcrossSpan = (
-      span: { dayKeys: string[] },
+      // span: { dayKeys: string[] },
       soId: string,
       resourceName: string
     ) => {
       const key = `${soId}-${resourceName}`;
-      console.log(span);
+      // console.log(span);
       return resourceSOCountByDate[key] ?? 1;
     };
 
@@ -601,7 +565,7 @@ const ContractScheduler: React.FC<Props> = ({
 
         // Always use global count for this resource on the date
         // const dateKey = days[span.startIdx].key;
-        const maxCount  = countAcrossSpan(span, soId, c.name);
+        const maxCount  = countAcrossSpan( soId, c.name);
         const showCount = maxCount > 1 ? maxCount : null;
 
         return (
@@ -685,7 +649,7 @@ const ContractScheduler: React.FC<Props> = ({
 
       // Machine chip: renders children grid inside itself
       if (isMachine) {
-        const machineCount = countAcrossSpan(span, soId, resource.name);
+        const machineCount = countAcrossSpan( soId, resource.name);
 
         return (
           <div
@@ -783,7 +747,7 @@ const ContractScheduler: React.FC<Props> = ({
       // Regular chip (person or tool)
       const name = resource.name;
       // const dateKey = weekDays[span.startIdx].key;
-      const maxCount = countAcrossSpan(span, soId, name);
+      const maxCount = countAcrossSpan( soId, name);
       const showCount = maxCount > 1 ? maxCount : null;
 
       return (
