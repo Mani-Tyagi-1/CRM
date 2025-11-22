@@ -206,10 +206,8 @@ const Calender: React.FC = () => {
      const loadContracts = async () => {
        try {
          const raw = await fetchAllContracts();
-        //  console.log("Raw data",raw);
          const parsed = parseContracts(raw); // ← NEW
          setResourceCounts(parsed.resourceMaxSimultaneous); // ← NEW
-        //  console.log("Updated counts:", parsed.resourceMaxSimultaneous);
        } catch (err) {
          console.error(err);
        }
@@ -822,6 +820,43 @@ const Calender: React.FC = () => {
     }
   };
 
+  const removeNestedEmployeeFromDateRange = async ({
+    uid,
+    contractId,
+    soId,
+    machineName,
+    employeeName,
+  }: {
+    uid: string;
+    contractId: string;
+    soId: string;
+    machineName: string;
+    employeeName: string;
+  }) => {
+    const ref = doc(
+      db,
+      "companies",
+      uid,
+      "contracts",
+      contractId,
+      "so",
+      soId,
+      "resources",
+      machineName,
+      "resources",
+      employeeName
+    );
+    try {
+      await deleteDoc(ref);
+    } catch (e) {
+      console.error("Error deleting nested employee:", e);
+    }
+  };
+
+
+
+
+
   /* ---------- CENTRAL moveTo ---------- */
   const moveTo = async (target: {
     zone: "sidebar" | "contract" | "timeoff";
@@ -999,7 +1034,17 @@ const Calender: React.FC = () => {
         contractData
       );
 
-      if (uid && sourceContractId) {
+      if (!uid || !sourceContractId) return;
+      if (draggedItem.meta?.childOf) {
+        await removeNestedEmployeeFromDateRange({
+          uid,
+          contractId: sourceContractId,
+          soId,
+          machineName: draggedItem.meta.childOf,
+          employeeName: draggedItem.name,
+          // dateIsos: span,
+        });
+      } else {
         await removeResourceFromDateRange({
           uid,
           contractId: sourceContractId,
@@ -1008,14 +1053,44 @@ const Calender: React.FC = () => {
           dateIsos: span,
         });
       }
+
       // local optimistic update – strip only from the source cell
       setContractData((prev) => {
-        const next = { ...prev };
-        next[draggedItem.source.id] = stripFromItems(
-          next[draggedItem.source.id] || [],
-          draggedItem.name
-        );
-        return next;
+        const newState = { ...prev };
+        if (draggedItem.meta?.childOf) {
+          // Remove the nested employee from every cell, not just one
+          for (const cellKey in newState) {
+            const day = newState[cellKey] as ContractCalendarItem[];
+            // Find the machine
+            const machineIdx = day.findIndex(
+              (it) =>
+                it.type === "machine" && it.name === draggedItem.meta!.childOf
+            );
+            if (machineIdx !== -1) {
+              const machine = { ...day[machineIdx] } as ContractCalendarItem & {
+                children?: ContractCalendarItem[];
+              };
+              const children = machine.children ? [...machine.children] : [];
+              const newChildren = children.filter(
+                (c) => c.name !== draggedItem.name
+              );
+              // NEW LOGIC:
+              machine.children = newChildren;
+              const nextDay = [...day];
+              nextDay[machineIdx] = machine;
+              newState[cellKey] = nextDay;
+            }
+          }
+
+          return newState;
+        } else {
+          const next = { ...prev };
+          next[draggedItem.source.id] = stripFromItems(
+            next[draggedItem.source.id] || [],
+            draggedItem.name
+          );
+          return next;
+        }
       });
     }
 
@@ -1203,9 +1278,7 @@ const Calender: React.FC = () => {
 
       // NEW: Write to Firestore
       if (uid) {
-        console.log("Uid for timeoff:", uid);
         await addResourceToTimeoffCell(db, uid, target.id, timeOffItem);
-        console.log("Time-off item added to Firestore");
       }
     }
     loadContracts();
@@ -1672,8 +1745,6 @@ const Calender: React.FC = () => {
   const onContractDrop = (contractId: string, targetKey: string) => {
     setActiveContractId(contractId);
     // if a resource (person / machine / tool) is being dropped → open the modal
-
-    console.log("inside the contract drop ", targetKey);
 
     if (dragged && "name" in dragged) {
       /* pre-fill the modal with the day we dropped on */

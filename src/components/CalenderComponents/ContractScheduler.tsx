@@ -256,29 +256,6 @@ const ContractScheduler: React.FC<Props> = ({
 
   const CELL_MIN_WIDTH = 180;
 
-  // const getScheduledDays = (): WeekDay[] => {
-  //   if (!scheduledStartISO || !scheduledEndISO || timelineDays.length === 0) {
-  //     return [];
-  //   }
-
-  //   const scheduledDays: WeekDay[] = [];
-
-  //   for (const timelineDay of timelineDays) {
-  //     // Only include days within the scheduled range
-  //     if (
-  //       timelineDay.key >= scheduledStartISO &&
-  //       timelineDay.key <= scheduledEndISO
-  //     ) {
-  //       scheduledDays.push({
-  //         key: timelineDay.key,
-  //         label: timelineDay.day.slice(0, 3), // "Mon", "Tue", etc.
-  //         date: timelineDay.date.getDate().toString(),
-  //       });
-  //     }
-  //   }
-
-  //   return scheduledDays;
-  // };
 
   /*  A. build one helper from the global timeline -------------------- */
   const weekDays: WeekDay[] = React.useMemo(
@@ -325,19 +302,6 @@ const ContractScheduler: React.FC<Props> = ({
     document.addEventListener("mouseup", onMouseUp);
   };
 
-  /* ---------- Styling helpers ---------- */
-  // const chipCls = (t: ItemType, joinsLeft = false, joinsRight = false) =>
-  //   [
-  //     "px-2 py-1.5 rounded-md text-xs cursor-move hover:shadow-sm transition-all duration-200 relative group",
-  //     t === "person"
-  //       ? "bg-blue-100 text-blue-800 border-blue-300/50"
-  //       : t === "tool"
-  //       ? "bg-amber-50 text-amber-800 border-amber-300/60"
-  //       : "bg-green-100 text-green-800 border-green-300/50",
-  //     joinsLeft ? "-ml-7 border-l-0 rounded-l-none" : "",
-  //     joinsRight ? "rounded-r-none" : "",
-  //     "flex items-center",
-  //   ].join(" ");
 
   const machineContainerCls = (joinsLeft = false, joinsRight = false) =>
     [
@@ -519,17 +483,6 @@ const ContractScheduler: React.FC<Props> = ({
         arr.map((s) => ({ ...s, isMachineChild: true, machineName }))
       ),
     ];
-
-    /** How many distinct SOs use <name> on *any* day inside this span? */
-    // const countAcrossSpan = (
-    //   span: { dayKeys: string[] },
-    //   resourceName: string
-    // ) => {
-    //   return span.dayKeys.reduce((max, iso) => {
-    //     const n = resourceSOCountByDate[iso]?.[resourceName] ?? 1;
-    //     return n > max ? n : max;
-    //   }, 1);
-    // };
 
     const countAcrossSpan = (
       // span: { dayKeys: string[] },
@@ -873,9 +826,6 @@ const ContractScheduler: React.FC<Props> = ({
               const cellKey = `${soId}-${day.key}`;
               // Determine if the current day is within the scheduled range
               const inRange = dayIdx >= startIdx && dayIdx <= endIdx;
-              // Find any machine in this cell (to render machine+children "inside" cell)
-              // const items = data[cellKey] || [];
-              // const machines = items.filter((i) => i.type === "machine");
 
               return (
                 <div
@@ -890,8 +840,6 @@ const ContractScheduler: React.FC<Props> = ({
                   }}
                   onDrop={(e) => handleDrop(e, cellKey)}
                 >
-                  {/* If there is a machine for this cell, render the machine container */}
-                  {/* No machine chip rendering here. Just the drop cell contents. */}
                 </div>
               );
             })}
