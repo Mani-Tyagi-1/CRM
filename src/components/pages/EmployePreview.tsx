@@ -35,6 +35,7 @@ type category = {
   phone?: string;
   unavailableUntil?: string;
   status?: string;
+  quickNote?: string;
 };
 
 type OccurrenceType = {
@@ -136,6 +137,7 @@ const EmployeePreview: React.FC = () => {
             workingRelation: data?.workingRelation ?? "",
             typeOfStay: data?.typeOfStay ?? "",
             stayingTill: data?.stayingTill ?? "",
+            quickNote: data?.quickNote ?? "",
           };
           setEmployeeInfo(info);
         } else {
@@ -453,20 +455,30 @@ const EmployeePreview: React.FC = () => {
                   )
                 }
               />
-              {/* <span className="ml-2">
-                <svg width={20} height={20} fill="none" stroke="black">
-                  <rect
-                    x="3"
-                    y="7"
-                    width="14"
-                    height="10"
-                    rx="2"
-                    strokeWidth="1.2"
-                  />
-                  <path d="M3 9h14M7 3v4m6-4v4" strokeWidth="1.2" />
-                </svg>
-              </span> */}
             </div>
+          </div>
+          {/* Note Block */}
+          <div className="col-span-2 w-full mt-1">
+            <label className="block text-sm text-black mb-1">Note</label>
+            {editMode ? (
+              <textarea
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
+                rows={3}
+                value={editInfo?.quickNote || ""}
+                onChange={(e) =>
+                  setEditInfo((prev) =>
+                    prev ? { ...prev, quickNote: e.target.value } : prev
+                  )
+                }
+                maxLength={2000}
+              />
+            ) : (
+              <div className="w-full bg-[#FAFAFC] border border-gray-200 rounded-lg p-3 text-sm text-gray-700 min-h-[60px]">
+                {editInfo?.quickNote || (
+                  <span className="text-gray-400">No note.</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       );

@@ -68,6 +68,7 @@ type Props = {
       id: string;
       type: "employee" | "machine";
       workingRelation?: string;
+      quickNote?: string;
     }
   >;
   resourceCounts: Record<string, number>;

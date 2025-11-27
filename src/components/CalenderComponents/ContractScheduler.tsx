@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { ChevronDown, Info, File } from "lucide-react";
+import { ChevronDown, Info } from "lucide-react";
 import EditContractForm from "../pages/EditContract";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "../../lib/firebase";
 import { useNavigate } from "react-router-dom";
+import { StickyNote } from "lucide-react";
 
 
 /* ---------- Types ---------- */
@@ -15,11 +16,11 @@ export type CalendarItem = {
   name: string;
   type: ItemType;
   color?: string;
-  note?: string;
   children?: CalendarItem[];
   assignedDates?: string[];
   __parent?: string;
   workingRelation?: string;
+  quickNote?: string;
 };
 
 export type CalendarData = Record<string, CalendarItem[]>;
@@ -73,6 +74,7 @@ interface Props {
       id: string;
       type: "employee" | "machine";
       workingRelation?: string;
+      quickNote?: string;
     }
   >;
   globalResourceCounts: Record<string, number>;
@@ -203,23 +205,18 @@ const ContractScheduler: React.FC<Props> = ({
     [globalResourceCounts]
   );
 
-  // console.log(resourceSOCountByDate);
+  console.log("Resource Index",resourceIndex);
 
   const navigate = useNavigate();
 
    const [showErrorModal, setShowErrorModal] = useState(false);
    const [errorMessage, setErrorMessage] = useState("");
 
-  // notes
-  const [hoveredResource, setHoveredResource] = React.useState<{
-    cellKey: string;
-    name: string;
-    type: ItemType;
-    note?: string;
-  } | null>(null);
 
-  const [showNoteModal, setShowNoteModal] = React.useState(false);
-  const [noteInput, setNoteInput] = React.useState("");
+  const [noteHoverTimer, setNoteHoverTimer] = useState<NodeJS.Timeout | null>(
+    null
+  );
+  const [noteModal, setNoteModal] = useState<null | { name: string; note: string }>(null);
   const [editingContractId, setEditingContractId] = useState<string | null>(
     null
   );
@@ -236,16 +233,6 @@ const ContractScheduler: React.FC<Props> = ({
     return () => authUnsub();
   }, []);
 
-  const handleSaveNote = () => {
-    if (hoveredResource) {
-      // You'll likely want to update your `data` here (lift up state/update parent, etc)
-      // For demo, just close modal
-      setShowNoteModal(false);
-      setHoveredResource(null);
-      setNoteInput("");
-      alert("Note saved!");
-    }
-  };
 
   const [collapsedRows, setCollapsedRows] = React.useState<
     Record<string, boolean>
@@ -521,6 +508,8 @@ const ContractScheduler: React.FC<Props> = ({
         const maxCount  = countAcrossSpan( soId, c.name);
         const showCount = maxCount > 1 ? maxCount : null;
 
+        const note = resourceIndex?.[c.name]?.quickNote;
+
         return (
           <div
             key={`machinechild-chip-${span.machineName}-${c.type}-${c.name}-${idx}`}
@@ -550,7 +539,6 @@ const ContractScheduler: React.FC<Props> = ({
                 childOf: span.machineName,
               });
             }}
-            title={c.note || ""}
           >
             <div className="font-medium flex justify-center items-center gap-2 w-full">
               {showCount && (
@@ -570,26 +558,55 @@ const ContractScheduler: React.FC<Props> = ({
               )}
 
               <span className="mx-auto">{c.name}</span>
-              {c.note && (
-                <File className="ml-1 inline-block text-blue-500" size={16} />
-              )}
             </div>
-            {c.note && <div className="text-xs opacity-75 mt-1">{c.note}</div>}
-            {(c.type === "person" || c.type === "machine") && (
+            {note ? (
               <button
                 type="button"
-                aria-label={`${c.type} info`}
-                className="absolute top-0.5 right-0.5 p-0.5 text-slate-500 hover:text-slate-700 cursor-pointer"
+                aria-label="Quick note"
+                className="absolute top-0.5 right-0.5 p-0.5 text-slate-600 hover:text-slate-800 cursor-pointer"
                 draggable={false}
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
+                  // Optional: still allow instant open on click
                   e.preventDefault();
                   e.stopPropagation();
-                  handleResourceInfo(c.name);
+                  setNoteModal({ name: c.name, note });
+                }}
+                onMouseEnter={() => {
+                  // Start a 2 second timer on hover
+                  const timer = setTimeout(
+                    () => setNoteModal({ name: c.name, note }),
+                    1000
+                  );
+                  setNoteHoverTimer(timer);
+                }}
+                onMouseLeave={() => {
+                  // Cancel timer if mouse leaves before 2 seconds
+                  if (noteHoverTimer) {
+                    clearTimeout(noteHoverTimer);
+                    setNoteHoverTimer(null);
+                  }
                 }}
               >
-                <Info className="h-3.5 w-3.5" />
+                <StickyNote className="h-3.5 w-3.5" />
               </button>
+            ) : (
+              (c.type === "person" || c.type === "machine") && (
+                <button
+                  type="button"
+                  aria-label={`${c.type} info`}
+                  className="absolute top-0.5 right-0.5 p-0.5 text-slate-500 hover:text-slate-700 cursor-pointer"
+                  draggable={false}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleResourceInfo(c.name);
+                  }}
+                >
+                  <Info className="h-3.5 w-3.5" />
+                </button>
+              )
             )}
           </div>
         );
@@ -632,7 +649,6 @@ const ContractScheduler: React.FC<Props> = ({
                     : [],
                 });
               }}
-              title={resource.note || ""}
             >
               {machineCount > 1 && (
                 <span className="text-[12px] text-[#B45309] font-semibold px-1.5 py-0.5 rounded-full mr-2">
@@ -702,6 +718,7 @@ const ContractScheduler: React.FC<Props> = ({
       // const dateKey = weekDays[span.startIdx].key;
       const maxCount = countAcrossSpan( soId, name);
       const showCount = maxCount > 1 ? maxCount : null;
+      const note = resourceIndex?.[name]?.quickNote;
 
       return (
         <div
@@ -730,7 +747,6 @@ const ContractScheduler: React.FC<Props> = ({
             e.dataTransfer.setData("application/x-item-type", resource.type);
             onDragStart(resource.name, cellKeyFirst, resource.type);
           }}
-          title={resource.note || ""}
         >
           {renderResizeHandles(soId, resource.name, resource.type)}
           <div className="font-medium flex justify-center items-center gap-2 w-full">
@@ -751,25 +767,55 @@ const ContractScheduler: React.FC<Props> = ({
             )}
 
             <span className="mx-auto">{resource.name}</span>
-            {resource.note && (
-              <File className="ml-1 inline-block text-blue-500" size={16} />
-            )}
           </div>
-          {(resource.type === "person" || resource.type === "machine") && (
+          {note ? (
             <button
               type="button"
-              aria-label={`${resource.type} info`}
-              className="absolute cursor-pointer top-0.5 right-0.5 p-0.5 text-slate-500 hover:text-blue-900"
+              aria-label="Quick note"
+              className="absolute top-0.5 right-0.5 p-0.5 text-slate-600 hover:text-slate-800 cursor-pointer"
               draggable={false}
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
+                // Optional: still allow instant open on click
                 e.preventDefault();
                 e.stopPropagation();
-                handleResourceInfo(resource.name);
+                setNoteModal({ name, note });
+              }}
+              onMouseEnter={() => {
+                // Start a 2 second timer on hover
+                const timer = setTimeout(
+                  () => setNoteModal({ name, note }),
+                  1000
+                );
+                setNoteHoverTimer(timer);
+              }}
+              onMouseLeave={() => {
+                // Cancel timer if mouse leaves before 2 seconds
+                if (noteHoverTimer) {
+                  clearTimeout(noteHoverTimer);
+                  setNoteHoverTimer(null);
+                }
               }}
             >
-              <Info className="h-3.5 w-3.5" />
+              <StickyNote className="h-3.5 w-3.5" />
             </button>
+          ) : (
+            (resource.type === "person" || resource.type === "machine") && (
+              <button
+                type="button"
+                aria-label={`${resource.type} info`}
+                className="absolute cursor-pointer top-0.5 right-0.5 p-0.5 text-slate-500 hover:text-blue-900"
+                draggable={false}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleResourceInfo(resource.name);
+                }}
+              >
+                <Info className="h-3.5 w-3.5" />
+              </button>
+            )
           )}
         </div>
       );
@@ -987,61 +1033,44 @@ const ContractScheduler: React.FC<Props> = ({
           )}
         </div>
 
-        {showNoteModal && hoveredResource && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-            <div className="bg-gray-50  border border-gray-200 rounded-xl shadow-2xl w-full max-w-sm px-6 py-5 animate-fade-in">
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-base font-semibold text-gray-700 flex items-center gap-2">
-                  <File className="w-5 h-5 text-blue-500" />
-                  Note for{" "}
-                  <span className="ml-1 font-bold text-blue-800">
-                    {hoveredResource.name}
-                  </span>
+        {noteModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center "
+            onClick={() => setNoteModal(null)} // <-- closes when backdrop is clicked
+          >
+            <div
+              className="relative bg-[#F8FBFF] border border-blue-200 rounded-2xl shadow-xl w-[370px] max-w-full px-6 py-4"
+              onClick={(e) => e.stopPropagation()} // <-- prevents close when clicking inside modal
+            >
+              {/* Top row: name and info button */}
+              <div className="flex items-start justify-between mb-1">
+                <div className="w-full flex flex-col items-center">
+                  <div className="text-[20px] font-semibold text-blue-700 text-center">
+                    {noteModal.name}
+                  </div>
                 </div>
-                <button
-                  className="rounded-full p-1 hover:bg-gray-100 text-gray-500 hover:text-blue-600 transition"
-                  onClick={() => {
-                    setShowNoteModal(false);
-                    setHoveredResource(null);
-                    setNoteInput("");
-                  }}
-                  aria-label="Close"
-                >
-                  <svg width="18" height="18" fill="none" viewBox="0 0 18 18">
-                    <path
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      d="M5 5l8 8M13 5l-8 8"
-                    />
-                  </svg>
-                </button>
+                {/* Info + Close */}
+                <div className="flex items-center gap-2 ml-2">
+                  <button
+                    onClick={() => {
+                      handleResourceInfo(noteModal.name);
+                      setNoteModal(null);
+                    }}
+                    aria-label="Resource Info"
+                    className="text-slate-600 hover:text-slate-900"
+                  >
+                    <Info className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
-              <textarea
-                className="w-full min-h-[80px] max-h-40 resize-none rounded-md border border-gray-200 bg-white p-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 transition placeholder-gray-400"
-                rows={4}
-                placeholder="Write a quick note for this employee..."
-                value={noteInput}
-                onChange={(e) => setNoteInput(e.target.value)}
-                autoFocus
-              />
-              <div className="flex justify-end mt-5 gap-2">
-                <button
-                  onClick={() => {
-                    setShowNoteModal(false);
-                    setHoveredResource(null);
-                    setNoteInput("");
-                  }}
-                  className="px-3 py-1 rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 text-sm font-medium transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveNote}
-                  className="px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 text-sm font-semibold shadow-sm transition"
-                >
-                  Save
-                </button>
+
+              {/* Optionally add contract & status row here if needed */}
+              {/* ... */}
+
+              <hr className="border-blue-100 my-2" />
+
+              <div className="text-[15px] text-gray-700 leading-relaxed whitespace-pre-line mb-1">
+                {noteModal.note}
               </div>
             </div>
           </div>

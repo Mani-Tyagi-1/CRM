@@ -30,6 +30,7 @@ type ResourceItem = {
   totalDays: number;
   freeDays: any;
   workingRelation: string;
+  quickNote?: string;
   id: string;
   display: string;
 };
@@ -180,6 +181,7 @@ const Sidebar: React.FC<Props> = ({
                     id: doc.id,
                     display: buildDisplayName(data),
                     workingRelation: data.workingRelation,
+                    quickNote: data.quickNote,
                     availability: undefined,
                     colour: "",
                     totalDays: 0,
@@ -261,16 +263,19 @@ const Sidebar: React.FC<Props> = ({
           id: string;
           type: "employee" | "machine";
           workingRelation?: string;
+          quickNote?: string;
         }
       > = {};
 
       fetchedEmpCats.forEach((cat) => {
         empObj[cat].forEach((employee) => {
+          console.log("Employee data", employee);
           idx[employee.display] = {
             category: cat,
             id: employee.id,
             type: "employee",
             workingRelation: employee.workingRelation, // or whatever property holds the info
+            quickNote: employee.quickNote ?? "",
           };
         });
       });
