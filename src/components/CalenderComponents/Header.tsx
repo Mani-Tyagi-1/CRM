@@ -10,27 +10,25 @@ import type { DateRange } from "react-day-picker"; // type is the same as shadcn
 // Optional: override shadcn calendar styles for gray color scheme
 const CalendarGrayOverride = () => (
   <style>{`
-    .rdp-day_selected,
-    .rdp-day_selected:hover,
-    .rdp-day_selected:focus-visible,
-    .rdp-day_range_start,
-    .rdp-day_range_end {
+    /* Single selected day + range start/end -> BLACK circle */
+    button[data-selected-single="true"],
+    button[data-range-start="true"],
+    button[data-range-end="true"] {
+      background-color: #000000 !important;
+      rounded: 0px !important;
+      border: none !important;
+      ouline: none !important;
+      color: #ffffff !important;
+    }
+
+    /* Middle of the range -> light gray bar */
+    button[data-range-middle="true"] {
       background-color: #e5e7eb !important;
       color: #111827 !important;
     }
-    .rdp-day_range_middle {
-      background-color: #f3f4f6 !important;
-      color: #111827 !important;
-    }
-    .rdp-day_today:not(.rdp-day_selected) {
-      border: 1px solid #6b7280 !important;
-    }
-    .rdp {
-      --rdp-accent-color: #6b7280;
-      --rdp-background-color: #e5e7eb;
-    }
   `}</style>
 );
+
 
 type HeaderProps = {
   dateRange: DateRange | undefined;
