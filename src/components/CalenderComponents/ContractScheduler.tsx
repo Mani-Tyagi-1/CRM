@@ -1077,10 +1077,20 @@ const ContractScheduler: React.FC<Props> = ({
         )}
 
         {editingContractId && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-            <div className="bg-white rounded-xl shadow-2xl border p-0 w-full max-w-4xl flex flex-col relative">
+          <div
+            // 1. Add "p-6" to create padding (space) around the modal on top/bottom
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-6"
+            // 2. Close when clicking the background
+            onClick={() => setEditingContractId(null)}
+          >
+            <div
+              // 3. Set max-height and overflow-y-auto to enable scrolling inside this container
+              className="bg-white rounded-xl shadow-2xl border p-0 w-full max-w-4xl flex flex-col relative max-h-full overflow-y-auto"
+              // 4. Prevent the background click from triggering when clicking inside the white box
+              onClick={(e) => e.stopPropagation()}
+            >
               <button
-                className="absolute right-3 top-2 text-lg hover:bg-gray-100 rounded-full px-2 py-1 transition"
+                className="absolute right-3 top-2 text-lg hover:bg-gray-100 rounded-full px-2 py-1 transition z-10"
                 onClick={() => setEditingContractId(null)}
                 tabIndex={0}
               >
@@ -1090,6 +1100,7 @@ const ContractScheduler: React.FC<Props> = ({
                 companyId={uid!}
                 contractId={editingContractId}
                 onUpdated={() => setEditingContractId(null)}
+                // We don't need 'onClose' prop if the parent wrapper handles the closing
               />
             </div>
           </div>

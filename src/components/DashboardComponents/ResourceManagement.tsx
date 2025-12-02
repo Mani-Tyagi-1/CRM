@@ -1318,10 +1318,16 @@ export default function ResourceManagementBoard() {
       )}
 
       {editingContractId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl border p-0 w-full max-w-4xl flex flex-col relative">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-6"
+          onClick={() => setEditingContractId(null)} // Close when clicking background
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl border p-0 w-full max-w-4xl flex flex-col relative max-h-full overflow-y-auto"
+            onClick={(e) => e.stopPropagation()} // Stop closing when clicking inside
+          >
             <button
-              className="absolute right-3 top-2 text-lg hover:bg-gray-100 rounded-full px-2 py-1 transition"
+              className="absolute right-3 top-2 text-lg hover:bg-gray-100 rounded-full px-2 py-1 transition z-10"
               onClick={() => setEditingContractId(null)}
               tabIndex={0}
             >
