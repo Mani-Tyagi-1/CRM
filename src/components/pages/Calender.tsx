@@ -191,28 +191,29 @@ const removeResourceFromDate = async ({
 const Calender: React.FC = () => {
   const DAYS_WINDOW = 2000; // large window to simulate infinite past/future
 
-  const [activeDateRange, setActiveDateRange] = useState<DateRange | undefined>();
+  const [activeDateRange, setActiveDateRange] = useState<
+    DateRange | undefined
+  >();
 
   const scrollRef = useRef<HTMLDivElement>(null);
-   const [resourceCounts, setResourceCounts] = useState<Record<string, number>>(
-      {}
-    );
-  
-  
+  const [resourceCounts, setResourceCounts] = useState<Record<string, number>>(
+    {}
+  );
+  const [contractsUpdateTrigger, setContractsUpdateTrigger] = useState(0);
+
   React.useEffect(() => {
-      loadContracts();
-    }, []);
-  
-     const loadContracts = async () => {
-       try {
-         const raw = await fetchAllContracts();
-         const parsed = parseContracts(raw); // ← NEW
-         setResourceCounts(parsed.resourceMaxSimultaneous); // ← NEW
-       } catch (err) {
-         console.error(err);
-       }
-     };
-  
+    loadContracts();
+  }, []);
+
+  const loadContracts = async () => {
+    try {
+      const raw = await fetchAllContracts();
+      const parsed = parseContracts(raw); // ← NEW
+      setResourceCounts(parsed.resourceMaxSimultaneous); // ← NEW
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   /* ---------- date helpers ---------- */
   const startOfDay = (d: Date) => {
@@ -724,34 +725,33 @@ const Calender: React.FC = () => {
   /** Return all consecutive dates on which the resource occurs */
 
   /** Return all consecutive dates (same section) where the resource occurs */
- function getContiguousTimeOffDates(
-   section: any,
-   resourceName: string,
-   anchorDateIso: any,
-   days: any[],
-   timeOffData: TimeOffData
- ) {
-   // Find the index of the anchor day
-   const idx = days.findIndex((d) => d.key === anchorDateIso);
-   if (idx === -1) return [];
+  function getContiguousTimeOffDates(
+    section: any,
+    resourceName: string,
+    anchorDateIso: any,
+    days: any[],
+    timeOffData: TimeOffData
+  ) {
+    // Find the index of the anchor day
+    const idx = days.findIndex((d) => d.key === anchorDateIso);
+    if (idx === -1) return [];
 
-   // Checks if the resource is present on a given day/section
-   const present = (i: number) =>
-     (timeOffData[`${section}-${days[i].key}`] || []).some(
-       (item) => item.name === resourceName
-     );
+    // Checks if the resource is present on a given day/section
+    const present = (i: number) =>
+      (timeOffData[`${section}-${days[i].key}`] || []).some(
+        (item) => item.name === resourceName
+      );
 
-   let start = idx;
-   let end = idx;
+    let start = idx;
+    let end = idx;
 
-   // Go left
-   while (start > 0 && present(start - 1)) start--;
-   // Go right
-   while (end < days.length - 1 && present(end + 1)) end++;
+    // Go left
+    while (start > 0 && present(start - 1)) start--;
+    // Go right
+    while (end < days.length - 1 && present(end + 1)) end++;
 
-   return days.slice(start, end + 1).map((d) => d.key); // returns array of ISO dates
- }
-
+    return days.slice(start, end + 1).map((d) => d.key); // returns array of ISO dates
+  }
 
   const collectContiguousDates = (
     soId: string,
@@ -852,10 +852,6 @@ const Calender: React.FC = () => {
       console.error("Error deleting nested employee:", e);
     }
   };
-
-
-
-
 
   /* ---------- CENTRAL moveTo ---------- */
   const moveTo = async (target: {
@@ -1139,7 +1135,6 @@ const Calender: React.FC = () => {
               { merge: true }
             );
 
-
             // If item originated from another contract cell, persist source cell
             if (draggedItem.source.zone === "contract") {
               const srcKey = draggedItem.source.id;
@@ -1154,7 +1149,6 @@ const Calender: React.FC = () => {
                 srcKey
               );
               await setDoc(srcRef, { items: srcItems } as any, { merge: true });
-
             }
           } catch (error) {
             console.error("Error updating Firebase:", error);
@@ -1192,7 +1186,7 @@ const Calender: React.FC = () => {
             resourceType: draggedItem.type,
             dateIso,
           });
-
+          setContractsUpdateTrigger((p) => p + 1); 
         }
         setActiveContractId(resolvedContractId);
       }
@@ -1208,7 +1202,6 @@ const Calender: React.FC = () => {
         return;
       }
       const [, section, dateIso] = match;
-
 
       // Find all contiguous dates with this resource
       const span = getContiguousTimeOffDates(
@@ -1252,7 +1245,6 @@ const Calender: React.FC = () => {
             );
           })
         );
-
       }
       setDragged(null);
       return;
@@ -1742,9 +1734,11 @@ const Calender: React.FC = () => {
   const allowDrop = (e: React.DragEvent<HTMLElement>) => e.preventDefault();
 
   /* ---------- contract-grid drop TARGETS ---------- */
-  const onContractDrop = (contractId: string, targetKey: string) => {
+  /* ---------- contract-grid drop TARGETS ---------- */
+
+  // Make this async
+  const onContractDrop = async (contractId: string, targetKey: string) => {
     setActiveContractId(contractId);
-    // if a resource (person / machine / tool) is being dropped → open the modal
 
     if (dragged && "name" in dragged) {
       /* pre-fill the modal with the day we dropped on */
@@ -1758,13 +1752,16 @@ const Calender: React.FC = () => {
       return;
     }
 
-    // anything else (e.g. whole-contract rows) keeps the old behaviour
-    moveTo({ zone: "contract", id: targetKey, contractId });
+    // Await moveTo so DB finishes BEFORE trigger updates
+    await moveTo({ zone: "contract", id: targetKey, contractId });
     loadContracts();
-    
+
+    // Now trigger sidebar update
+    setContractsUpdateTrigger((prev) => prev + 1);
   };
 
-  const onContractDropToMachine = (
+  // Make this async
+  const onContractDropToMachine = async (
     contractId: string,
     targetKey: string,
     machineName: string
@@ -1786,36 +1783,46 @@ const Calender: React.FC = () => {
       return;
     }
 
-    moveTo({
+    // Await moveTo here
+    await moveTo({
       zone: "contract",
       id: targetKey,
       contractId,
       assignToMachine: { machineName },
     });
+
+    setContractsUpdateTrigger((prev) => prev + 1);
   };
 
-  const onTimeOffDrop = (targetKey: string) => {
+  // Make this async
+  const onTimeOffDrop = async (targetKey: string) => {
     if (dragged && "name" in dragged) {
-      /* pre-fill modal with the dropped day */
       const iso = targetKey.match(/\d{4}-\d{2}-\d{2}$/)?.[0] ?? "";
       setRangeStart(iso);
       setRangeEnd(iso);
-
-      setPendingTarget({ kind: "timeoff-cell", targetKey }); // 👈 NEW
+      setPendingTarget({ kind: "timeoff-cell", targetKey });
       setPendingDragged(dragged);
       setShowRangeModal(true);
       return;
     }
 
-    // fallback (should rarely happen)
-    moveTo({ zone: "timeoff", id: targetKey });
+    // Await moveTo here
+    await moveTo({ zone: "timeoff", id: targetKey });
+
+    setContractsUpdateTrigger((prev) => prev + 1);
   };
 
   /* ---------- sidebar drop targets ---------- */
-  const onDropToEmployeeSection = (section: string) =>
-    moveTo({ zone: "sidebar", id: `employee:${section}` });
-  const onDropToMachineSection = (section: string) =>
-    moveTo({ zone: "sidebar", id: `machine:${section}` });
+
+  const onDropToEmployeeSection = async (section: string) => {
+    await moveTo({ zone: "sidebar", id: `employee:${section}` });
+    setContractsUpdateTrigger((prev) => prev + 1);
+  };
+
+  const onDropToMachineSection = async (section: string) => {
+    await moveTo({ zone: "sidebar", id: `machine:${section}` });
+    setContractsUpdateTrigger((prev) => prev + 1);
+  };
 
   const toggleSection = (section: string) =>
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
@@ -2132,7 +2139,7 @@ const Calender: React.FC = () => {
             assignedDates, // <-- full range array
           },
           { merge: true }
-        ).catch(() => { });
+        ).catch(() => {});
         loadContracts();
       }
     } else if (
@@ -2183,6 +2190,8 @@ const Calender: React.FC = () => {
       }
     }
 
+    setContractsUpdateTrigger((prev) => prev + 1);
+
     // Clean up modal and pending state
     setShowRangeModal(false);
     setPendingTarget(null);
@@ -2217,6 +2226,7 @@ const Calender: React.FC = () => {
         onResourceIndexChange={setResourceIndex}
         dateRange={activeDateRange}
         setDateRange={setActiveDateRange}
+        contractsUpdatedTrigger={contractsUpdateTrigger}
       />
 
       {/* ---------- MAIN CONTENT ---------- */}

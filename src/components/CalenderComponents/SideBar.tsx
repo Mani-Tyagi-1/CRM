@@ -75,6 +75,8 @@ type Props = {
   ) => void;
   dateRange: DateRange | undefined;
   setDateRange: React.Dispatch<React.SetStateAction<DateRange | undefined>>;
+  // NEW PROP: Pass a value (like a timestamp or counter) that changes when contracts update
+  contractsUpdatedTrigger?: number | string;
 };
 
 // ---------------- Component ----------------
@@ -94,6 +96,7 @@ const Sidebar: React.FC<Props> = ({
   onResourceIndexChange,
   dateRange,
   setDateRange,
+  contractsUpdatedTrigger = 0, // Default value
 }) => {
   // Dynamic categories/resources
   const [employeeCategories, setEmployeeCategories] = useState<string[]>([]);
@@ -255,7 +258,6 @@ const Sidebar: React.FC<Props> = ({
         return out;
       });
 
-
       const idx: Record<
         string,
         {
@@ -294,8 +296,11 @@ const Sidebar: React.FC<Props> = ({
     };
   }, [setExpandedSections]);
 
+  // ---------------- FETCH CONTRACTS & AVAILABILITY ----------------
+  // UPDATED: Added contractsUpdatedTrigger to dependency array
   useEffect(() => {
     async function loadContracts() {
+      // console.log("Refetching contracts for availability...");
       const raw = await fetchAllContracts();
       const assignments = collectResourceAssignments(raw);
       const map: { [id: string]: { assignedDates: string[] } } = {};
@@ -303,13 +308,12 @@ const Sidebar: React.FC<Props> = ({
         map[r.resourceId] = { assignedDates: r.assignedDates };
       });
 
-      // console.log("Map", map);
+      // console.log("Map updated", map);
 
       setResourceAssignmentsMap(map);
-      // ...rest of your parsing
     }
     loadContracts();
-  }, []);
+  }, [contractsUpdatedTrigger]); // <--- This triggers the reload
 
   // ---------------- UI ----------------
   return (
@@ -430,7 +434,6 @@ const Sidebar: React.FC<Props> = ({
                         }
 
                         return resourceList.map((emp) => {
-                          
                           // const borderColor = emp.colour || "#cbd5e1";
                           // const borderStyle = { borderColor };
                           const showUnderline =
@@ -620,7 +623,6 @@ const Sidebar: React.FC<Props> = ({
                           typeof machine.availability === "number" &&
                           machine.totalDays > 0;
 
-
                         return (
                           <div
                             key={`${catKey}-${machine.id}`}
@@ -676,8 +678,8 @@ const Sidebar: React.FC<Props> = ({
                                   title={`Free: ${machine.freeDays}/${machine.totalDays} days`}
                                 >
                                   {machine.availability}% Free
-                                </span>
-                              )} */}
+                                  </span>
+                                )} */}
                               <Info
                                 className="h-3 w-3 shrink-0 text-gray-600 hover:text-black"
                                 onClick={(e) => {
