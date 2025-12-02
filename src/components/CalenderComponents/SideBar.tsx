@@ -269,7 +269,7 @@ const Sidebar: React.FC<Props> = ({
 
       fetchedEmpCats.forEach((cat) => {
         empObj[cat].forEach((employee) => {
-          console.log("Employee data", employee);
+          // console.log("Employee data", employee);
           idx[employee.display] = {
             category: cat,
             id: employee.id,

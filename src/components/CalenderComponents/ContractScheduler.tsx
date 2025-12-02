@@ -205,7 +205,7 @@ const ContractScheduler: React.FC<Props> = ({
     [globalResourceCounts]
   );
 
-  console.log("Resource Index",resourceIndex);
+  // console.log("Resource Index",resourceIndex);
 
   const navigate = useNavigate();
 
@@ -474,14 +474,16 @@ const ContractScheduler: React.FC<Props> = ({
     const countAcrossSpan = (
       // span: { dayKeys: string[] },
       soId: string,
-      resourceName: string
+      resourceName: string,
+      startDate: string,
+      endDate: string
     ) => {
-      const key = `${soId}-${resourceName}`;
+      const key = `${soId}-${resourceName}-${startDate}-${endDate}`;
       // console.log(span);
       return resourceSOCountByDate[key] ?? 1;
     };
 
-
+    // Helper for rendering chips (either normal or inside machines)
     // Helper for rendering chips (either normal or inside machines)
     function renderChip(
       span: ChipToRender,
@@ -489,6 +491,12 @@ const ContractScheduler: React.FC<Props> = ({
       cellKeyFirst: string,
       parentStartIdx?: number // pass this when rendering inside a machine chip
     ) {
+      // --- FIX STARTS HERE: DERIVE DATES FROM GRID INDICES ---
+      // We use 'days' (visibleDays) because span.startIdx is an index into that array
+      const sDate = days[span.startIdx].key;
+      const eDate = days[span.endIdx].key;
+      // -------------------------------------------------------
+
       // Machine child (employee inside a machine)
       if (span.isMachineChild) {
         const c = span.item;
@@ -503,9 +511,8 @@ const ContractScheduler: React.FC<Props> = ({
             ? span.endIdx - parentStartIdx + 2
             : span.endIdx + 2;
 
-        // Always use global count for this resource on the date
-        // const dateKey = days[span.startIdx].key;
-        const maxCount  = countAcrossSpan( soId, c.name);
+        // FIX: Use calculated sDate/eDate instead of c.startDate/c.endDate
+        const maxCount = countAcrossSpan(soId, c.name, sDate, eDate);
         const showCount = maxCount > 1 ? maxCount : null;
 
         const note = resourceIndex?.[c.name]?.quickNote;
@@ -514,12 +521,12 @@ const ContractScheduler: React.FC<Props> = ({
           <div
             key={`machinechild-chip-${span.machineName}-${c.type}-${c.name}-${idx}`}
             className={[
-              "px-2 py-1 rounded-lg text-sm font-medium ", // base classes
+              "px-2 py-1 rounded-lg text-sm font-medium ",
               c.type === "person"
                 ? colourForWorkingRelation(
                     resourceIndex?.[c.name]?.workingRelation
                   )
-                : colourForWorkingRelation(c.type), // your actual function
+                : colourForWorkingRelation(c.type),
             ].join(" ")}
             style={{
               gridColumnStart: gridStart,
@@ -528,7 +535,6 @@ const ContractScheduler: React.FC<Props> = ({
               zIndex: 2,
               marginTop: 2,
               marginBottom: 2,
-              // Set maxWidth based on whether the resource spans a single day or multiple days
               maxWidth: span.startIdx === span.endIdx ? "80%" : "85%",
             }}
             draggable
@@ -559,6 +565,7 @@ const ContractScheduler: React.FC<Props> = ({
 
               <span className="mx-auto">{c.name}</span>
             </div>
+            {/* ... rest of machine child note logic ... */}
             {note ? (
               <button
                 type="button"
@@ -567,13 +574,11 @@ const ContractScheduler: React.FC<Props> = ({
                 draggable={false}
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
-                  // Optional: still allow instant open on click
                   e.preventDefault();
                   e.stopPropagation();
                   setNoteModal({ name: c.name, note });
                 }}
                 onMouseEnter={() => {
-                  // Start a 2 second timer on hover
                   const timer = setTimeout(
                     () => setNoteModal({ name: c.name, note }),
                     1000
@@ -581,7 +586,6 @@ const ContractScheduler: React.FC<Props> = ({
                   setNoteHoverTimer(timer);
                 }}
                 onMouseLeave={() => {
-                  // Cancel timer if mouse leaves before 2 seconds
                   if (noteHoverTimer) {
                     clearTimeout(noteHoverTimer);
                     setNoteHoverTimer(null);
@@ -614,19 +618,19 @@ const ContractScheduler: React.FC<Props> = ({
 
       // Person, tool, or machine chip
       const resource = span.item;
-      //  const isPerson = resource.type === "person";
       const isMachine = resource.type === "machine";
 
-      // Machine chip: renders children grid inside itself
+      // Machine chip
       if (isMachine) {
-        const machineCount = countAcrossSpan( soId, resource.name);
+        // FIX: Use calculated sDate/eDate
+        const machineCount = countAcrossSpan(soId, resource.name, sDate, eDate);
 
         return (
           <div
             key={`span-chip-machine-${resource.name}-${idx}`}
             className={machineContainerCls()}
             style={{
-              background: "#FFFBEB", // <-- pastel yellow background
+              background: "#FFFBEB",
               gridColumnStart: span.startIdx + 1,
               gridColumnEnd: span.endIdx + 2,
               position: "relative",
@@ -636,6 +640,7 @@ const ContractScheduler: React.FC<Props> = ({
               maxWidth: "90%",
             }}
           >
+            {/* ... inside machine render logic (unchanged except variables) ... */}
             {renderResizeHandles(soId, resource.name, "machine")}
             <div
               className="px-2 py-1.5 pr-7 text-xs font-medium text-[#B45309] cursor-move select-none flex items-center"
@@ -657,6 +662,7 @@ const ContractScheduler: React.FC<Props> = ({
               )}
               {resource.name}
             </div>
+            {/* ... rest of machine internal structure ... */}
             <button
               type="button"
               aria-label="Machine info"
@@ -672,7 +678,8 @@ const ContractScheduler: React.FC<Props> = ({
             >
               <Info className="h-3.5 w-3.5" />
             </button>
-            {/* Children grid: pass parentStartIdx for local positioning */}
+
+            {/* Machine Drop Zone Grid */}
             <div
               className="px-2 pb-2 pt-1 min-h-[40px] border-dashed border-2 border-transparent hover:border-green-300 transition-colors duration-200 grid relative"
               style={{
@@ -703,11 +710,6 @@ const ContractScheduler: React.FC<Props> = ({
                     span.startIdx
                   )
                 )}
-              {(resource.children || []).length === 0 && (
-                <div className="text-[11px] text-green-700/70 py-1 text-center italic">
-                  {/* Drop employees here */}
-                </div>
-              )}
             </div>
           </div>
         );
@@ -715,8 +717,9 @@ const ContractScheduler: React.FC<Props> = ({
 
       // Regular chip (person or tool)
       const name = resource.name;
-      // const dateKey = weekDays[span.startIdx].key;
-      const maxCount = countAcrossSpan( soId, name);
+
+      // FIX: Use calculated sDate/eDate
+      const maxCount = countAcrossSpan(soId, name, sDate, eDate);
       const showCount = maxCount > 1 ? maxCount : null;
       const note = resourceIndex?.[name]?.quickNote;
 
@@ -724,12 +727,12 @@ const ContractScheduler: React.FC<Props> = ({
         <div
           key={`span-chip-${resource.type}-${resource.name}-${idx}`}
           className={[
-            "px-2 py-1 rounded-lg text-sm font-medium ", // base classes
+            "px-2 py-1 rounded-lg text-sm font-medium ",
             resource.type === "person"
               ? colourForWorkingRelation(
                   resourceIndex?.[resource.name]?.workingRelation
                 )
-              : colourForWorkingRelation(resource.type), // your actual function
+              : colourForWorkingRelation(resource.type),
           ].join(" ")}
           style={{
             gridColumnStart: span.startIdx + 1,
@@ -768,6 +771,7 @@ const ContractScheduler: React.FC<Props> = ({
 
             <span className="mx-auto">{resource.name}</span>
           </div>
+          {/* ... Note and Info logic (unchanged) ... */}
           {note ? (
             <button
               type="button"
@@ -776,13 +780,11 @@ const ContractScheduler: React.FC<Props> = ({
               draggable={false}
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
-                // Optional: still allow instant open on click
                 e.preventDefault();
                 e.stopPropagation();
                 setNoteModal({ name, note });
               }}
               onMouseEnter={() => {
-                // Start a 2 second timer on hover
                 const timer = setTimeout(
                   () => setNoteModal({ name, note }),
                   1000
@@ -790,7 +792,6 @@ const ContractScheduler: React.FC<Props> = ({
                 setNoteHoverTimer(timer);
               }}
               onMouseLeave={() => {
-                // Cancel timer if mouse leaves before 2 seconds
                 if (noteHoverTimer) {
                   clearTimeout(noteHoverTimer);
                   setNoteHoverTimer(null);
@@ -885,8 +886,7 @@ const ContractScheduler: React.FC<Props> = ({
                     e.dataTransfer.dropEffect = "move";
                   }}
                   onDrop={(e) => handleDrop(e, cellKey)}
-                >
-                </div>
+                ></div>
               );
             })}
             {/* Overlay resource chips for persons/tools, spanning columns */}

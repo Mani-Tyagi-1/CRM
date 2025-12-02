@@ -35,6 +35,43 @@ const pushItem = (
   store[key]!.push(base as CalendarItem);
 };
 
+/* --- HELPER: Split a list of dates into contiguous blocks --- */
+// e.g. ["2025-11-05", "2025-11-08"] -> [{start: "05", end:"05"}, {start:"08", end:"08"}]
+// e.g. ["2025-11-03", "2025-11-04", "2025-11-05"] -> [{start: "03", end:"05"}]
+const getContiguousRanges = (dates: string[]) => {
+  if (!dates.length) return [];
+  
+  // Sort temporally
+  const sorted = [...dates].sort();
+  const ranges: { startDate: string; endDate: string }[] = [];
+
+  let rangeStart = sorted[0];
+  let prevDate = new Date(sorted[0]);
+
+  for (let i = 1; i < sorted.length; i++) {
+    const currString = sorted[i];
+    const currDate = new Date(currString);
+
+    // Calc difference in days. 
+    // We treat > 1.1 days as a gap (handles slight DST shifts safely)
+    const diffTime = currDate.getTime() - prevDate.getTime();
+    const diffDays = diffTime / (1000 * 3600 * 24);
+
+    if (diffDays > 1.1) {
+      // Gap detected. Push previous range and start new.
+      ranges.push({ startDate: rangeStart, endDate: sorted[i - 1] });
+      rangeStart = currString;
+    }
+    
+    prevDate = currDate;
+  }
+
+  // Push the final range
+  ranges.push({ startDate: rangeStart, endDate: sorted[sorted.length - 1] });
+  return ranges;
+};
+
+
 export const parseContracts = (raw: any[]): Parsed => {
   const contracts: TimelineContract[] = [];
   const contractData: CalendarData = {};
@@ -47,7 +84,7 @@ export const parseContracts = (raw: any[]): Parsed => {
       : new Date(d.seconds * 1_000).toISOString().slice(0, 10);
 
   raw.forEach((c) => {
-    /* --- 1 a.  high-level contract timeline slice ----------------------- */
+    /* --- 1 a.  high-level contract timeline slice --- */
     contracts.push({
       id: c.id,
       title: c.name,
@@ -56,12 +93,12 @@ export const parseContracts = (raw: any[]): Parsed => {
       soList: c.so.map((s: any) => ({ id: s.id, soNumber: s.soNumber ?? "" })),
     });
 
-    /* --- 1 b.  SO-level data & global resource-count bookkeeping --------- */
+    /* --- 1 b.  SO-level data & global resource-count bookkeeping --- */
     c.so.forEach((so: any) => {
       soToContractMap[so.id] = c.id;
 
       const register = (res: any, dateISO: string, parentMachine?: string) => {
-        /* A. feed ContractScheduler */
+        /* A. feed ContractScheduler (Calendar Items) */
         pushItem(contractData, `${so.id}-${dateISO}`, {
           startDate: dateISO,
           endDate: dateISO,
@@ -71,7 +108,7 @@ export const parseContracts = (raw: any[]): Parsed => {
           ...(parentMachine ? { __parent: parentMachine } : {}),
         });
 
-        /* B. collect <date►resource►SO-IDs>  */
+        /* B. collect <date -> resource -> SO-IDs> */
         resourceSOSetByDate[dateISO] ||= {};
         resourceSOSetByDate[dateISO][res.name] ||= new Set<string>();
         resourceSOSetByDate[dateISO][res.name].add(so.id);
@@ -90,7 +127,7 @@ export const parseContracts = (raw: any[]): Parsed => {
     });
   });
 
-  /* --- 1 c.  collapse the sets (SO IDs) ← into → numbers --------------- */
+  /* --- 1 c.  collapse the sets (SO IDs) into numbers --- */
   const resourceSOCountByDate: Record<string, Record<string, number>> = {};
   Object.entries(resourceSOSetByDate).forEach(([date, resObj]) => {
     resourceSOCountByDate[date] = {};
@@ -99,8 +136,7 @@ export const parseContracts = (raw: any[]): Parsed => {
     );
   });
 
-  // Helper: Get all assignments as an array
-  // === REAL CHIP‑LEVEL ASSIGNMENT COLLECTION ===
+  /* --- 1 d. REAL CHIP ASSIGNMENT COLLECTION --- */
 
   type ChipAssignment = {
     soId: string;
@@ -109,62 +145,66 @@ export const parseContracts = (raw: any[]): Parsed => {
     endDate: string;
   };
 
-  function collectChips(resArr: any[], soId: string, bucket: ChipAssignment[]) {
+  const chipAssignments: ChipAssignment[] = [];
+
+  function collectChips(resArr: any[], soId: string) {
     resArr.forEach((res: any) => {
+      // 1. Separate separate stored assignments for the resource
       if (res.assignedDates && res.assignedDates.length > 0) {
-        const dates = [...res.assignedDates].sort();
-        bucket.push({
-          soId,
-          resourceName: res.name,
-          startDate: dates[0].slice(0, 10),
-          endDate: dates[dates.length - 1].slice(0, 10),
+        
+        // **NEW LOGIC HERE**: Group only contiguous dates together
+        const contiguousRanges = getContiguousRanges(res.assignedDates);
+
+        contiguousRanges.forEach(range => {
+           chipAssignments.push({
+             soId,
+             resourceName: res.name,
+             startDate: range.startDate,
+             endDate: range.endDate,
+           });
         });
       }
 
+      // 2. Recurse for nested
       if (res.nestedResources?.length) {
-        collectChips(res.nestedResources, soId, bucket);
+        collectChips(res.nestedResources, soId);
       }
     });
   }
 
-  const chipAssignments: ChipAssignment[] = [];
+  // Populate chipAssignments from raw data
   raw.forEach((contract) =>
-    contract.so.forEach((so: { resources: any[]; id: string; }) =>
-      collectChips(so.resources, so.id, chipAssignments)
+    contract.so.forEach((so: { resources: any[]; id: string }) =>
+      collectChips(so.resources, so.id)
     )
   );
 
+  /* --- 1 e. Calculate Overlaps --- */
+  const resourceMaxSimultaneous: Record<string, number> = {};
 
+  chipAssignments.forEach((assign) => {
+    // Grab every assignment of *the same resource* globally
+    const sameResourceGlobal = chipAssignments.filter(
+      (a) => a.resourceName === assign.resourceName
+    );
 
-  /* --- 1 d.  max #simultaneous allocations for each chip -------------- */
-const resourceMaxSimultaneous: Record<string, number> = {};
+    const overlapCount = sameResourceGlobal.filter(
+      (other) => 
+        other.startDate <= assign.endDate && 
+        other.endDate >= assign.startDate
+    ).length;
 
-chipAssignments.forEach((assign) => {
-  // Grab every other assignment of *the same resource*
-  const sameResource = chipAssignments.filter(
-    (a) => a.resourceName === assign.resourceName
-  );
-
-  // Count how many of those intersect *this* chip’s date range
-  const overlapCount = sameResource.filter(
-    (a) => a.startDate <= assign.endDate && a.endDate >= assign.startDate
-  ).length;
-
-  // Keep the maximum for chips that share the same SO-ID + resource
-  const key = `${assign.soId}-${assign.resourceName}`;
-  resourceMaxSimultaneous[key] = Math.max(
-    resourceMaxSimultaneous[key] ?? 0,
-    overlapCount
-  );
-});
-
+    const uniqueKey = `${assign.soId}-${assign.resourceName}-${assign.startDate}-${assign.endDate}`;
+    
+    resourceMaxSimultaneous[uniqueKey] = overlapCount;
+  });
 
   return {
     contracts,
     contractData,
     soToContractMap,
     resourceSOCountByDate,
-    resourceMaxSimultaneous, // <-- add this!
+    resourceMaxSimultaneous,
   };
 };
 
