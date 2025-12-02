@@ -1,11 +1,10 @@
 import * as React from "react";
 import { CalendarIcon } from "lucide-react";
-// import { addDays, format } from "date-fns";
-import { cn } from "../../lib/utils"; // if you use shadcn's cn utility, else remove
+import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import { Calendar } from "../ui/calendar"; // shadcn Calendar
-import type { DateRange } from "react-day-picker"; // type is the same as shadcn
+import { Calendar } from "../ui/calendar";
+import type { DateRange } from "react-day-picker";
 
 // Optional: override shadcn calendar styles for gray color scheme
 const CalendarGrayOverride = () => (
@@ -15,9 +14,9 @@ const CalendarGrayOverride = () => (
     button[data-range-start="true"],
     button[data-range-end="true"] {
       background-color: #000000 !important;
-      rounded: 0px !important;
+      border-radius: 10px !important; /* Fixed syntax error: rounded -> border-radius */
       border: none !important;
-      ouline: none !important;
+      outline: none !important;
       color: #ffffff !important;
     }
 
@@ -28,7 +27,6 @@ const CalendarGrayOverride = () => (
     }
   `}</style>
 );
-
 
 type HeaderProps = {
   dateRange: DateRange | undefined;
@@ -67,7 +65,13 @@ const Header: React.FC<HeaderProps> = ({ dateRange, setDateRange }) => {
     return "Select dates";
   }, [dateRange]);
 
-  // If you need to send or store dates as strings:
+  // Handle Clear Action
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent bubbling issues
+    setDateRange(undefined);
+    // We do NOT close setOpen(false) here, because the user wants to pick a new range immediately
+  };
+
   const formattedRange = React.useMemo(
     () => ({
       from: formatDateForApi(dateRange?.from),
@@ -76,10 +80,8 @@ const Header: React.FC<HeaderProps> = ({ dateRange, setDateRange }) => {
     [dateRange]
   );
 
-  // Example: console.log or send to API on date change
   React.useEffect(() => {
     if (dateRange?.from && dateRange?.to) {
-      // Now both formattedRange.from and formattedRange.to will be correct, e.g., "2026-01-01"
       console.log("Date range (safe for API):", formattedRange);
     }
   }, [formattedRange, dateRange]);
@@ -93,7 +95,7 @@ const Header: React.FC<HeaderProps> = ({ dateRange, setDateRange }) => {
               ref={btnRef}
               variant="ghost"
               className={cn(
-                "inline-flex items-center gap-2 rounded-md mt-2 px-3 py-1 text-sm text-gray-800 hover:bg-gray-200"
+                "inline-flex items-center gap-2 rounded-md mt-2 px-3 py-1 text-sm text-gray-800 hover:bg-gray-200 transition-colors"
               )}
               type="button"
             >
@@ -102,30 +104,47 @@ const Header: React.FC<HeaderProps> = ({ dateRange, setDateRange }) => {
             </Button>
           </PopoverTrigger>
           <PopoverContent
-            className="w-auto p-2 z-[70] rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 animate-in fade-in"
+            className="w-auto p-0 z-[70] rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 animate-in fade-in overflow-hidden"
             align="start"
             side="bottom"
             sideOffset={8}
             onInteractOutside={() => setOpen(false)}
           >
-            <CalendarGrayOverride />
-            <Calendar
-              mode="range"
-              selected={dateRange}
-              onSelect={(r: DateRange | undefined) => {
-                if (r?.from && r?.to && r.from.getTime() !== r.to.getTime()) {
-                  setDateRange(r);
-                  setOpen(false);
-                } else {
-                  setDateRange(
-                    r?.from ? { from: r.from, to: undefined } : undefined
-                  );
-                }
-              }}
-              numberOfMonths={1}
-              pagedNavigation
-              disabled={{ before: new Date() }}
-            />
+            <div className="p-3">
+              <CalendarGrayOverride />
+              <Calendar
+                mode="range"
+                selected={dateRange}
+                onSelect={(r: DateRange | undefined) => {
+                  // If user selects a full range, set it and close
+                  if (r?.from && r?.to && r.from.getTime() !== r.to.getTime()) {
+                    setDateRange(r);
+                    setOpen(false);
+                  } else {
+                    // If user selects just start date (or clicks start date again)
+                    setDateRange(
+                      r?.from ? { from: r.from, to: undefined } : undefined
+                    );
+                  }
+                }}
+                numberOfMonths={1}
+                pagedNavigation
+                disabled={{ before: new Date() }}
+              />
+            </div>
+
+            {/* --- Added Clear Button Footer --- */}
+            <div className="border-t border-gray-100 p-2 bg-gray-50/50 flex justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-3 text-xs font-medium text-gray-500 hover:text-red-600 hover:bg-red-50"
+                onClick={handleClear}
+                disabled={!dateRange?.from} // Disable if nothing is selected
+              >
+                Clear Selection
+              </Button>
+            </div>
           </PopoverContent>
         </Popover>
       </div>
