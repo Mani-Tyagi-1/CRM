@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ChevronLeft, X } from "lucide-react";
+import { ChevronLeft, X, AlertCircle  } from "lucide-react";
 import { db } from "../../lib/firebase";
 import {
   doc,
@@ -18,6 +18,14 @@ type Props = {
   onUpdated?: () => void;
 };
 
+// Helper to convert JS Date object to "YYYY-MM-DD" string (local time) to match data structure
+const formatDateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 const EditContractForm: React.FC<Props> = ({
   companyId,
   contractId,
@@ -33,10 +41,15 @@ const EditContractForm: React.FC<Props> = ({
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [soList, setSoList] = useState<string[]>([""]);
+
+  // Validation state for resources
+  const [minResourceDate, setMinResourceDate] = useState<string | null>(null);
+  const [maxResourceDate, setMaxResourceDate] = useState<string | null>(null);
+
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Fetch contract and SOs
+  // Fetch contract and SOs (including validation data)
   useEffect(() => {
     async function fetchData() {
       try {
@@ -48,6 +61,11 @@ const EditContractForm: React.FC<Props> = ({
           contractId
         );
         const contractSnap = await getDoc(contractRef);
+
+        // 1. Get SO Collection reference
+        const soCol = collection(contractRef, "so");
+        const soSnaps = await getDocs(soCol);
+
         if (contractSnap.exists()) {
           const data = contractSnap.data();
           setContractName(data.name || "");
@@ -68,17 +86,51 @@ const EditContractForm: React.FC<Props> = ({
               : undefined
           );
 
+          // Populate SO List Name inputs
           if (Array.isArray(data.soNumbers) && data.soNumbers.length) {
             setSoList(data.soNumbers);
           } else {
-            const soCol = collection(contractRef, "so");
-            const soSnaps = await getDocs(soCol);
             const list = soSnaps.docs.map((d) => d.data().soNumber || "");
             setSoList(list.length ? list : [""]);
           }
         }
+
+        // 2. Validate Resource Dates
+        // Iterate through all fetched SO documents to find min/max assigned dates
+        const allAssignedDates: string[] = [];
+
+        // We must fetch the 'resources' SUB-COLLECTION for each SO
+        const resourcePromises = soSnaps.docs.map(async (soDoc) => {
+          try {
+            // Reference the specific sub-collection: .../so/<soID>/resources
+            const resourcesCol = collection(soDoc.ref, "resources");
+            const resourceSnaps = await getDocs(resourcesCol);
+
+            resourceSnaps.forEach((resDoc) => {
+              const resData = resDoc.data();
+              if (Array.isArray(resData.assignedDates)) {
+                allAssignedDates.push(...resData.assignedDates);
+              }
+            });
+          } catch (err) {
+            console.error("Error fetching resources for SO:", soDoc.id, err);
+          }
+        });
+
+        await Promise.all(resourcePromises);
+
+         if (allAssignedDates.length > 0) {
+           allAssignedDates.sort(); // Text sort works correctly for YYYY-MM-DD
+           setMinResourceDate(allAssignedDates[0]);
+           setMaxResourceDate(allAssignedDates[allAssignedDates.length - 1]);
+         } else {
+           // Explicitly reset if no resources found
+           setMinResourceDate(null);
+           setMaxResourceDate(null);
+         }
       } catch (e) {
         setErr("Failed to load contract");
+        console.error(e);
       }
     }
     fetchData();
@@ -100,6 +152,29 @@ const EditContractForm: React.FC<Props> = ({
       setErr("End date must be after start date.");
       return;
     }
+
+    // --- NEW VALIDATION LOGIC START ---
+    const newStartStr = formatDateKey(startDate);
+    const newEndStr = formatDateKey(endDate);
+
+    // Check Start Date Conflict
+    // If the chosen start date is AFTER the earliest resource date, it's invalid.
+    if (minResourceDate && newStartStr > minResourceDate) {
+      setErr(
+        `Conflict: Resources are already assigned on ${minResourceDate}. The contract start date cannot be later than this.`
+      );
+      return;
+    }
+
+    // Check End Date Conflict
+    // If the chosen end date is BEFORE the latest resource date, it's invalid.
+    if (maxResourceDate && newEndStr < maxResourceDate) {
+      setErr(
+        `Conflict: Resources are already assigned on ${maxResourceDate}. The contract end date cannot be earlier than this.`
+      );
+      return;
+    }
+    // --- NEW VALIDATION LOGIC END ---
 
     const trimmedSOList = soList.map((so) => so.trim()).filter(Boolean);
     const soNumbers = trimmedSOList.length ? trimmedSOList : ["Default SO"];
@@ -128,6 +203,7 @@ const EditContractForm: React.FC<Props> = ({
         updatedAt: new Date(),
       });
 
+      // Handle SO Number changes logic
       const prevSO = await getDocs(soCol);
       const existing = new Map(
         prevSO.docs.map((d) => [d.data().soNumber, d.id])
@@ -142,15 +218,23 @@ const EditContractForm: React.FC<Props> = ({
           });
           existing.delete(soNumber);
         } else {
+          // If creating new SO, check if document already exists with ID derived from name
+          // Be careful not to overwrite if logic requires preserving sub-collections of resource info
+          // (Though typical flow here implies new SO name = new record)
           const soId = soNumber.replace(/\s+/g, "_").toLowerCase();
-          await setDoc(doc(soCol, soId), {
-            soNumber,
-            updatedAt: new Date(),
-          });
+          await setDoc(
+            doc(soCol, soId),
+            {
+              soNumber,
+              updatedAt: new Date(),
+              resources: [], // Initialize resources for new SO
+            },
+            { merge: true }
+          ); 
         }
       }
 
-      for (const [, id] of existing) {
+      for (const [id] of existing) {
         await deleteDoc(doc(soCol, id));
       }
 
@@ -163,12 +247,42 @@ const EditContractForm: React.FC<Props> = ({
   };
 
   return (
-    
+    <>
+      {/* --- ERROR MODAL START --- */}
+      {err && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden scale-100 animate-in zoom-in-95 duration-200">
+            {/* Red Header Background */}
+            <div className="bg-red-500 px-6 py-4 flex items-center gap-3">
+              <div className="bg-white/20 p-2 rounded-full text-white">
+                <AlertCircle className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-lg font-bold text-white tracking-wide">
+                Action Failed
+              </h3>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-6">
+              <p className="text-gray-700 text-base leading-relaxed">
+                {err}
+              </p>
+
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => setErr(null)}
+                  className="px-6 py-2.5 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 focus:ring-4 focus:ring-gray-200 transition-all"
+                >
+                  I Understand
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     <div className="flex flex-col h-[95vh] w-full bg-white rounded-lg overflow-hidden relative">
-      
       <div className="flex-none flex items-center px-6 py-3 border-b border-gray-200 w-full bg-white z-10">
         <div className="flex items-center min-w-[160px]">
-          
           <a href="/calender" className="flex items-center group">
             <ChevronLeft className="w-5 h-5 text-gray-500 group-hover:text-gray-700 mr-2" />
             <span className="text-gray-500 group-hover:text-gray-700 text-sm font-medium cursor-pointer">
@@ -181,22 +295,12 @@ const EditContractForm: React.FC<Props> = ({
             Edit Contract
           </h1>
         </div>
-        {/* Placeholder for balance */}
         <div className="min-w-[160px]" />
       </div>
 
-      {/* 2. Scrollable Body Area (Flex-1 fills remaining height) */}
       <div className="flex-1 overflow-y-auto">
-        {err && (
-          <div className="mx-6 mt-4 rounded-lg bg-red-50 p-4 border border-red-100 text-sm text-red-700 font-medium shadow-sm">
-            {err}
-          </div>
-        )}
-
         <div className="p-8 w-full max-w-5xl mx-auto flex flex-row gap-10 justify-center items-start">
-          {/* Left Column - Inputs */}
           <div className="w-[440px] flex-shrink-0">
-            {/* Contract name */}
             <div className="mb-5">
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Contract name <span className="text-red-500">*</span>
@@ -209,7 +313,7 @@ const EditContractForm: React.FC<Props> = ({
                 className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all shadow-sm"
               />
             </div>
-            {/* Type of work */}
+
             <div className="mb-5">
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Type of work <span className="text-red-500">*</span>
@@ -234,7 +338,6 @@ const EditContractForm: React.FC<Props> = ({
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              {/* Offer number */}
               <div className="mb-5">
                 <label className="block text-sm font-medium text-slate-600 mb-1">
                   Offer number
@@ -246,7 +349,6 @@ const EditContractForm: React.FC<Props> = ({
                   className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500"
                 />
               </div>
-              {/* Contract number */}
               <div className="mb-5">
                 <label className="block text-sm font-medium text-slate-600 mb-1">
                   Contract number
@@ -261,7 +363,6 @@ const EditContractForm: React.FC<Props> = ({
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              {/* Work price */}
               <div className="mb-5">
                 <label className="block text-sm font-medium text-slate-600 mb-1">
                   Price
@@ -273,7 +374,6 @@ const EditContractForm: React.FC<Props> = ({
                   className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500"
                 />
               </div>
-              {/* Unit of measurement */}
               <div className="mb-5">
                 <label className="block text-sm font-medium text-slate-600 mb-1">
                   Unit
@@ -288,7 +388,6 @@ const EditContractForm: React.FC<Props> = ({
               </div>
             </div>
 
-            {/* SOs */}
             <div className="mb-8">
               <label className="block text-sm font-semibold text-slate-700 mb-2">
                 Service Orders (SOs)
@@ -335,8 +434,7 @@ const EditContractForm: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Right Column - Datepickers & Actions */}
-          <div className="w-[300px] flex flex-col gap-6 sticky top-0">
+          <div className="w-[300px] flex flex-col gap-3 sticky top-0">
             <div className="bg-white p-1">
               <ContractDateRangePicker
                 startDate={startDate}
@@ -347,9 +445,7 @@ const EditContractForm: React.FC<Props> = ({
                 }}
               />
             </div>
-
-            <hr className="border-gray-100" />
-
+              <hr className="border-gray-100" />
             <div className="flex flex-col gap-3">
               <button
                 onClick={handleUpdate}
@@ -369,7 +465,11 @@ const EditContractForm: React.FC<Props> = ({
           </div>
         </div>
       </div>
-    </div>
+      
+      </div>
+      
+      
+    </>
   );
 };
 
