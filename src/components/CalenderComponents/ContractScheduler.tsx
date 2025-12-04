@@ -192,7 +192,7 @@ const ContractScheduler: React.FC<Props> = ({
   onDropToMachine,
   onResize,
   // onMachineInfo,
-  unavailableResourceNames ,
+  // unavailableResourceNames ,
   // onUnavailableDrop,
   timelineDays = [],
   scheduledStartISO,
@@ -330,11 +330,7 @@ const ContractScheduler: React.FC<Props> = ({
     try {
       draggedName = e.dataTransfer.getData("text/plain");
     } catch {}
-      if (unavailableResourceNames?.includes(draggedName)) {
-        setErrorMessage(`${draggedName} is unavailable.`);
-        setShowErrorModal(true); // Show the error modal
-        return;
-      }
+     
     onDrop(targetKey);
   };
 
@@ -349,11 +345,6 @@ const ContractScheduler: React.FC<Props> = ({
     try {
       draggedName = e.dataTransfer.getData("text/plain");
     } catch {}
-      if (unavailableResourceNames?.includes(draggedName)) {
-        setErrorMessage(`${draggedName} is unavailable.`);
-        setShowErrorModal(true); // Show the error modal
-        return;
-      }
     onDropToMachine(targetKey, machineName);
   };
 

@@ -79,8 +79,6 @@ const machineEmployeeDoc = (
     employeeId
   );
 
-  
-
 /* little util to split the old cellKey (`{soId}-{yyyy-mm-dd}`) */
 const splitCellKey = (cellKey: string) => {
   const match = cellKey.match(/^(.+)-(\d{4}-\d{2}-\d{2})$/);
@@ -184,9 +182,6 @@ const removeResourceFromDate = async ({
     }
   }
 };
-
-
-
 
 const Calender: React.FC = () => {
   const DAYS_WINDOW = 2000; // large window to simulate infinite past/future
@@ -331,6 +326,33 @@ const Calender: React.FC = () => {
   >([]);
   const [activeContractId, setActiveContractId] = useState<string | null>(null);
 
+  /* ------------------------------------------------------------------ */
+  /* NEW: MAPPING CONTRACT RESOURCES TO DATES                           */
+  /* Used to prevent Time Off drops on specific active days             */
+  /* ------------------------------------------------------------------ */
+ 
+
+  const contractUsageByDate = useMemo(() => {
+    const usage: Record<string, Set<string>> = {};
+
+    Object.keys(contractData).forEach((key) => {
+      const match = key.match(/^(.+)-(\d{4}-\d{2}-\d{2})$/);
+      if (match) {
+        const dateIso = match[2];
+        const items = contractData[key];
+        items.forEach((item) => {
+          if (!usage[item.name]) usage[item.name] = new Set();
+          usage[item.name].add(dateIso);
+        });
+      }
+    });
+    return usage;
+  }, [contractData]);
+
+  const isResourceOnContractDate = (name: string, dateIso: string) => {
+    return contractUsageByDate[name]?.has(dateIso) ?? false;
+  };
+
   /* ---------- date range modal ---------- */
   type PendingTarget =
     | { kind: "contract-cell"; contractId: string; targetKey: string }
@@ -375,7 +397,6 @@ const Calender: React.FC = () => {
 
     const subscribeToContractResources = (contractId: string) => {
       let soResourceUnsubs: Record<string, () => void> = {};
-
       const soColRef = collection(
         db,
         "companies",
@@ -434,7 +455,6 @@ const Calender: React.FC = () => {
 
         currentSoIds.forEach((soId) => {
           if (soResourceUnsubs[soId]) return;
-
           const resColRef = collection(
             db,
             "companies",
@@ -515,7 +535,6 @@ const Calender: React.FC = () => {
                     next[cellKey] = [...(next[cellKey] || []), entry];
                   });
                 });
-
                 return next;
               });
             });
@@ -546,7 +565,6 @@ const Calender: React.FC = () => {
           start: normalizeDateValue(data.startDate),
           end: normalizeDateValue(data.endDate),
         };
-
         if (!contractResourceUnsubsRef.current[contractId]) {
           contractResourceUnsubsRef.current[contractId] =
             subscribeToContractResources(contractId);
@@ -690,22 +708,6 @@ const Calender: React.FC = () => {
           : it
       );
 
-  // const stripEverywhere = (name: string) => {
-  //   setContractData((prev) => {
-  //     const next: ContractData = {};
-  //     for (const k of Object.keys(prev))
-  //       next[k] = stripFromItems(prev[k], name);
-  //     return next;
-  //   });
-  //   setTimeOffData((prev) => {
-  //     const next: TimeOffData = {};
-  //     for (const k of Object.keys(prev)) {
-  //       next[k] = (prev[k] || []).filter((it) => it.name !== name);
-  //     }
-  //     return next;
-  //   });
-  // };
-
   const contractColorFor = (t: ContractItemType) =>
     t === "person"
       ? "bg-blue-100 text-blue-800"
@@ -721,10 +723,6 @@ const Calender: React.FC = () => {
   /* ------------------------------------------------------------------ */
   /* Helpers to locate & delete a contiguous span                       */
   /* ------------------------------------------------------------------ */
-
-  /** Return all consecutive dates on which the resource occurs */
-
-  /** Return all consecutive dates (same section) where the resource occurs */
   function getContiguousTimeOffDates(
     section: any,
     resourceName: string,
@@ -732,11 +730,9 @@ const Calender: React.FC = () => {
     days: any[],
     timeOffData: TimeOffData
   ) {
-    // Find the index of the anchor day
     const idx = days.findIndex((d) => d.key === anchorDateIso);
     if (idx === -1) return [];
 
-    // Checks if the resource is present on a given day/section
     const present = (i: number) =>
       (timeOffData[`${section}-${days[i].key}`] || []).some(
         (item) => item.name === resourceName
@@ -744,13 +740,9 @@ const Calender: React.FC = () => {
 
     let start = idx;
     let end = idx;
-
-    // Go left
     while (start > 0 && present(start - 1)) start--;
-    // Go right
     while (end < days.length - 1 && present(end + 1)) end++;
-
-    return days.slice(start, end + 1).map((d) => d.key); // returns array of ISO dates
+    return days.slice(start, end + 1).map((d) => d.key);
   }
 
   const collectContiguousDates = (
@@ -772,19 +764,15 @@ const Calender: React.FC = () => {
     };
 
     const span: string[] = [anchorIso];
-
-    /* walk left */
     for (let i = anchorIdx - 1; i >= 0 && isOnDay(i); i--) {
       span.unshift(days[i].key);
     }
-    /* walk right */
     for (let i = anchorIdx + 1; i < days.length && isOnDay(i); i++) {
       span.push(days[i].key);
     }
     return span;
   };
 
-  /** Remove that span from state and Firestore in one go */
   const removeResourceFromDateRange = async ({
     uid,
     contractId,
@@ -798,7 +786,6 @@ const Calender: React.FC = () => {
     resourceName: string;
     dateIsos: string[];
   }) => {
-    /* 1️⃣ local optimistic update */
     setContractData((prev) => {
       const next: ContractData = { ...prev };
       dateIsos.forEach((dIso) => {
@@ -809,11 +796,9 @@ const Calender: React.FC = () => {
       return next;
     });
 
-    /* 2️⃣ Firestore – arrayRemove works with var-args */
     const ref = resourceDoc(uid, contractId, soId, resourceName);
     await updateDoc(ref, { assignedDates: arrayRemove(...dateIsos) });
 
-    /* 3️⃣ delete the doc if nothing left */
     const snap = await getDoc(ref);
     if (!snap.exists() || !(snap.data().assignedDates || []).length) {
       await deleteDoc(ref);
@@ -861,23 +846,17 @@ const Calender: React.FC = () => {
     assignToMachine?: { machineName: string } | null;
   }) => {
     console.log("running");
-
     console.log("moveTo", target);
 
     if (!dragged) return;
 
-    // Whole contract drop logic
     if ("contractId" in dragged && target.zone === "contract") {
-      let anchorIso = timelineDays[0].key; // fallback to first visible day
-
-      // If dropped on the background, use the first day
+      let anchorIso = timelineDays[0].key;
       if (target.id === "area") {
         anchorIso = timelineDays[0].key;
       } else if (/^\d{4}-\d{2}-\d{2}$/.test(target.id)) {
-        // target.id is already an ISO date string
         anchorIso = target.id;
       } else {
-        // Parse the cell key to get the ISO date
         const m = target.id.match(
           /^(?:.+?)(?:-week(\d+))?-(mon|tue|wed|thu|fri|sat|sun)$/
         );
@@ -889,7 +868,6 @@ const Calender: React.FC = () => {
         }
       }
 
-      // Avoid duplicate contract if already added
       setScheduledContracts((prev) =>
         prev.some((c) => c.id === dragged.contractId)
           ? prev
@@ -911,7 +889,6 @@ const Calender: React.FC = () => {
       const rangeStartIso = contractMeta?.startDate ?? anchorIso;
       const rangeEndIso = contractMeta?.endDate ?? anchorIso;
 
-      // Update contractData with cells for the date range
       const startDate = new Date(rangeStartIso);
       const endDate = new Date(rangeEndIso);
 
@@ -922,9 +899,6 @@ const Calender: React.FC = () => {
 
       setContractData((prev) => {
         const next: ContractData = { ...prev };
-
-        // If contract has SOs, create cells for each SO
-        // If no SOs, create cells for a default SO
         const sosToProcess =
           dragged.soList.length > 0
             ? dragged.soList
@@ -974,9 +948,8 @@ const Calender: React.FC = () => {
         return next;
       });
 
-      setActiveContractId(dragged.contractId); // Set active contract
+      setActiveContractId(dragged.contractId);
 
-      // Persist active contract to Firebase (for direct drops without range modal)
       if (uid) {
         const calendarRef = doc(
           db,
@@ -999,13 +972,11 @@ const Calender: React.FC = () => {
         );
       }
 
-      setDragged(null); // Clear the dragged contract state
+      setDragged(null);
       return;
     }
 
-    // Handle regular resource drops (employees, machines, tools)
     if (!dragged || !("name" in dragged)) return;
-
     const draggedItem = dragged;
     const itemToAdd: ContractCalendarItem = {
       name: draggedItem.name,
@@ -1020,7 +991,6 @@ const Calender: React.FC = () => {
       const { soId, dateIso } = splitCellKey(draggedItem.source.id);
       const sourceContractId =
         draggedItem.source.contractId ?? getContractIdForSo(soId);
-      /* NEW – work out the whole span and delete it */
       const span = collectContiguousDates(
         soId,
         draggedItem.name,
@@ -1038,7 +1008,6 @@ const Calender: React.FC = () => {
           soId,
           machineName: draggedItem.meta.childOf,
           employeeName: draggedItem.name,
-          // dateIsos: span,
         });
       } else {
         await removeResourceFromDateRange({
@@ -1050,14 +1019,11 @@ const Calender: React.FC = () => {
         });
       }
 
-      // local optimistic update – strip only from the source cell
       setContractData((prev) => {
         const newState = { ...prev };
         if (draggedItem.meta?.childOf) {
-          // Remove the nested employee from every cell, not just one
           for (const cellKey in newState) {
             const day = newState[cellKey] as ContractCalendarItem[];
-            // Find the machine
             const machineIdx = day.findIndex(
               (it) =>
                 it.type === "machine" && it.name === draggedItem.meta!.childOf
@@ -1070,14 +1036,12 @@ const Calender: React.FC = () => {
               const newChildren = children.filter(
                 (c) => c.name !== draggedItem.name
               );
-              // NEW LOGIC:
               machine.children = newChildren;
               const nextDay = [...day];
               nextDay[machineIdx] = machine;
               newState[cellKey] = nextDay;
             }
           }
-
           return newState;
         } else {
           const next = { ...prev };
@@ -1093,23 +1057,39 @@ const Calender: React.FC = () => {
     // Add to target zone
     if (target.zone === "contract") {
       const targetContractId = target.contractId;
+      const { dateIso } = splitCellKey(target.id);
+
+      const sections = ["vacation", "sick", "service"];
+      const isUnavailable = sections.some((section) =>
+        (timeOffData[`${section}-${dateIso}`] || []).some(
+          (item) => item.name === draggedItem.name
+        )
+      );
+
+      if (isUnavailable) {
+        setModalResourceName(draggedItem.name);
+        setShowUnavailableModal(true);
+        setDragged(null);
+        return;
+      }
+
       if (target.assignToMachine) {
-        // Add to a specific machine and persist
         attachToMachine(
           target.id,
           target.assignToMachine.machineName,
           itemToAdd
         );
-        // Persist target cell after attach
         const { soId } = splitCellKey(target.id);
         const resolvedContractId = targetContractId ?? getContractIdForSo(soId);
         if (uid && resolvedContractId) {
           const next = { ...contractData };
-          // const itemsForCell = next[target.id] || [];
-          // First update the state
           setContractData(next);
+          attachToMachine(
+            target.id,
+            target.assignToMachine.machineName,
+            itemToAdd
+          );
 
-          // Then handle the async operations
           const machineRef = resourceDoc(
             uid,
             resolvedContractId,
@@ -1118,10 +1098,7 @@ const Calender: React.FC = () => {
           );
 
           try {
-            // create / update the machine document
             await setDoc(machineRef, { type: "machine" }, { merge: true });
-
-            // write the employee under its sub-collection
             const empRef = machineEmployeeDoc(
               uid,
               resolvedContractId,
@@ -1134,8 +1111,6 @@ const Calender: React.FC = () => {
               { type: draggedItem.type, name: draggedItem.name },
               { merge: true }
             );
-
-            // If item originated from another contract cell, persist source cell
             if (draggedItem.source.zone === "contract") {
               const srcKey = draggedItem.source.id;
               const srcItems = next[srcKey] || [];
@@ -1186,24 +1161,19 @@ const Calender: React.FC = () => {
             resourceType: draggedItem.type,
             dateIso,
           });
-          setContractsUpdateTrigger((p) => p + 1); 
+          setContractsUpdateTrigger((p) => p + 1);
         }
         setActiveContractId(resolvedContractId);
       }
     }
 
     if (dragged.source.zone === "timeoff" && target.zone === "sidebar") {
-      // Extract section and date from cellKey
       const match = dragged.source.id.match(
         /^(vacation|sick|service)-(\d{4}-\d{2}-\d{2})$/
       );
-      if (!match) {
-        // Handle error or ignore drop (optional: throw, toast, etc)
-        return;
-      }
+      if (!match) return;
       const [, section, dateIso] = match;
 
-      // Find all contiguous dates with this resource
       const span = getContiguousTimeOffDates(
         section,
         dragged.name,
@@ -1212,7 +1182,6 @@ const Calender: React.FC = () => {
         timeOffData
       );
 
-      // Optimistically update UI state
       setTimeOffData((prev) => {
         const next = { ...prev };
         span.forEach((iso) => {
@@ -1225,14 +1194,11 @@ const Calender: React.FC = () => {
         return next;
       });
 
-      // Remove from Firestore for each day in the span
       if (uid) {
         await Promise.all(
           span.map((iso) => {
             const key = `${section}-${iso}`;
-            // Find the full resource object as stored in timeOffData
             const resourceArray = timeOffData[key] || [];
-            // Match ALL keys (name, type, color, startDate, etc)
             const toRemove = resourceArray.find(
               (item) => item.name === dragged.name && item.type === dragged.type
             );
@@ -1241,7 +1207,7 @@ const Calender: React.FC = () => {
               db,
               uid,
               key,
-              toRemove // <---- pass the full object as stored!
+              toRemove
             );
           })
         );
@@ -1249,8 +1215,19 @@ const Calender: React.FC = () => {
       setDragged(null);
       return;
     } else if (target.zone === "timeoff") {
+      const match = target.id.match(
+        /^(vacation|sick|service)-(\d{4}-\d{2}-\d{2})$/
+      );
+
+      let correctStartDate = new Date();
+      if (match) {
+         // Correctly use local parser
+         correctStartDate = parseLocalMidnight(match[2]);
+
+      }
+
       const timeOffItem = {
-        startDate: new Date(),
+        startDate: correctStartDate,
         name: draggedItem.name,
         type: draggedItem.type as TimeOffItemType,
         color: timeOffColorFor(draggedItem.type as TimeOffItemType),
@@ -1268,7 +1245,6 @@ const Calender: React.FC = () => {
         return { ...prev, [target.id]: [...cur, timeOffItem] };
       });
 
-      // NEW: Write to Firestore
       if (uid) {
         await addResourceToTimeoffCell(db, uid, target.id, timeOffItem);
       }
@@ -1350,14 +1326,10 @@ const Calender: React.FC = () => {
 
     if (!scheduledDays.length) return;
 
-    // Resource is scheduled from firstDay to lastDay (inclusive)
     let startIdx = scheduledDays[0].idx;
     let endIdx = scheduledDays[scheduledDays.length - 1].idx;
 
-    // Which end are we resizing?
     if (edge === "left") {
-      // const newStartIdx = startIdx - dayDelta;
-      // Expanding left
       if (dayDelta > 0) {
         for (let i = 1; i <= dayDelta; i++) {
           const idx = startIdx - i;
@@ -1381,7 +1353,6 @@ const Calender: React.FC = () => {
                   },
                 ],
               };
-              // Firestore ADD
               if (uid) {
                 assignResourceToDate({
                   uid,
@@ -1398,7 +1369,6 @@ const Calender: React.FC = () => {
           });
         }
       }
-      // Shrinking left
       else if (dayDelta < 0) {
         for (let i = 0; i < Math.abs(dayDelta); i++) {
           const idx = startIdx + i;
@@ -1415,7 +1385,6 @@ const Calender: React.FC = () => {
                   (it) => !(it.name === itemName && it.type === itemType)
                 ),
               };
-              // Firestore REMOVE
               if (uid) {
                 removeResourceFromDate({
                   uid,
@@ -1432,8 +1401,6 @@ const Calender: React.FC = () => {
         }
       }
     } else if (edge === "right") {
-      // const newEndIdx = endIdx + dayDelta;
-      // Expanding right
       if (dayDelta > 0) {
         for (let i = 1; i <= dayDelta; i++) {
           const idx = endIdx + i;
@@ -1447,15 +1414,13 @@ const Calender: React.FC = () => {
               const newItem: ContractCalendarItem = {
                 name: itemName,
                 type: itemType,
-                startDate: undefined, // or some Date if you have it
-                endDate: undefined, // or some Date if you have it
-                // Add default values for other required fields if needed
+                startDate: undefined,
+                endDate: undefined,
               };
               const updated = {
                 ...prev,
                 [cellKey]: [...cur, newItem],
               };
-              // Firestore ADD
               if (uid) {
                 assignResourceToDate({
                   uid,
@@ -1472,7 +1437,6 @@ const Calender: React.FC = () => {
           });
         }
       }
-      // Shrinking right
       else if (dayDelta < 0) {
         for (let i = 0; i < Math.abs(dayDelta); i++) {
           const idx = endIdx - i;
@@ -1489,7 +1453,6 @@ const Calender: React.FC = () => {
                   (it) => !(it.name === itemName && it.type === itemType)
                 ),
               };
-              // Firestore REMOVE
               if (uid) {
                 removeResourceFromDate({
                   uid,
@@ -1517,7 +1480,6 @@ const Calender: React.FC = () => {
   ) => {
     if (dayDelta === 0) return;
 
-    // 1. Find all days this resource is scheduled for this section
     const scheduledDays = timelineDays
       .map((day, idx) => ({
         ...day,
@@ -1534,9 +1496,7 @@ const Calender: React.FC = () => {
     let startIdx = scheduledDays[0].idx;
     let endIdx = scheduledDays[scheduledDays.length - 1].idx;
 
-    // Which end are we resizing?
     if (edge === "left") {
-      // Expanding left
       if (dayDelta > 0) {
         for (let i = 1; i <= dayDelta; i++) {
           const idx = startIdx - i;
@@ -1561,7 +1521,6 @@ const Calender: React.FC = () => {
             }
             return prev;
           });
-          // Save to Firestore
           if (uid)
             addResourceToTimeoffCell(db, uid, cellKey, {
               startDate: new Date(timelineDays[idx].key),
@@ -1570,7 +1529,6 @@ const Calender: React.FC = () => {
             });
         }
       }
-      // Shrinking left
       else if (dayDelta < 0) {
         for (let i = 0; i < Math.abs(dayDelta); i++) {
           const idx = startIdx + i;
@@ -1598,9 +1556,7 @@ const Calender: React.FC = () => {
         }
       }
     }
-    // ----------- RIGHT EDGE ------------
     else if (edge === "right") {
-      // Expanding right
       if (dayDelta > 0) {
         for (let i = 1; i <= dayDelta; i++) {
           const idx = endIdx + i;
@@ -1633,7 +1589,6 @@ const Calender: React.FC = () => {
             });
         }
       }
-      // Shrinking right
       else if (dayDelta < 0) {
         for (let i = 0; i < Math.abs(dayDelta); i++) {
           const idx = endIdx - i;
@@ -1665,19 +1620,9 @@ const Calender: React.FC = () => {
 
   /* ---------- MODAL (unchanged) ---------- */
   const [showUnavailableModal, setShowUnavailableModal] = useState(false);
-  const [modalResourceName, _setModalResourceName] = useState<string | null>(
+  const [modalResourceName, setModalResourceName] = useState<string | null>(
     null
   );
-
-  // const unavailableResourceNames = useMemo(() => {
-  //   const names = new Set<string>();
-  //   Object.entries(timeOffData).forEach(([key, items]) => {
-  //     if (key.startsWith("vacation-") || key.startsWith("sick-")) {
-  //       items.forEach((it) => names.add(it.name));
-  //     }
-  //   });
-  //   return names;
-  // }, [timeOffData]);
 
   /* ---------- sidebar drag start ---------- */
   const handleSidebarDragStart = (
@@ -1734,13 +1679,31 @@ const Calender: React.FC = () => {
   const allowDrop = (e: React.DragEvent<HTMLElement>) => e.preventDefault();
 
   /* ---------- contract-grid drop TARGETS ---------- */
-  /* ---------- contract-grid drop TARGETS ---------- */
 
   // Make this async
   const onContractDrop = async (contractId: string, targetKey: string) => {
     setActiveContractId(contractId);
 
     if (dragged && "name" in dragged) {
+
+      const dateMatch = targetKey.match(/\d{4}-\d{2}-\d{2}$/);
+      const dateIso = dateMatch ? dateMatch[0] : null;
+
+      if (dateIso) {
+        const sections = ["vacation", "sick", "service"];
+        const isUnavailable = sections.some((section) =>
+          (timeOffData[`${section}-${dateIso}`] || []).some(
+            (item) => item.name === dragged.name
+          )
+        );
+
+        if (isUnavailable) {
+          setModalResourceName(dragged.name);
+          setShowUnavailableModal(true);
+          setDragged(null);
+          return; // Stop here, do not open Range Modal
+        }
+      }
       /* pre-fill the modal with the day we dropped on */
       const iso = targetKey.match(/\d{4}-\d{2}-\d{2}$/)?.[0] ?? "";
       setRangeStart(iso);
@@ -1768,6 +1731,26 @@ const Calender: React.FC = () => {
   ) => {
     setActiveContractId(contractId);
     if (dragged && "name" in dragged) {
+
+      const dateMatch = targetKey.match(/\d{4}-\d{2}-\d{2}$/);
+      const dateIso = dateMatch ? dateMatch[0] : null;
+
+      if (dateIso) {
+        const sections = ["vacation", "sick", "service"];
+        const isUnavailable = sections.some((section) =>
+          (timeOffData[`${section}-${dateIso}`] || []).some(
+            (item) => item.name === dragged.name
+          )
+        );
+
+        if (isUnavailable) {
+          setModalResourceName(dragged.name);
+          setShowUnavailableModal(true);
+          setDragged(null);
+          return; // Stop here
+        }
+      }
+
       const iso = targetKey.match(/\d{4}-\d{2}-\d{2}$/)?.[0] ?? "";
       setRangeStart(iso);
       setRangeEnd(iso);
@@ -1798,6 +1781,8 @@ const Calender: React.FC = () => {
   const onTimeOffDrop = async (targetKey: string) => {
     if (dragged && "name" in dragged) {
       const iso = targetKey.match(/\d{4}-\d{2}-\d{2}$/)?.[0] ?? "";
+      console.log("targetKey", targetKey);
+      console.log("Pre-filling range modal for time-off at", iso);
       setRangeStart(iso);
       setRangeEnd(iso);
       setPendingTarget({ kind: "timeoff-cell", targetKey });
@@ -1828,8 +1813,6 @@ const Calender: React.FC = () => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
 
   // ---------- RANGE MODAL HANDLER ---------- //
-  // Format a date to YYYY-MM-DD
-  const fmt = (d: Date) => toDateKey(d);
 
   // Persist contract and calendar info to Firestore
   const persistContractRange = async (
@@ -1919,28 +1902,50 @@ const Calender: React.FC = () => {
     });
   };
 
-  function getAllDateIsosInRange(startISO: string, endISO: string) {
-    const arr = [];
-    let current = new Date(startISO);
-    const end = new Date(endISO);
+  /* ------------------------------------------------------------------ */
+  /* FIXED: Loop over range using LOCAL dates to avoid UTC-midnight     */
+  /*        off-by-one errors.                                          */
+  /* ------------------------------------------------------------------ */
+  const parseDateForIteration = (isoDate: string): Date => {
+    const [y, m, d] = isoDate.split("-").map(Number);
+    return new Date(y, m - 1, d, 12, 0, 0);
+  };
 
-    while (current <= end) {
-      arr.push(toDateKey(current));
-      current.setDate(current.getDate() + 1);
-    }
-    return arr;
-  }
+  // 2. STANDARD PARSER FOR DATA (Object Payload)
+  // Initializes at 00:00 AM (Midnight) for the stored Data Object.
+  const parseLocalMidnight = (isoDate: string): Date => {
+    const [y, m, d] = isoDate.split("-").map(Number);
+    return new Date(y, m - 1, d, 0, 0, 0);
+  };
+
+   function getAllDateIsosInRange(startISO: string, endISO: string) {
+     const arr = [];
+     // Use the Noon parser for safe loop
+     let current = parseDateForIteration(startISO);
+     const end = parseDateForIteration(endISO);
+
+     // Add safeguards to loop
+     while (current <= end) {
+       arr.push(toDateKey(current)); // toDateKey works fine with Noon dates
+       current.setDate(current.getDate() + 1);
+     }
+     return arr;
+   }
 
   const handleRangeApply = async () => {
     if (!rangeStart || !rangeEnd) return;
 
-    // Parse and validate dates
-    const start = new Date(rangeStart);
-    const end = new Date(rangeEnd);
-    if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return;
+    // Use raw ISO strings
+    const startISO = rangeStart;
+    const endISO = rangeEnd;
 
-    const startISO = fmt(start);
-    const endISO = fmt(end);
+    const start = parseLocalMidnight(startISO);
+    const end = parseLocalMidnight(endISO);
+
+    // Validate order
+    if (startISO > endISO) return;
+
+    // fmt(start) -> startISO basically
 
     const weekDays = timelineDays.filter(
       (d) => d.key >= startISO && d.key <= endISO
@@ -2011,20 +2016,17 @@ const Calender: React.FC = () => {
       setRangeWithinWeek(undefined);
     }
     // Bulk scheduling resources for date range in a row
-    // ── resource dropped on a CELL ─────────────────────────────────────────
-    /* ───────────── 2 A. resource dropped on a CELL ───────────── */
     else if (
       pendingTarget?.kind === "contract-cell" &&
       pendingDragged &&
       "name" in pendingDragged
     ) {
       const base = pendingTarget.targetKey.match(/^(.*)-\d{4}-\d{2}-\d{2}$/);
-      if (!base) return; // could not parse key
+      if (!base) return;
       const soId = base[1];
       const contractId = pendingTarget.contractId;
       if (!contractId) return;
 
-      // build the item once
       const item: ContractCalendarItem = {
         name: pendingDragged.name,
         type: pendingDragged.type,
@@ -2075,14 +2077,13 @@ const Calender: React.FC = () => {
             type: pendingDragged.type,
             name: pendingDragged.name,
             colour: contractColorFor(pendingDragged.type),
-            assignedDates: union, // ✅ keep old + new
+            assignedDates: union,
           },
           { merge: true }
         );
         loadContracts();
       }
     } else if (
-      /* ───────────── 2 B. resource dropped INSIDE A MACHINE ───────────── */
       pendingTarget?.kind === "contract-machine" &&
       pendingDragged &&
       "name" in pendingDragged
@@ -2136,7 +2137,7 @@ const Calender: React.FC = () => {
             type: item.type,
             name: item.name,
             colour: contractColorFor(item.type),
-            assignedDates, // <-- full range array
+            assignedDates,
           },
           { merge: true }
         ).catch(() => {});
@@ -2155,7 +2156,8 @@ const Calender: React.FC = () => {
       const section = m[1] as "vacation" | "sick" | "service";
 
       const timeOffItem = {
-        startDate: new Date(startISO),
+        // FIX: Ensure Local Time Object creation
+        startDate: parseLocalMidnight(startISO),
         name: pendingDragged.name,
         type: pendingDragged.type as TimeOffItemType,
         color: timeOffColorFor(pendingDragged.type as TimeOffItemType),
@@ -2266,18 +2268,8 @@ const Calender: React.FC = () => {
         uid={uid}
         onRemoveResource={onRemoveResource}
         onResize={handleTimeoffResize}
+        checkContractConflict={isResourceOnContractDate}
       />
-
-      {/* ---------- Floating “Add contract” button ---------- */}
-      {/* <button
-        className="fixed z-100 bottom-6 right-6 bg-black text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg hover:bg-gray-800"
-        onClick={() =>
-          navigate("/add-contract", { state: { backgroundLocation: location } })
-        }
-      >
-        <Plus className="h-4 w-4" />
-        Add contract
-      </button> */}
 
       {/* ---------- Unavailable modal ---------- */}
       {showUnavailableModal && (
