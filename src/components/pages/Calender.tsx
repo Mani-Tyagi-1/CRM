@@ -330,7 +330,6 @@ const Calender: React.FC = () => {
   /* NEW: MAPPING CONTRACT RESOURCES TO DATES                           */
   /* Used to prevent Time Off drops on specific active days             */
   /* ------------------------------------------------------------------ */
- 
 
   const contractUsageByDate = useMemo(() => {
     const usage: Record<string, Set<string>> = {};
@@ -369,6 +368,8 @@ const Calender: React.FC = () => {
   const [pendingTarget, setPendingTarget] = useState<PendingTarget>(null);
   const [rangeStart, setRangeStart] = useState<string>("");
   const [rangeEnd, setRangeEnd] = useState<string>("");
+  // New state for showing errors in the modal
+  const [rangeError, setRangeError] = useState<string | null>(null);
   const [rangeWithinWeek, setRangeWithinWeek] = useState<
     { startIdx: number; days: number } | undefined
   >(undefined);
@@ -1203,12 +1204,7 @@ const Calender: React.FC = () => {
               (item) => item.name === dragged.name && item.type === dragged.type
             );
             if (!toRemove) return Promise.resolve();
-            return removeResourceFromTimeoffCell(
-              db,
-              uid,
-              key,
-              toRemove
-            );
+            return removeResourceFromTimeoffCell(db, uid, key, toRemove);
           })
         );
       }
@@ -1221,9 +1217,8 @@ const Calender: React.FC = () => {
 
       let correctStartDate = new Date();
       if (match) {
-         // Correctly use local parser
-         correctStartDate = parseLocalMidnight(match[2]);
-
+        // Correctly use local parser
+        correctStartDate = parseLocalMidnight(match[2]);
       }
 
       const timeOffItem = {
@@ -1263,6 +1258,7 @@ const Calender: React.FC = () => {
           anchorIso,
         });
         setPendingDragged(dragged);
+        setRangeError(null); // Clear error
         setShowRangeModal(true);
         return;
       }
@@ -1368,8 +1364,7 @@ const Calender: React.FC = () => {
             return prev;
           });
         }
-      }
-      else if (dayDelta < 0) {
+      } else if (dayDelta < 0) {
         for (let i = 0; i < Math.abs(dayDelta); i++) {
           const idx = startIdx + i;
           if (idx > endIdx) continue;
@@ -1436,8 +1431,7 @@ const Calender: React.FC = () => {
             return prev;
           });
         }
-      }
-      else if (dayDelta < 0) {
+      } else if (dayDelta < 0) {
         for (let i = 0; i < Math.abs(dayDelta); i++) {
           const idx = endIdx - i;
           if (idx < startIdx) continue;
@@ -1528,8 +1522,7 @@ const Calender: React.FC = () => {
               type: itemType,
             });
         }
-      }
-      else if (dayDelta < 0) {
+      } else if (dayDelta < 0) {
         for (let i = 0; i < Math.abs(dayDelta); i++) {
           const idx = startIdx + i;
           if (idx > endIdx) continue;
@@ -1555,8 +1548,7 @@ const Calender: React.FC = () => {
             });
         }
       }
-    }
-    else if (edge === "right") {
+    } else if (edge === "right") {
       if (dayDelta > 0) {
         for (let i = 1; i <= dayDelta; i++) {
           const idx = endIdx + i;
@@ -1588,8 +1580,7 @@ const Calender: React.FC = () => {
               type: itemType,
             });
         }
-      }
-      else if (dayDelta < 0) {
+      } else if (dayDelta < 0) {
         for (let i = 0; i < Math.abs(dayDelta); i++) {
           const idx = endIdx - i;
           if (idx < startIdx) continue;
@@ -1685,7 +1676,6 @@ const Calender: React.FC = () => {
     setActiveContractId(contractId);
 
     if (dragged && "name" in dragged) {
-
       const dateMatch = targetKey.match(/\d{4}-\d{2}-\d{2}$/);
       const dateIso = dateMatch ? dateMatch[0] : null;
 
@@ -1711,6 +1701,7 @@ const Calender: React.FC = () => {
 
       setPendingTarget({ kind: "contract-cell", contractId, targetKey });
       setPendingDragged(dragged);
+      setRangeError(null); // Clear previous errors
       setShowRangeModal(true);
       return;
     }
@@ -1731,7 +1722,6 @@ const Calender: React.FC = () => {
   ) => {
     setActiveContractId(contractId);
     if (dragged && "name" in dragged) {
-
       const dateMatch = targetKey.match(/\d{4}-\d{2}-\d{2}$/);
       const dateIso = dateMatch ? dateMatch[0] : null;
 
@@ -1762,6 +1752,7 @@ const Calender: React.FC = () => {
         machineName,
       });
       setPendingDragged(dragged);
+      setRangeError(null); // Clear previous errors
       setShowRangeModal(true);
       return;
     }
@@ -1787,6 +1778,7 @@ const Calender: React.FC = () => {
       setRangeEnd(iso);
       setPendingTarget({ kind: "timeoff-cell", targetKey });
       setPendingDragged(dragged);
+      setRangeError(null); // Clear previous errors
       setShowRangeModal(true);
       return;
     }
@@ -1918,19 +1910,19 @@ const Calender: React.FC = () => {
     return new Date(y, m - 1, d, 0, 0, 0);
   };
 
-   function getAllDateIsosInRange(startISO: string, endISO: string) {
-     const arr = [];
-     // Use the Noon parser for safe loop
-     let current = parseDateForIteration(startISO);
-     const end = parseDateForIteration(endISO);
+  function getAllDateIsosInRange(startISO: string, endISO: string) {
+    const arr = [];
+    // Use the Noon parser for safe loop
+    let current = parseDateForIteration(startISO);
+    const end = parseDateForIteration(endISO);
 
-     // Add safeguards to loop
-     while (current <= end) {
-       arr.push(toDateKey(current)); // toDateKey works fine with Noon dates
-       current.setDate(current.getDate() + 1);
-     }
-     return arr;
-   }
+    // Add safeguards to loop
+    while (current <= end) {
+      arr.push(toDateKey(current)); // toDateKey works fine with Noon dates
+      current.setDate(current.getDate() + 1);
+    }
+    return arr;
+  }
 
   const handleRangeApply = async () => {
     if (!rangeStart || !rangeEnd) return;
@@ -1939,11 +1931,40 @@ const Calender: React.FC = () => {
     const startISO = rangeStart;
     const endISO = rangeEnd;
 
+    // Clear error
+    setRangeError(null);
+
     const start = parseLocalMidnight(startISO);
     const end = parseLocalMidnight(endISO);
 
     // Validate order
-    if (startISO > endISO) return;
+    if (startISO > endISO) {
+      setRangeError("End date must be after start date.");
+      return;
+    }
+
+    // --- CONTRACT RANGE VALIDATION START ---
+    // Check if dragging onto a specific contract cell/machine
+    if (
+      pendingTarget &&
+      "contractId" in pendingTarget &&
+      pendingTarget.contractId &&
+      (pendingTarget.kind === "contract-cell" ||
+        pendingTarget.kind === "contract-machine")
+    ) {
+      const c = contractsById[pendingTarget.contractId];
+      // If the contract has established start/end dates
+      if (c && c.startDate && c.endDate) {
+        // Check if user selected dates are outside the contract boundaries
+        if (startISO < c.startDate || endISO > c.endDate) {
+          setRangeError(
+            `Resource dates must be within the contract duration (${c.startDate} to ${c.endDate}).`
+          );
+          return; // Stop saving
+        }
+      }
+    }
+    // --- CONTRACT RANGE VALIDATION END ---
 
     // fmt(start) -> startISO basically
 
@@ -2300,20 +2321,45 @@ const Calender: React.FC = () => {
             <div className="text-gray-800 text-[15px] mb-3 font-semibold text-center">
               Select start and end dates
             </div>
+
+            {/* Show contract limits helper */}
+            {pendingTarget &&
+              "contractId" in pendingTarget &&
+              pendingTarget.contractId && (
+                <div className="mb-2 text-xs text-center text-gray-500">
+                  Contract range:{" "}
+                  {contractsById[pendingTarget.contractId]?.startDate || "N/A"}{" "}
+                  to {contractsById[pendingTarget.contractId]?.endDate || "N/A"}
+                </div>
+              )}
+
+            {/* Error Message Display */}
+            {rangeError && (
+              <div className="mb-3 text-sm text-red-600 bg-red-50 p-2 rounded text-center">
+                {rangeError}
+              </div>
+            )}
+
             <div className="flex flex-col gap-3">
               <label className="text-sm text-gray-700">Start date</label>
               <input
                 type="date"
                 className="px-2 py-1.5 border border-gray-300 rounded-md"
                 value={rangeStart}
-                onChange={(e) => setRangeStart(e.target.value)}
+                onChange={(e) => {
+                  setRangeStart(e.target.value);
+                  setRangeError(null);
+                }}
               />
               <label className="text-sm text-gray-700">End date</label>
               <input
                 type="date"
                 className="px-2 py-1.5 border border-gray-300 rounded-md"
                 value={rangeEnd}
-                onChange={(e) => setRangeEnd(e.target.value)}
+                onChange={(e) => {
+                  setRangeEnd(e.target.value);
+                  setRangeError(null);
+                }}
               />
             </div>
             <div className="mt-4 flex justify-end gap-2">
@@ -2324,6 +2370,7 @@ const Calender: React.FC = () => {
                   setPendingTarget(null);
                   setRangeStart("");
                   setRangeEnd("");
+                  setRangeError(null);
                 }}
               >
                 Cancel
